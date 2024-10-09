@@ -1,163 +1,187 @@
+use bevy::app::AppExit;
 use bevy::prelude::*;
-
-// Components
-#[derive(Component)]
-struct NebulousSpace;
-
-#[derive(Component)]
-struct ButtonMinigame {
-    clicks: u32,
-}
-
-#[derive(Component)]
-struct ResourceWallet {
-    clicks: u32,
-}
-
-// Resource
-#[derive(Resource)]
-struct GameState {
-    camera_speed: f32,
-}
+use bevy::sprite::*;
+use bevy_rapier2d::prelude::*;
+use std::collections::*;
+use std::*;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
-        .insert_resource(GameState {
-            camera_speed: 500.0,
-        })
-        .add_systems(Startup, setup)
+        .add_plugins((
+            //
+            DefaultPlugins,
+        ))
+        .add_systems(
+            Startup,
+            (
+                //
+                setup_player,
+                setup_camera,
+            ),
+        )
         .add_systems(
             Update,
-            (button_click_system, move_camera, update_wallet_display),
+            (
+                //
+                keyboard_input,
+                update_camera,
+                player_move,
+            ),
         )
+        .add_systems(
+            FixedUpdate,
+            (
+                //
+                foobar,
+            ),
+        )
+        // Run engine code 10x per second, not at render rate.
+        .insert_resource(Time::<Fixed>::from_seconds(0.1))
+        .insert_resource(CameraController {
+            dead_zone_squared: 1000.0,
+        })
         .run();
 }
 
-fn setup(mut commands: Commands) {
-    // Camera
-    commands.spawn(Camera2dBundle::default());
+fn foobar() {}
 
-    // Nebulous Space
-    commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::srgb(0.1, 0.1, 0.1),
-                custom_size: Some(Vec2::new(1000.0, 1000.0)),
-                ..default()
-            },
-            ..default()
-        },
-        NebulousSpace,
-    ));
-
-    // Button Minigame
-    commands
+fn setup_player(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let _player = commands
         .spawn((
-            ButtonBundle {
-                style: Style {
-                    width: Val::Px(150.0),
-                    height: Val::Px(65.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                background_color: Color::srgb(0.15, 0.15, 0.15).into(),
+            PlayerBundle {
+                player: Player { ..default() },
+                location: EtherLocation { ..default() },
+            },
+            MaterialMesh2dBundle {
+                mesh: meshes.add(Circle::new(25.0)).into(),
+                material: materials.add(Color::srgb(6.25, 9.4, 9.1)),
+                transform: Transform::from_xyz(0.0, 250.0, 1.0),
                 ..default()
             },
-            ButtonMinigame { clicks: 0 },
+            RigidBody::Dynamic,
+            Collider::ball(25.0),
         ))
-        .with_children(|parent| {
-            parent.spawn(TextBundle::from_section(
-                "Click me!",
-                TextStyle {
-                    font_size: 40.0,
-                    color: Color::srgb(0.9, 0.9, 0.9),
-                    ..default()
-                },
-            ));
-        });
-
-    // Resource Wallet
-    commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::srgb(0.8, 0.8, 0.8),
-                custom_size: Some(Vec2::new(100.0, 100.0)),
-                ..default()
-            },
-            transform: Transform::from_xyz(400.0, 300.0, 0.0),
-            ..default()
-        },
-        ResourceWallet { clicks: 0 },
-    ));
+        .id();
 }
 
-fn button_click_system(
-    mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor, &mut ButtonMinigame),
-        (Changed<Interaction>, With<Button>),
-    >,
-    mut wallet_query: Query<&mut ResourceWallet>,
-) {
-    for (interaction, mut color, mut button) in &mut interaction_query {
-        match *interaction {
-            Interaction::Pressed => {
-                *color = Color::srgb(0.35, 0.75, 0.35).into();
-                button.clicks += 1;
-                if let Ok(mut wallet) = wallet_query.get_single_mut() {
-                    wallet.clicks += 1;
-                }
-            }
-            Interaction::Hovered => {
-                *color = Color::srgb(0.25, 0.25, 0.25).into();
-            }
-            Interaction::None => {
-                *color = Color::srgb(0.15, 0.15, 0.15).into();
-            }
-        }
-    }
+fn setup_camera(mut commands: Commands) {
+    commands.spawn(Camera2dBundle {
+        camera: Camera { ..default() },
+        ..default()
+    });
 }
 
-fn move_camera(
+fn update_camera(
+    mut camera: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
+    camera_controller: ResMut<CameraController>,
+    player: Query<&Transform, (With<Player>, Without<Camera2d>)>,
     time: Res<Time>,
-    keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&mut Transform, With<Camera>>,
-    game_state: Res<GameState>,
 ) {
-    let mut camera_transform = query.single_mut();
-    let mut direction = Vec3::ZERO;
+    let Ok(mut camera) = camera.get_single_mut() else {
+        return;
+    };
 
-    if keyboard_input.pressed(KeyCode::Left) {
-        direction -= Vec3::new(1.0, 0.0, 0.0);
-    }
-    if keyboard_input.pressed(KeyCode::Right) {
-        direction += Vec3::new(1.0, 0.0, 0.0);
-    }
-    if keyboard_input.pressed(KeyCode::Up) {
-        direction += Vec3::new(0.0, 1.0, 0.0);
-    }
-    if keyboard_input.pressed(KeyCode::Down) {
-        direction -= Vec3::new(0.0, 1.0, 0.0);
-    }
+    let Ok(player) = player.get_single() else {
+        return;
+    };
 
-    if direction != Vec3::ZERO {
-        camera_transform.translation += direction.normalize()
-            * game_state.camera_speed
-            * time.delta_seconds();
+    let Vec3 { x, y, .. } = player.translation;
+    let direction = Vec3::new(x, y, camera.translation.z);
+
+    // Applies a smooth effect to camera movement using interpolation between
+    // the camera position and the player position on the x and y axes.
+    // Here we use the in-game time, to get the elapsed time (in seconds)
+    // since the previous update. This avoids jittery movement when tracking
+    // the player.
+    if (player.translation - camera.translation).length_squared()
+        > camera_controller.dead_zone_squared
+    {
+        camera.translation = camera
+            .translation
+            .lerp(direction, time.delta_seconds() * 2.0);
     }
 }
 
-fn update_wallet_display(
-    wallet_query: Query<&ResourceWallet>,
-    button_query: Query<&ButtonMinigame>,
+fn player_move(
+    mut player: Query<(&mut Transform, &mut EtherLocation), With<Player>>,
+    time: Res<Time>,
+    kb_input: Res<ButtonInput<KeyCode>>,
 ) {
-    if let Ok(wallet) = wallet_query.get_single() {
-        if let Ok(button) = button_query.get_single() {
-            println!(
-                "Wallet clicks: {}, Button clicks: {}",
-                wallet.clicks, button.clicks
-            );
-        }
+    let Ok(player) = player.get_single_mut() else {
+        return;
+    };
+    let (mut transform, mut location) = player;
+    let mut direction = Vec2::ZERO;
+    if kb_input.pressed(KeyCode::KeyW) {
+        direction.y += 1.;
     }
+
+    if kb_input.pressed(KeyCode::KeyS) {
+        direction.y -= 1.;
+    }
+
+    if kb_input.pressed(KeyCode::KeyA) {
+        direction.x -= 1.;
+    }
+
+    if kb_input.pressed(KeyCode::KeyD) {
+        direction.x += 1.;
+    }
+
+    let move_delta = direction.normalize_or_zero()
+        * 150.0
+        * time.delta_seconds()
+        * if kb_input.pressed(KeyCode::ShiftLeft) {
+            5.0
+        } else {
+            1.0
+        };
+    if move_delta == Vec2::ZERO {
+        return;
+    }
+
+    transform.translation += move_delta.extend(0.);
+
+    location.0.x = transform.translation.x;
+    location.0.y = transform.translation.y;
+}
+
+fn keyboard_input(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut app_exit_events: EventWriter<AppExit>,
+) {
+    if keys.get_pressed().len() == 0 {
+        return;
+    }
+
+    // println!("key pressed: {:?}", keys);
+
+    if keys.just_pressed(KeyCode::Escape) || keys.just_pressed(KeyCode::KeyQ) {
+        app_exit_events.send(AppExit::Success);
+    }
+}
+
+#[derive(Resource)]
+struct CameraController {
+    pub dead_zone_squared: f32,
+    //pub dead_zone_delay: f32,
+    //pub dead_zone_last_time: f64,
+}
+
+#[derive(Debug, Default, Component)]
+struct EtherLocation(Vec2);
+
+#[derive(Debug, Default, Bundle)]
+struct PlayerBundle {
+    pub player: Player,
+    pub location: EtherLocation,
+}
+
+#[derive(Debug, Default, Component)]
+struct Player {
+    pub resources: HashMap<String, f32>,
 }
