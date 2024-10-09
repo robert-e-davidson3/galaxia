@@ -1,3 +1,4 @@
+use bevy::input::Input;
 use bevy::prelude::*;
 
 // Components
@@ -29,7 +30,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (button_click_system, move_camera, update_wallet_display),
+            (button_click_system, move_camera, update_wallet_display).chain(),
         )
         .run();
 }
@@ -42,7 +43,7 @@ fn setup(mut commands: Commands) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(0.1, 0.1, 0.1),
+                color: Color::srgb(0.1, 0.1, 0.1),
                 custom_size: Some(Vec2::new(1000.0, 1000.0)),
                 ..default()
             },
@@ -62,7 +63,7 @@ fn setup(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                background_color: Color::rgb(0.15, 0.15, 0.15).into(),
+                background_color: Color::srgb(0.15, 0.15, 0.15).into(),
                 ..default()
             },
             ButtonMinigame { clicks: 0 },
@@ -72,7 +73,7 @@ fn setup(mut commands: Commands) {
                 "Click me!",
                 TextStyle {
                     font_size: 40.0,
-                    color: Color::rgb(0.9, 0.9, 0.9),
+                    color: Color::srgb(0.9, 0.9, 0.9),
                     ..default()
                 },
             ));
@@ -82,7 +83,7 @@ fn setup(mut commands: Commands) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(0.8, 0.8, 0.8),
+                color: Color::srgb(0.8, 0.8, 0.8),
                 custom_size: Some(Vec2::new(100.0, 100.0)),
                 ..default()
             },
@@ -103,17 +104,17 @@ fn button_click_system(
     for (interaction, mut color, mut button) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
-                *color = Color::rgb(0.35, 0.75, 0.35).into();
+                *color = Color::srgb(0.35, 0.75, 0.35).into();
                 button.clicks += 1;
                 if let Ok(mut wallet) = wallet_query.get_single_mut() {
                     wallet.clicks += 1;
                 }
             }
             Interaction::Hovered => {
-                *color = Color::rgb(0.25, 0.25, 0.25).into();
+                *color = Color::srgb(0.25, 0.25, 0.25).into();
             }
             Interaction::None => {
-                *color = Color::rgb(0.15, 0.15, 0.15).into();
+                *color = Color::srgb(0.15, 0.15, 0.15).into();
             }
         }
     }
