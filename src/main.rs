@@ -1,7 +1,7 @@
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::sprite::*;
-use bevy_rapier2d::prelude::*;
+// use bevy_rapier2d::prelude::*;
 use std::collections::*;
 use std::*;
 
@@ -11,14 +11,7 @@ fn main() {
             //
             DefaultPlugins,
         ))
-        .add_systems(
-            Startup,
-            (
-                //
-                setup_player,
-                setup_camera,
-            ),
-        )
+        .add_systems(Startup, (setup_board, setup_player, setup_camera))
         .add_systems(
             Update,
             (
@@ -32,7 +25,7 @@ fn main() {
             FixedUpdate,
             (
                 //
-                foobar,
+                button_mini_game::system,
             ),
         )
         // Run engine code 10x per second, not at render rate.
@@ -43,7 +36,13 @@ fn main() {
         .run();
 }
 
-fn foobar() {}
+fn setup_board(mut commands: Commands) {
+    button_mini_game::spawn(
+        &mut commands,
+        &EtherLocation(Vec2::new(0.0, 0.0)),
+        &button_mini_game::ButtonMiniGame { ..default() },
+    );
+}
 
 fn setup_player(
     mut commands: Commands,
@@ -62,8 +61,6 @@ fn setup_player(
                 transform: Transform::from_xyz(0.0, 250.0, 1.0),
                 ..default()
             },
-            RigidBody::Dynamic,
-            Collider::ball(25.0),
         ))
         .id();
 }
@@ -172,16 +169,129 @@ struct CameraController {
     //pub dead_zone_last_time: f64,
 }
 
-#[derive(Debug, Default, Component)]
-struct EtherLocation(Vec2);
+#[derive(Debug, Default, Copy, Clone, Component)]
+pub struct EtherLocation(Vec2);
 
 #[derive(Debug, Default, Bundle)]
-struct PlayerBundle {
+pub struct PlayerBundle {
     pub player: Player,
     pub location: EtherLocation,
 }
 
 #[derive(Debug, Default, Component)]
-struct Player {
+pub struct Player {
     pub resources: HashMap<String, f32>,
+}
+
+pub struct LooseResourceBundle {
+    pub resource: LooseResource,
+    pub location: EtherLocation,
+}
+
+#[derive(Debug, Default, Component)]
+pub struct LooseResource {
+    pub resource: String,
+    pub amount: f32,
+}
+
+pub mod button_mini_game {
+    use super::*;
+
+    #[derive(Debug, Default, Bundle)]
+    pub struct ButtonMiniGameBundle {
+        pub mini_game: ButtonMiniGame,
+        pub location: EtherLocation,
+    }
+
+    #[derive(Debug, Default, Clone, Component)]
+    pub struct ButtonMiniGame {
+        pub count: u64,
+    }
+
+    pub fn spawn(
+        commands: &mut Commands,
+        location: &EtherLocation,
+        frozen: &ButtonMiniGame,
+    ) {
+        commands
+            .spawn((
+                ButtonMiniGameBundle {
+                    mini_game: frozen.clone(),
+                    location: location.clone(),
+                },
+                NodeBundle {
+                    style: Style {
+                        width: Val::Px(200.0),
+                        height: Val::Px(220.0),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    background_color: Color::srgb(0.15, 0.15, 0.15).into(),
+                    transform: Transform::from_xyz(
+                        location.0.x,
+                        location.0.y,
+                        0.0,
+                    ),
+                    ..default()
+                },
+            ))
+            .with_children(|parent| {
+                let text = parent
+                    .spawn(TextBundle::from_section(
+                        format!("Clicks: {}", frozen.count),
+                        TextStyle {
+                            font_size: 24.0,
+                            color: Color::WHITE,
+                            ..default()
+                        },
+                    ))
+                    .id();
+                parent.spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Val::Percent(100.0),
+                            height: Val::Percent(100.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.8, 0.2, 0.2).into(),
+                        ..default()
+                    },
+                    ClickMeButton {
+                        game: parent.parent_entity(),
+                        text,
+                    },
+                ));
+            });
+    }
+
+    #[derive(Debug, Component)]
+    pub struct ClickMeButton {
+        pub game: Entity,
+        pub text: Entity,
+    }
+
+    pub fn system(
+        mut interaction_query: Query<
+            (&Interaction, &ClickMeButton),
+            (Changed<Interaction>, With<Button>),
+        >,
+        mut button_minigames_query: Query<&mut ButtonMiniGame>,
+        mut text_query: Query<&mut Text>,
+    ) {
+        for (interaction, button) in interaction_query.iter_mut() {
+            match interaction {
+                Interaction::Pressed => {
+                    let mut minigame =
+                        button_minigames_query.get_mut(button.game).unwrap();
+                    minigame.count += 1;
+                    let mut text = text_query.get_mut(button.text).unwrap();
+                    text.sections[0].value =
+                        format!("Clicks: {}", minigame.count);
+                }
+                _ => {}
+            }
+        }
+    }
 }
