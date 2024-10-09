@@ -1,3 +1,4 @@
+use bevy::input::Input;
 use bevy::prelude::*;
 
 // Components
@@ -42,7 +43,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(0.1, 0.1, 0.1),
+                color: Color::rgb_linear(0.1, 0.1, 0.1),
                 custom_size: Some(Vec2::new(1000.0, 1000.0)),
                 ..default()
             },
@@ -56,12 +57,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .spawn((
             ButtonBundle {
                 style: Style {
-                    size: Size::new(Val::Px(150.0), Val::Px(65.0)),
+                    width: Val::Px(150.0),
+                    height: Val::Px(65.0),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                background_color: Color::rgb(0.15, 0.15, 0.15).into(),
+                background_color: Color::rgb_linear(0.15, 0.15, 0.15).into(),
                 ..default()
             },
             ButtonMinigame { clicks: 0 },
@@ -71,7 +73,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 "Click me!",
                 TextStyle {
                     font_size: 40.0,
-                    color: Color::rgb(0.9, 0.9, 0.9),
+                    color: Color::rgb_linear(0.9, 0.9, 0.9),
                     ..default()
                 },
             ));
@@ -81,7 +83,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(0.8, 0.8, 0.8),
+                color: Color::rgb_linear(0.8, 0.8, 0.8),
                 custom_size: Some(Vec2::new(100.0, 100.0)),
                 ..default()
             },
@@ -102,17 +104,17 @@ fn button_click_system(
     for (interaction, mut color, mut button) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
-                *color = Color::rgb(0.35, 0.75, 0.35).into();
+                *color = Color::rgb_linear(0.35, 0.75, 0.35).into();
                 button.clicks += 1;
                 if let Ok(mut wallet) = wallet_query.get_single_mut() {
                     wallet.clicks += 1;
                 }
             }
             Interaction::Hovered => {
-                *color = Color::rgb(0.25, 0.25, 0.25).into();
+                *color = Color::rgb_linear(0.25, 0.25, 0.25).into();
             }
             Interaction::None => {
-                *color = Color::rgb(0.15, 0.15, 0.15).into();
+                *color = Color::rgb_linear(0.15, 0.15, 0.15).into();
             }
         }
     }
@@ -127,16 +129,16 @@ fn move_camera(
     let mut camera_transform = query.single_mut();
     let mut direction = Vec3::ZERO;
 
-    if keyboard_input.pressed(KeyCode::Left) {
+    if keyboard_input.pressed(KeyCode::ArrowLeft) {
         direction -= Vec3::new(1.0, 0.0, 0.0);
     }
-    if keyboard_input.pressed(KeyCode::Right) {
+    if keyboard_input.pressed(KeyCode::ArrowRight) {
         direction += Vec3::new(1.0, 0.0, 0.0);
     }
-    if keyboard_input.pressed(KeyCode::Up) {
+    if keyboard_input.pressed(KeyCode::ArrowUp) {
         direction += Vec3::new(0.0, 1.0, 0.0);
     }
-    if keyboard_input.pressed(KeyCode::Down) {
+    if keyboard_input.pressed(KeyCode::ArrowDown) {
         direction -= Vec3::new(0.0, 1.0, 0.0);
     }
 
