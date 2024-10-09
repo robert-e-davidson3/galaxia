@@ -1,4 +1,3 @@
-use bevy::input::Input;
 use bevy::prelude::*;
 
 // Components
@@ -30,7 +29,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (button_click_system, move_camera, update_wallet_display).chain(),
+            (button_click_system, move_camera, update_wallet_display),
         )
         .run();
 }
@@ -129,16 +128,16 @@ fn move_camera(
     let mut camera_transform = query.single_mut();
     let mut direction = Vec3::ZERO;
 
-    if keyboard_input.pressed(KeyCode::ArrowLeft) {
+    if keyboard_input.pressed(KeyCode::Left) {
         direction -= Vec3::new(1.0, 0.0, 0.0);
     }
-    if keyboard_input.pressed(KeyCode::ArrowRight) {
+    if keyboard_input.pressed(KeyCode::Right) {
         direction += Vec3::new(1.0, 0.0, 0.0);
     }
-    if keyboard_input.pressed(KeyCode::ArrowUp) {
+    if keyboard_input.pressed(KeyCode::Up) {
         direction += Vec3::new(0.0, 1.0, 0.0);
     }
-    if keyboard_input.pressed(KeyCode::ArrowDown) {
+    if keyboard_input.pressed(KeyCode::Down) {
         direction -= Vec3::new(0.0, 1.0, 0.0);
     }
 
