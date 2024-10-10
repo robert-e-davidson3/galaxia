@@ -2,7 +2,7 @@ use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::sprite::*;
 use bevy_prototype_lyon::prelude::*;
-// use bevy_rapier2d::prelude::*;
+use bevy_rapier2d::prelude::*;
 use std::collections::*;
 use std::*;
 
@@ -12,6 +12,8 @@ fn main() {
             //
             DefaultPlugins,
             ShapePlugin,
+            RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0),
+            RapierDebugRenderPlugin::default(),
         ))
         .add_systems(Startup, (setup_board, setup_player, setup_camera))
         .add_systems(
@@ -30,6 +32,18 @@ fn main() {
         .insert_resource(CameraController {
             dead_zone_squared: 1000.0,
         })
+        .insert_resource(RapierConfiguration {
+            gravity: Vec2::ZERO,
+            physics_pipeline_active: true,
+            query_pipeline_active: true,
+            timestep_mode: TimestepMode::Variable {
+                max_dt: 1.0 / 60.0,
+                time_scale: 1.0,
+                substeps: 1,
+            },
+            scaled_shape_subdivision: 10,
+            force_update_from_transform_changes: false,
+        })
         .run();
 }
 
@@ -46,15 +60,26 @@ fn setup_player(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    let radius = 25.0;
     let _player = commands
         .spawn((
             Player { ..default() },
             MaterialMesh2dBundle {
-                mesh: meshes.add(Circle::new(25.0)).into(),
+                mesh: meshes.add(Circle::new(radius)).into(),
                 material: materials.add(Color::srgb(6.25, 9.4, 9.1)),
                 transform: Transform::from_xyz(0.0, 250.0, 1.0),
                 ..default()
             },
+            CircularArea { radius },
+            RigidBody::Dynamic,
+            Collider::ball(radius),
+            AdditionalMassProperties::Mass(10.0),
+            ExternalImpulse::default(),
+            Damping {
+                linear_damping: 1.0,
+                angular_damping: 1.0,
+            },
+            Velocity::default(),
         ))
         .id();
 }
@@ -98,44 +123,35 @@ fn update_camera(
 }
 
 fn player_move(
-    mut player_query: Query<&mut Transform, With<Player>>,
+    mut player_query: Query<&mut ExternalImpulse, With<Player>>,
     time: Res<Time>,
     kb_input: Res<ButtonInput<KeyCode>>,
 ) {
-    let Ok(player) = player_query.get_single_mut() else {
-        return;
-    };
-    let mut transform = player;
-    let mut direction = Vec2::ZERO;
-    if kb_input.pressed(KeyCode::KeyW) {
-        direction.y += 1.;
+    for mut external_impulse in player_query.iter_mut() {
+        let mut impulse = Vec2::ZERO;
+        if kb_input.pressed(KeyCode::KeyW) {
+            impulse.y += 1.0;
+        }
+        if kb_input.pressed(KeyCode::KeyS) {
+            impulse.y -= 1.0;
+        }
+        if kb_input.pressed(KeyCode::KeyA) {
+            impulse.x -= 1.0;
+        }
+        if kb_input.pressed(KeyCode::KeyD) {
+            impulse.x += 1.0;
+        }
+        if impulse == Vec2::ZERO {
+            return;
+        }
+        impulse = impulse.normalize() * 10000.0;
+        if kb_input.pressed(KeyCode::ShiftLeft) {
+            impulse *= 5.0;
+        }
+        println!("Impulse: {:?}", impulse);
+        external_impulse.impulse = impulse;
+        // external_force.force = force * time.delta_seconds();
     }
-
-    if kb_input.pressed(KeyCode::KeyS) {
-        direction.y -= 1.;
-    }
-
-    if kb_input.pressed(KeyCode::KeyA) {
-        direction.x -= 1.;
-    }
-
-    if kb_input.pressed(KeyCode::KeyD) {
-        direction.x += 1.;
-    }
-
-    let move_delta = direction.normalize_or_zero()
-        * 150.0
-        * time.delta_seconds()
-        * if kb_input.pressed(KeyCode::ShiftLeft) {
-            5.0
-        } else {
-            1.0
-        };
-    if move_delta == Vec2::ZERO {
-        return;
-    }
-
-    transform.translation += move_delta.extend(0.);
 }
 
 fn keyboard_input(
@@ -267,14 +283,13 @@ pub mod button_mini_game {
         transform: &Transform,
         frozen: &ButtonMiniGame,
     ) {
+        let width = 200.0;
+        let height = 220.0;
         commands
             .spawn((
                 ButtonMiniGameBundle {
                     mini_game: frozen.clone(),
-                    area: RectangularArea {
-                        width: 200.0,
-                        height: 220.0,
-                    },
+                    area: RectangularArea { width, height },
                 },
                 SpatialBundle {
                     transform: Transform::from_xyz(
@@ -284,12 +299,14 @@ pub mod button_mini_game {
                     ),
                     ..default()
                 },
+                RigidBody::Fixed,
+                Collider::cuboid(width, height),
             ))
             .with_children(|parent| {
                 let _background = parent.spawn(SpriteBundle {
                     sprite: Sprite {
                         color: Color::srgb(0.9, 0.9, 0.9),
-                        custom_size: Some(Vec2::new(200.0, 220.0)),
+                        custom_size: Some(Vec2::new(width, height)),
                         ..default()
                     },
                     transform: Transform::from_xyz(0.0, 0.0, -1.0),
@@ -400,16 +417,20 @@ pub mod button_mini_game {
         asset_server: &Res<AssetServer>,
         transform: Transform,
     ) {
+        let radius = 10.0;
         commands.spawn((
             LooseResource {
                 resource: "click".to_string(),
                 amount: 1.0,
             },
+            CircularArea { radius },
             SpriteBundle {
                 texture: asset_server.load("slick_arrow-arrow.png"),
                 transform,
                 ..default()
             },
+            RigidBody::Dynamic,
+            Collider::ball(radius),
         ));
     }
 }
