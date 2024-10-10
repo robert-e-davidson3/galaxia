@@ -60,24 +60,24 @@ fn setup_player(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let radius = 25.0;
+    let area = CircularArea { radius: 25.0 };
     let _player = commands
         .spawn((
             Player { ..default() },
             MaterialMesh2dBundle {
-                mesh: meshes.add(Circle::new(radius)).into(),
+                mesh: meshes.add(Circle::from(area)).into(),
                 material: materials.add(Color::srgb(6.25, 9.4, 9.1)),
                 transform: Transform::from_xyz(0.0, 250.0, 1.0),
                 ..default()
             },
-            CircularArea { radius },
+            area,
+            Collider::from(area),
             RigidBody::Dynamic,
-            Collider::ball(radius),
             AdditionalMassProperties::Mass(10.0),
             ExternalImpulse::default(),
             Damping {
-                linear_damping: 1.0,
-                angular_damping: 1.0,
+                linear_damping: 4.0,
+                angular_damping: 4.0,
             },
             Velocity::default(),
         ))
@@ -124,7 +124,6 @@ fn update_camera(
 
 fn player_move(
     mut player_query: Query<&mut ExternalImpulse, With<Player>>,
-    time: Res<Time>,
     kb_input: Res<ButtonInput<KeyCode>>,
 ) {
     for mut external_impulse in player_query.iter_mut() {
@@ -144,13 +143,11 @@ fn player_move(
         if impulse == Vec2::ZERO {
             return;
         }
-        impulse = impulse.normalize() * 10000.0;
+        impulse = impulse.normalize() * 45000.0;
         if kb_input.pressed(KeyCode::ShiftLeft) {
             impulse *= 5.0;
         }
-        println!("Impulse: {:?}", impulse);
         external_impulse.impulse = impulse;
-        // external_force.force = force * time.delta_seconds();
     }
 }
 
@@ -217,15 +214,35 @@ pub struct LooseResource {
     pub amount: f32,
 }
 
-#[derive(Debug, Default, Component)]
+#[derive(Debug, Default, Copy, Clone, Component)]
 pub struct RectangularArea {
     pub width: f32,
     pub height: f32,
 }
 
-#[derive(Debug, Default, Component)]
+impl From<RectangularArea> for Collider {
+    fn from(area: RectangularArea) -> Self {
+        Collider::cuboid(area.width / 2.0, area.height / 2.0)
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone, Component)]
 pub struct CircularArea {
     pub radius: f32,
+}
+
+impl From<CircularArea> for Collider {
+    fn from(area: CircularArea) -> Self {
+        Collider::ball(area.radius)
+    }
+}
+
+impl From<CircularArea> for Circle {
+    fn from(area: CircularArea) -> Self {
+        Circle {
+            radius: area.radius,
+        }
+    }
 }
 
 fn is_click_in_rectangle(
@@ -283,13 +300,15 @@ pub mod button_mini_game {
         transform: &Transform,
         frozen: &ButtonMiniGame,
     ) {
-        let width = 200.0;
-        let height = 220.0;
+        let area = RectangularArea {
+            width: 200.0,
+            height: 220.0,
+        };
         commands
             .spawn((
                 ButtonMiniGameBundle {
                     mini_game: frozen.clone(),
-                    area: RectangularArea { width, height },
+                    area: area.clone(),
                 },
                 SpatialBundle {
                     transform: Transform::from_xyz(
@@ -300,13 +319,13 @@ pub mod button_mini_game {
                     ..default()
                 },
                 RigidBody::Fixed,
-                Collider::cuboid(width, height),
+                Collider::from(area),
             ))
             .with_children(|parent| {
                 let _background = parent.spawn(SpriteBundle {
                     sprite: Sprite {
                         color: Color::srgb(0.9, 0.9, 0.9),
-                        custom_size: Some(Vec2::new(width, height)),
+                        custom_size: Some(Vec2::new(area.width, area.height)),
                         ..default()
                     },
                     transform: Transform::from_xyz(0.0, 0.0, -1.0),
@@ -417,20 +436,20 @@ pub mod button_mini_game {
         asset_server: &Res<AssetServer>,
         transform: Transform,
     ) {
-        let radius = 10.0;
+        let area = CircularArea { radius: 10.0 };
         commands.spawn((
             LooseResource {
                 resource: "click".to_string(),
                 amount: 1.0,
             },
-            CircularArea { radius },
+            area,
             SpriteBundle {
                 texture: asset_server.load("slick_arrow-arrow.png"),
                 transform,
                 ..default()
             },
             RigidBody::Dynamic,
-            Collider::ball(radius),
+            Collider::from(area),
         ));
     }
 }
