@@ -25,8 +25,8 @@ fn main() {
             ),
         )
         .add_systems(FixedUpdate, (collect_loose_resources,))
-        // Run engine code 10x per second, not at render rate.
-        .insert_resource(Time::<Fixed>::from_seconds(0.1))
+        // Gather resources once every five seconds.
+        .insert_resource(Time::<Fixed>::from_seconds(5.0))
         .insert_resource(CameraController {
             dead_zone_squared: 1000.0,
         })
@@ -374,20 +374,44 @@ pub mod button_mini_game {
                     text.sections[0].value =
                         format!("Clicks: {}", minigame.count);
 
-                    commands.spawn(LooseResourceBundle {
-                        resource: LooseResource {
+                    commands.spawn((
+                        LooseResource {
                             resource: "click".to_string(),
                             amount: 1.0,
                         },
                         // TODO spawn on random edge of minigame
-                        transform: Transform::from_xyz(
-                            world_position.x,
+                        draw_click(Transform::from_xyz(
+                            world_position.x + 100.0,
                             world_position.y,
                             0.0,
-                        ),
-                    });
+                        )),
+                    ));
                 }
             }
         }
+    }
+
+    fn draw_click(transform: Transform) -> impl Bundle {
+        let pointer_shape = shapes::Polygon {
+            points: vec![
+                Vec2::new(0.0, 0.0),
+                Vec2::new(10.0, 25.0),
+                Vec2::new(0.0, 20.0),
+            ],
+            closed: true,
+        };
+
+        (
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&pointer_shape),
+                spatial: SpatialBundle {
+                    transform,
+                    ..default()
+                },
+                ..default()
+            },
+            Fill::color(Color::WHITE),
+            Stroke::new(Color::BLACK, 1.0),
+        )
     }
 }
