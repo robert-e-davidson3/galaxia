@@ -36,7 +36,7 @@ fn main() {
 fn setup_board(mut commands: Commands) {
     button_mini_game::spawn(
         &mut commands,
-        &EtherLocation(Vec2::new(0.0, 0.0)),
+        &mut Transform::from_xyz(0.0, 0.0, 0.0),
         &button_mini_game::ButtonMiniGame { ..default() },
     );
 }
@@ -48,10 +48,7 @@ fn setup_player(
 ) {
     let _player = commands
         .spawn((
-            PlayerBundle {
-                player: Player { ..default() },
-                location: EtherLocation { ..default() },
-            },
+            Player { ..default() },
             MaterialMesh2dBundle {
                 mesh: meshes.add(Circle::new(25.0)).into(),
                 material: materials.add(Color::srgb(6.25, 9.4, 9.1)),
@@ -101,14 +98,14 @@ fn update_camera(
 }
 
 fn player_move(
-    mut player: Query<(&mut Transform, &mut EtherLocation), With<Player>>,
+    mut player_query: Query<&mut Transform, With<Player>>,
     time: Res<Time>,
     kb_input: Res<ButtonInput<KeyCode>>,
 ) {
-    let Ok(player) = player.get_single_mut() else {
+    let Ok(player) = player_query.get_single_mut() else {
         return;
     };
-    let (mut transform, mut location) = player;
+    let mut transform = player;
     let mut direction = Vec2::ZERO;
     if kb_input.pressed(KeyCode::KeyW) {
         direction.y += 1.;
@@ -139,9 +136,6 @@ fn player_move(
     }
 
     transform.translation += move_delta.extend(0.);
-
-    location.0.x = transform.translation.x;
-    location.0.y = transform.translation.y;
 }
 
 fn keyboard_input(
@@ -188,15 +182,6 @@ struct CameraController {
 
 #[derive(Debug, Default, Copy, Clone, Component)]
 pub struct Clickable;
-
-#[derive(Debug, Default, Copy, Clone, Component)]
-pub struct EtherLocation(Vec2);
-
-#[derive(Debug, Default, Bundle)]
-pub struct PlayerBundle {
-    pub player: Player,
-    pub location: EtherLocation,
-}
 
 #[derive(Debug, Default, Component)]
 pub struct Player {
@@ -258,7 +243,6 @@ pub mod button_mini_game {
     #[derive(Debug, Default, Bundle)]
     pub struct ButtonMiniGameBundle {
         pub mini_game: ButtonMiniGame,
-        pub location: EtherLocation,
         pub area: RectangularArea,
     }
 
@@ -269,14 +253,13 @@ pub mod button_mini_game {
 
     pub fn spawn(
         commands: &mut Commands,
-        location: &EtherLocation,
+        transform: &Transform,
         frozen: &ButtonMiniGame,
     ) {
         commands
             .spawn((
                 ButtonMiniGameBundle {
                     mini_game: frozen.clone(),
-                    location: location.clone(),
                     area: RectangularArea {
                         width: 200.0,
                         height: 220.0,
@@ -284,8 +267,8 @@ pub mod button_mini_game {
                 },
                 SpatialBundle {
                     transform: Transform::from_xyz(
-                        location.0.x,
-                        location.0.y,
+                        transform.translation.x,
+                        transform.translation.y,
                         0.0,
                     ),
                     ..default()
