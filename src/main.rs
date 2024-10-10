@@ -331,6 +331,7 @@ pub mod button_mini_game {
 
     pub fn update(
         mut commands: Commands,
+        asset_server: Res<AssetServer>,
         clickable_query: Query<
             (&ClickMeButton, &Transform, &CircularArea),
             With<Clickable>,
@@ -380,42 +381,30 @@ pub mod button_mini_game {
                             amount: 1.0,
                         },
                         // TODO spawn on random edge of minigame
-                        draw_click(Transform::from_xyz(
-                            world_position.x + 100.0,
-                            world_position.y,
-                            0.0,
-                        )),
+                        draw_click(
+                            &asset_server,
+                            Transform::from_xyz(
+                                world_position.x + 100.0,
+                                world_position.y,
+                                0.0,
+                            ),
+                        ),
                     ));
                 }
             }
         }
     }
 
-    fn draw_click(transform: Transform) -> impl Bundle {
-        let pointer_shape = shapes::Polygon {
-            points: vec![
-                Vec2::new(0.0, 0.0),   // Tip of the pointer
-                Vec2::new(0.0, 18.0),  // Left point
-                Vec2::new(6.0, 15.0),  // Left top of shaft
-                Vec2::new(10.0, 20.0), // Left bottom of shaft
-                Vec2::new(13.0, 20.0), // Right bottom of shaft
-                Vec2::new(12.0, 14.0), // Right top of shaft
-                Vec2::new(20.0, 18.0), // Right point
-            ],
-            closed: true,
-        };
-
-        (
-            ShapeBundle {
-                path: GeometryBuilder::build_as(&pointer_shape),
-                spatial: SpatialBundle {
-                    transform,
-                    ..default()
-                },
-                ..default()
-            },
-            Fill::color(Color::WHITE),
-            Stroke::new(Color::BLACK, 1.0),
-        )
+    fn draw_click(
+        asset_server: &Res<AssetServer>,
+        transform: Transform,
+    ) -> impl Bundle {
+        let texture_handle: Handle<Image> =
+            asset_server.load("slick_arrow-arrow.png");
+        SpriteBundle {
+            texture: texture_handle,
+            transform,
+            ..default()
+        }
     }
 }
