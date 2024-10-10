@@ -194,9 +194,39 @@ pub struct LooseResource {
 }
 
 #[derive(Debug, Default, Component)]
-pub struct Area {
+pub struct RectangularArea {
     pub width: f32,
     pub height: f32,
+}
+
+#[derive(Debug, Default, Component)]
+pub struct CircularArea {
+    pub radius: f32,
+}
+
+fn is_click_in_rectangle(
+    click_position: Vec2,
+    rectangle_center: Vec2,
+    rectangle_size: Vec2,
+) -> bool {
+    let min_x = rectangle_center.x - rectangle_size.x / 2.0;
+    let max_x = rectangle_center.x + rectangle_size.x / 2.0;
+    let min_y = rectangle_center.y - rectangle_size.y / 2.0;
+    let max_y = rectangle_center.y + rectangle_size.y / 2.0;
+
+    click_position.x >= min_x
+        && click_position.x <= max_x
+        && click_position.y >= min_y
+        && click_position.y <= max_y
+}
+
+fn is_click_in_circle(
+    click_position: Vec2,
+    circle_center: Vec2,
+    circle_radius: f32,
+) -> bool {
+    let distance_squared = click_position.distance_squared(circle_center);
+    distance_squared <= circle_radius * circle_radius
 }
 
 pub mod button_mini_game {
@@ -206,7 +236,7 @@ pub mod button_mini_game {
     pub struct ButtonMiniGameBundle {
         pub mini_game: ButtonMiniGame,
         pub location: EtherLocation,
-        pub area: Area,
+        pub area: RectangularArea,
     }
 
     #[derive(Debug, Default, Clone, Component)]
@@ -224,7 +254,7 @@ pub mod button_mini_game {
                 ButtonMiniGameBundle {
                     mini_game: frozen.clone(),
                     location: location.clone(),
-                    area: Area {
+                    area: RectangularArea {
                         width: 200.0,
                         height: 220.0,
                     },
@@ -269,10 +299,7 @@ pub mod button_mini_game {
                         text,
                     },
                     Clickable,
-                    Area {
-                        width: 180.0,
-                        height: 180.0,
-                    },
+                    CircularArea { radius: 90.0 },
                     ShapeBundle {
                         path: GeometryBuilder::build_as(&shapes::Circle {
                             radius: 90.0,
@@ -298,7 +325,7 @@ pub mod button_mini_game {
 
     pub fn update(
         clickable_query: Query<
-            (&ClickMeButton, &Transform, &Area),
+            (&ClickMeButton, &Transform, &CircularArea),
             With<Clickable>,
         >,
         camera_query: Query<(&Camera, &GlobalTransform)>,
@@ -326,15 +353,13 @@ pub mod button_mini_game {
             .map(|ray| ray.origin.truncate())
         {
             for (button, transform, area) in clickable_query.iter() {
-                let min_x = transform.translation.x - area.width / 2.0;
-                let max_x = transform.translation.x + area.width / 2.0;
-                let min_y = transform.translation.y - area.height / 2.0;
-                let max_y = transform.translation.y + area.height / 2.0;
-                if world_position.x >= min_x
-                    && world_position.x <= max_x
-                    && world_position.y >= min_y
-                    && world_position.y <= max_y
-                {
+                let button_center = transform.translation.truncate();
+
+                if is_click_in_circle(
+                    world_position,
+                    button_center,
+                    area.radius,
+                ) {
                     let mut minigame =
                         button_minigames_query.get_mut(button.game).unwrap();
                     minigame.count += 1;
