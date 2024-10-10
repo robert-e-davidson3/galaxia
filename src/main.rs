@@ -24,7 +24,7 @@ fn main() {
                 button_mini_game::update,
             ),
         )
-        // .add_systems(FixedUpdate, ())
+        .add_systems(FixedUpdate, (collect_loose_resources,))
         // Run engine code 10x per second, not at render rate.
         .insert_resource(Time::<Fixed>::from_seconds(0.1))
         .insert_resource(CameraController {
@@ -157,6 +157,28 @@ fn keyboard_input(
     }
 }
 
+fn collect_loose_resources(
+    mut commands: Commands,
+    mut player: Query<&mut Player>,
+    loose_resources: Query<(Entity, &LooseResource)>,
+) {
+    for (entity, resource) in loose_resources.iter() {
+        let Ok(mut player) = player.get_single_mut() else {
+            return;
+        };
+
+        if let Some(amount) = player.resources.get_mut(&resource.resource) {
+            *amount += resource.amount;
+        } else {
+            player
+                .resources
+                .insert(resource.resource.clone(), resource.amount);
+        }
+
+        commands.entity(entity).despawn();
+    }
+}
+
 #[derive(Resource)]
 struct CameraController {
     pub dead_zone_squared: f32,
@@ -181,9 +203,10 @@ pub struct Player {
     pub resources: HashMap<String, f32>,
 }
 
+#[derive(Debug, Bundle)]
 pub struct LooseResourceBundle {
     pub resource: LooseResource,
-    pub location: EtherLocation,
+    pub transform: Transform,
 }
 
 #[derive(Debug, Default, Component)]
@@ -324,6 +347,7 @@ pub mod button_mini_game {
     }
 
     pub fn update(
+        mut commands: Commands,
         clickable_query: Query<
             (&ClickMeButton, &Transform, &CircularArea),
             With<Clickable>,
@@ -366,6 +390,19 @@ pub mod button_mini_game {
                     let mut text = text_query.get_mut(button.text).unwrap();
                     text.sections[0].value =
                         format!("Clicks: {}", minigame.count);
+
+                    commands.spawn(LooseResourceBundle {
+                        resource: LooseResource {
+                            resource: "click".to_string(),
+                            amount: 1.0,
+                        },
+                        // TODO spawn on random edge of minigame
+                        transform: Transform::from_xyz(
+                            world_position.x,
+                            world_position.y,
+                            0.0,
+                        ),
+                    });
                 }
             }
         }
