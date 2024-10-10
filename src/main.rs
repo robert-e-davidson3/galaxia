@@ -237,6 +237,17 @@ fn is_click_in_circle(
     distance_squared <= circle_radius * circle_radius
 }
 
+fn translate_to_world_position(
+    window: &Window,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) -> Option<Vec2> {
+    window
+        .cursor_position()
+        .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor))
+        .map(|ray| ray.origin.truncate())
+}
+
 pub mod button_mini_game {
     use super::*;
 
@@ -353,12 +364,8 @@ pub mod button_mini_game {
         let (camera, camera_transform) = camera_query.single();
         let window = windows.single();
 
-        if let Some(world_position) = window
-            .cursor_position()
-            .and_then(|cursor| {
-                camera.viewport_to_world(camera_transform, cursor)
-            })
-            .map(|ray| ray.origin.truncate())
+        if let Some(world_position) =
+            translate_to_world_position(window, camera, camera_transform)
         {
             for (button, transform, area) in clickable_query.iter() {
                 let button_center = transform.translation.truncate();
@@ -374,37 +381,35 @@ pub mod button_mini_game {
                     let mut text = text_query.get_mut(button.text).unwrap();
                     text.sections[0].value =
                         format!("Clicks: {}", minigame.count);
-
-                    commands.spawn((
-                        LooseResource {
-                            resource: "click".to_string(),
-                            amount: 1.0,
-                        },
-                        // TODO spawn on random edge of minigame
-                        draw_click(
-                            &asset_server,
-                            Transform::from_xyz(
-                                world_position.x + 100.0,
-                                world_position.y,
-                                0.0,
-                            ),
+                    spawn_click(
+                        &mut commands,
+                        &asset_server,
+                        Transform::from_xyz(
+                            world_position.x + 100.0,
+                            world_position.y,
+                            0.0,
                         ),
-                    ));
+                    );
                 }
             }
         }
     }
 
-    fn draw_click(
+    fn spawn_click(
+        commands: &mut Commands,
         asset_server: &Res<AssetServer>,
         transform: Transform,
-    ) -> impl Bundle {
-        let texture_handle: Handle<Image> =
-            asset_server.load("slick_arrow-arrow.png");
-        SpriteBundle {
-            texture: texture_handle,
-            transform,
-            ..default()
-        }
+    ) {
+        commands.spawn((
+            LooseResource {
+                resource: "click".to_string(),
+                amount: 1.0,
+            },
+            SpriteBundle {
+                texture: asset_server.load("slick_arrow-arrow.png"),
+                transform,
+                ..default()
+            },
+        ));
     }
 }
