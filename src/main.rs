@@ -13,7 +13,7 @@ fn main() {
             DefaultPlugins,
             ShapePlugin,
             RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0),
-            RapierDebugRenderPlugin::default(),
+            // RapierDebugRenderPlugin::default(),
         ))
         .add_systems(Startup, (setup_board, setup_player, setup_camera))
         .add_systems(
