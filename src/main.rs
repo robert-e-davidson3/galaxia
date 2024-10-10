@@ -1,6 +1,7 @@
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::sprite::*;
+use bevy_prototype_lyon::prelude::*;
 // use bevy_rapier2d::prelude::*;
 use std::collections::*;
 use std::*;
@@ -10,6 +11,7 @@ fn main() {
         .add_plugins((
             //
             DefaultPlugins,
+            ShapePlugin,
         ))
         .add_systems(Startup, (setup_board, setup_player, setup_camera))
         .add_systems(
@@ -19,15 +21,10 @@ fn main() {
                 keyboard_input,
                 update_camera,
                 player_move,
+                button_mini_game::update,
             ),
         )
-        .add_systems(
-            FixedUpdate,
-            (
-                //
-                button_mini_game::system,
-            ),
-        )
+        // .add_systems(FixedUpdate, ())
         // Run engine code 10x per second, not at render rate.
         .insert_resource(Time::<Fixed>::from_seconds(0.1))
         .insert_resource(CameraController {
@@ -155,8 +152,6 @@ fn keyboard_input(
         return;
     }
 
-    // println!("key pressed: {:?}", keys);
-
     if keys.just_pressed(KeyCode::Escape) || keys.just_pressed(KeyCode::KeyQ) {
         app_exit_events.send(AppExit::Success);
     }
@@ -168,6 +163,9 @@ struct CameraController {
     //pub dead_zone_delay: f32,
     //pub dead_zone_last_time: f64,
 }
+
+#[derive(Debug, Default, Copy, Clone, Component)]
+pub struct Clickable;
 
 #[derive(Debug, Default, Copy, Clone, Component)]
 pub struct EtherLocation(Vec2);
@@ -189,9 +187,16 @@ pub struct LooseResourceBundle {
 }
 
 #[derive(Debug, Default, Component)]
+#[component(storage = "SparseSet")]
 pub struct LooseResource {
     pub resource: String,
     pub amount: f32,
+}
+
+#[derive(Debug, Default, Component)]
+pub struct Area {
+    pub width: f32,
+    pub height: f32,
 }
 
 pub mod button_mini_game {
@@ -201,6 +206,7 @@ pub mod button_mini_game {
     pub struct ButtonMiniGameBundle {
         pub mini_game: ButtonMiniGame,
         pub location: EtherLocation,
+        pub area: Area,
     }
 
     #[derive(Debug, Default, Clone, Component)]
@@ -218,15 +224,12 @@ pub mod button_mini_game {
                 ButtonMiniGameBundle {
                     mini_game: frozen.clone(),
                     location: location.clone(),
-                },
-                NodeBundle {
-                    style: Style {
-                        width: Val::Px(200.0),
-                        height: Val::Px(220.0),
-                        flex_direction: FlexDirection::Column,
-                        ..default()
+                    area: Area {
+                        width: 200.0,
+                        height: 220.0,
                     },
-                    background_color: Color::srgb(0.15, 0.15, 0.15).into(),
+                },
+                SpatialBundle {
                     transform: Transform::from_xyz(
                         location.0.x,
                         location.0.y,
@@ -236,32 +239,53 @@ pub mod button_mini_game {
                 },
             ))
             .with_children(|parent| {
-                let text = parent
-                    .spawn(TextBundle::from_section(
-                        format!("Clicks: {}", frozen.count),
-                        TextStyle {
-                            font_size: 24.0,
-                            color: Color::WHITE,
-                            ..default()
-                        },
-                    ))
-                    .id();
-                parent.spawn((
-                    ButtonBundle {
-                        style: Style {
-                            width: Val::Percent(100.0),
-                            height: Val::Percent(100.0),
-                            justify_content: JustifyContent::Center,
-                            align_items: AlignItems::Center,
-                            ..default()
-                        },
-                        background_color: Color::srgb(0.8, 0.2, 0.2).into(),
+                let _background = parent.spawn(SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::srgb(0.9, 0.9, 0.9),
+                        custom_size: Some(Vec2::new(200.0, 220.0)),
                         ..default()
                     },
+                    transform: Transform::from_xyz(0.0, 0.0, -1.0),
+                    ..default()
+                });
+                let text = parent
+                    .spawn(Text2dBundle {
+                        text: Text::from_section(
+                            format!("Clicks: {}", frozen.count),
+                            TextStyle {
+                                font_size: 24.0,
+                                color: Color::BLACK,
+                                ..default()
+                            },
+                        ),
+                        transform: Transform::from_xyz(0.0, 100.0, 0.0),
+                        ..default()
+                    })
+                    .id();
+
+                let _button = parent.spawn((
                     ClickMeButton {
                         game: parent.parent_entity(),
                         text,
                     },
+                    Clickable,
+                    Area {
+                        width: 180.0,
+                        height: 180.0,
+                    },
+                    ShapeBundle {
+                        path: GeometryBuilder::build_as(&shapes::Circle {
+                            radius: 90.0,
+                            ..default()
+                        }),
+                        spatial: SpatialBundle {
+                            transform: Transform::from_xyz(0.0, -18.0, 0.0),
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    Fill::color(Color::srgb(0.8, 0.1, 0.1)),
+                    Stroke::new(Color::BLACK, 2.0),
                 ));
             });
     }
@@ -272,17 +296,45 @@ pub mod button_mini_game {
         pub text: Entity,
     }
 
-    pub fn system(
-        mut interaction_query: Query<
-            (&Interaction, &ClickMeButton),
-            (Changed<Interaction>, With<Button>),
+    pub fn update(
+        clickable_query: Query<
+            (&ClickMeButton, &Transform, &Area),
+            With<Clickable>,
         >,
+        camera_query: Query<(&Camera, &GlobalTransform)>,
+        windows: Query<&Window>,
+        mouse_button_input: Res<ButtonInput<MouseButton>>,
         mut button_minigames_query: Query<&mut ButtonMiniGame>,
         mut text_query: Query<&mut Text>,
     ) {
-        for (interaction, button) in interaction_query.iter_mut() {
-            match interaction {
-                Interaction::Pressed => {
+        // TODO: https://bevy-cheatbook.github.io/programming/run-conditions.html
+        if !mouse_button_input.just_pressed(MouseButton::Left) {
+            return;
+        }
+        if button_minigames_query.iter().count() == 0 {
+            return;
+        }
+
+        let (camera, camera_transform) = camera_query.single();
+        let window = windows.single();
+
+        if let Some(world_position) = window
+            .cursor_position()
+            .and_then(|cursor| {
+                camera.viewport_to_world(camera_transform, cursor)
+            })
+            .map(|ray| ray.origin.truncate())
+        {
+            for (button, transform, area) in clickable_query.iter() {
+                let min_x = transform.translation.x - area.width / 2.0;
+                let max_x = transform.translation.x + area.width / 2.0;
+                let min_y = transform.translation.y - area.height / 2.0;
+                let max_y = transform.translation.y + area.height / 2.0;
+                if world_position.x >= min_x
+                    && world_position.x <= max_x
+                    && world_position.y >= min_y
+                    && world_position.y <= max_y
+                {
                     let mut minigame =
                         button_minigames_query.get_mut(button.game).unwrap();
                     minigame.count += 1;
@@ -290,7 +342,6 @@ pub mod button_mini_game {
                     text.sections[0].value =
                         format!("Clicks: {}", minigame.count);
                 }
-                _ => {}
             }
         }
     }
