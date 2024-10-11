@@ -6,7 +6,6 @@ use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 use std::collections::*;
 use std::*;
-use time::Duration;
 
 fn main() {
     App::new()
@@ -54,11 +53,17 @@ fn main() {
         .run();
 }
 
-fn setup_board(mut commands: Commands) {
+fn setup_board(mut commands: Commands, asset_server: Res<AssetServer>) {
     button_minigame::spawn(
         &mut commands,
         &mut Transform::from_xyz(0.0, 0.0, 0.0),
         &button_minigame::ButtonMiniGame { ..default() },
+    );
+    tree_minigame::spawn(
+        &mut commands,
+        &asset_server,
+        &mut Transform::from_xyz(400.0, 0.0, 0.0),
+        &tree_minigame::TreeMiniGame { ..default() },
     );
 }
 
@@ -479,7 +484,45 @@ pub mod tree_minigame {
 
     #[derive(Debug, Default, Clone, Component)]
     pub struct TreeMiniGame {
-        pub fruits: u64,
+        pub fruit: Fruit,
+        pub count: u64,
+    }
+
+    #[derive(Debug, Default, Copy, Clone)]
+    pub enum Fruit {
+        #[default]
+        Apple,
+    }
+
+    pub fn spawn(
+        commands: &mut Commands,
+        asset_server: &Res<AssetServer>,
+        transform: &Transform,
+        frozen: &TreeMiniGame,
+    ) {
+        let area = RectangularArea {
+            width: 300.0,
+            height: 300.0,
+        };
+        commands.spawn((
+            TreeMiniGameBundle {
+                minigame: frozen.clone(),
+                area: area.clone(),
+            },
+            SpriteBundle {
+                texture: asset_server
+                    .load("oak-tree-white-background-300x300.png"),
+                sprite: Sprite {
+                    color: Color::srgba(1.0, 1.0, 1.0, 1.0),
+                    custom_size: Some(Vec2::new(area.width, area.height)),
+                    ..default()
+                },
+                transform: transform.clone(),
+                ..default()
+            },
+            RigidBody::Fixed,
+            Collider::from(area),
+        ));
     }
 }
 
