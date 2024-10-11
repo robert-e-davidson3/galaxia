@@ -10,7 +10,6 @@ use std::*;
 fn main() {
     App::new()
         .add_plugins((
-            //
             DefaultPlugins,
             ShapePlugin,
             RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0),
@@ -21,14 +20,17 @@ fn main() {
         .add_systems(
             Update,
             (
-                //
                 keyboard_input,
                 update_camera,
                 player_move,
                 button_minigame::update,
+                tree_minigame::update,
             ),
         )
-        .add_systems(FixedUpdate, (collect_loose_resources,))
+        .add_systems(
+            FixedUpdate,
+            (collect_loose_resources, tree_minigame::fixed_update),
+        )
         // Gather resources once every five seconds.
         .insert_resource(Time::<Fixed>::from_seconds(5.0))
         .insert_resource(CameraController {
@@ -482,16 +484,49 @@ pub mod tree_minigame {
         pub area: RectangularArea,
     }
 
-    #[derive(Debug, Default, Clone, Component)]
+    #[derive(Debug, Clone, Component)]
     pub struct TreeMiniGame {
         pub fruit: Fruit,
-        pub count: u64,
+        pub count: u32,
+        pub lushness: f32,
+        pub last_fruit_time: f32,
+    }
+
+    impl Default for TreeMiniGame {
+        fn default() -> Self {
+            Self {
+                fruit: Fruit::Apple,
+                count: 0,
+                lushness: 1.0,
+                last_fruit_time: 0.0,
+            }
+        }
     }
 
     #[derive(Debug, Default, Copy, Clone)]
     pub enum Fruit {
         #[default]
         Apple,
+        Lemon,
+        Lime,
+    }
+
+    // fruit_to_string
+    pub fn fruit_to_string(fruit: Fruit) -> String {
+        match fruit {
+            Fruit::Apple => "Apple".to_string(),
+            Fruit::Lemon => "Lemon".to_string(),
+            Fruit::Lime => "Lime".to_string(),
+        }
+    }
+
+    pub fn fruit_to_asset(fruit: Fruit) -> String {
+        let base = "fruits/pngs";
+        match fruit {
+            Fruit::Apple => format!("{}/apple.png", base),
+            Fruit::Lemon => format!("{}/lemon.png", base),
+            Fruit::Lime => format!("{}/lime.png", base),
+        }
     }
 
     pub fn spawn(
@@ -504,25 +539,177 @@ pub mod tree_minigame {
             width: 300.0,
             height: 300.0,
         };
-        commands.spawn((
-            TreeMiniGameBundle {
-                minigame: frozen.clone(),
-                area: area.clone(),
-            },
-            SpriteBundle {
-                texture: asset_server
-                    .load("oak-tree-white-background-300x300.png"),
-                sprite: Sprite {
-                    color: Color::srgba(1.0, 1.0, 1.0, 1.0),
-                    custom_size: Some(Vec2::new(area.width, area.height)),
+        let entity = commands
+            .spawn((
+                TreeMiniGameBundle {
+                    minigame: frozen.clone(),
+                    area: area.clone(),
+                },
+                SpriteBundle {
+                    texture: asset_server
+                        .load("oak-tree-white-background-300x300.png"),
+                    sprite: Sprite {
+                        color: Color::srgba(1.0, 1.0, 1.0, 1.0),
+                        custom_size: Some(Vec2::new(area.width, area.height)),
+                        ..default()
+                    },
+                    transform: transform.clone(),
                     ..default()
                 },
-                transform: transform.clone(),
+                RigidBody::Fixed,
+                Collider::from(area),
+            ))
+            .id();
+    }
+
+    // When a fruit is clicked, replace it with a fruit resource.
+    pub fn update(
+        mut commands: Commands,
+        asset_server: Res<AssetServer>,
+        clickable_query: Query<
+            (Entity, &UnpickedFruit, &Transform, &CircularArea),
+            With<Clickable>,
+        >,
+        camera_query: Query<(&Camera, &GlobalTransform)>,
+        windows: Query<&Window>,
+        mouse_button_input: Res<ButtonInput<MouseButton>>,
+        mut tree_minigames_query: Query<&mut TreeMiniGame>,
+    ) {
+        if !mouse_button_input.just_pressed(MouseButton::Left) {
+            return;
+        }
+
+        let (camera, camera_transform) = camera_query.single();
+        let window = windows.single();
+
+        if let Some(world_position) =
+            translate_to_world_position(window, camera, camera_transform)
+        {
+            for (entity, fruit, transform, area) in clickable_query.iter() {
+                let fruit_center = transform.translation.truncate();
+                println!("Clicked on fruit! Fruit: {:?}", fruit);
+                println!(
+                    "world_position: ({:?},{:?})",
+                    world_position.x, world_position.y
+                );
+                println!(
+                    "fruit_center: ({:?},{:?})",
+                    fruit_center.x, fruit_center.y
+                );
+                println!(
+                    "is_click_in_circle: {:?}",
+                    is_click_in_circle(
+                        world_position,
+                        fruit_center,
+                        area.radius,
+                    )
+                );
+
+                if is_click_in_circle(world_position, fruit_center, area.radius)
+                {
+                    commands.entity(entity).despawn();
+                    let mut minigame =
+                        tree_minigames_query.get_mut(fruit.minigame).unwrap();
+                    minigame.count -= 1;
+                    spawn_fruit(
+                        &mut commands,
+                        &asset_server,
+                        Transform::from_xyz(
+                            fruit_center.x + 200.0,
+                            fruit_center.y,
+                            0.0,
+                        ),
+                        fruit.fruit,
+                    );
+                }
+            }
+        }
+    }
+
+    // Grow fruits.
+    pub fn fixed_update(
+        mut commands: Commands,
+        time: Res<Time>,
+        asset_server: Res<AssetServer>,
+        mut tree_minigames_query: Query<(&mut TreeMiniGame, Entity)>,
+    ) {
+        for (mut minigame, entity) in tree_minigames_query.iter_mut() {
+            // let max_fruit = minigame.lushness * 4.0;
+            let max_fruit = 1; // TODO
+            if minigame.count >= max_fruit as u32 {
+                continue;
+            }
+            // let needed_time_seconds = 100.0 / minigame.lushness;
+            let needed_time_seconds = 0.0; // TODO
+            let elapsed_seconds = time.elapsed_seconds();
+            if elapsed_seconds - minigame.last_fruit_time <= needed_time_seconds
+            {
+                continue;
+            }
+            minigame.last_fruit_time = elapsed_seconds;
+            minigame.count += 1;
+            spawn_unpicked_fruit(
+                &mut commands,
+                &asset_server,
+                Transform::from_xyz(0.0, 0.0, 0.0),
+                entity,
+                minigame.fruit,
+            );
+        }
+    }
+
+    fn spawn_unpicked_fruit(
+        commands: &mut Commands,
+        asset_server: &Res<AssetServer>,
+        transform: Transform,
+        parent: Entity,
+        fruit: Fruit,
+    ) {
+        let area = CircularArea { radius: 8.0 };
+        commands
+            .spawn((
+                UnpickedFruit {
+                    fruit,
+                    minigame: parent,
+                },
+                area,
+                SpriteBundle {
+                    texture: asset_server.load(fruit_to_asset(fruit)),
+                    transform,
+                    ..default()
+                },
+                Clickable,
+            ))
+            .set_parent(parent);
+    }
+
+    fn spawn_fruit(
+        commands: &mut Commands,
+        asset_server: &Res<AssetServer>,
+        transform: Transform,
+        fruit: Fruit,
+    ) {
+        let area = CircularArea { radius: 8.0 };
+        commands.spawn((
+            LooseResource {
+                resource: fruit_to_string(fruit),
+                amount: 1.0,
+            },
+            area,
+            SpriteBundle {
+                texture: asset_server.load(fruit_to_asset(fruit)),
+                transform,
                 ..default()
             },
-            RigidBody::Fixed,
+            RigidBody::Dynamic,
             Collider::from(area),
         ));
+    }
+
+    #[derive(Debug, Clone, Component)]
+    pub struct UnpickedFruit {
+        pub fruit: Fruit,
+        pub minigame: Entity,
     }
 }
 
