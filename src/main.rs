@@ -23,7 +23,7 @@ fn main() {
                 keyboard_input,
                 update_camera,
                 player_move,
-                button_mini_game::update,
+                button_minigame::update,
             ),
         )
         .add_systems(FixedUpdate, (collect_loose_resources,))
@@ -48,10 +48,10 @@ fn main() {
 }
 
 fn setup_board(mut commands: Commands) {
-    button_mini_game::spawn(
+    button_minigame::spawn(
         &mut commands,
         &mut Transform::from_xyz(0.0, 0.0, 0.0),
-        &button_mini_game::ButtonMiniGame { ..default() },
+        &button_minigame::ButtonMiniGame { ..default() },
     );
 }
 
@@ -146,6 +146,9 @@ fn player_move(
         impulse = impulse.normalize() * 45000.0;
         if kb_input.pressed(KeyCode::ShiftLeft) {
             impulse *= 5.0;
+        }
+        if kb_input.pressed(KeyCode::ControlLeft) {
+            impulse *= 0.5;
         }
         external_impulse.impulse = impulse;
     }
@@ -281,12 +284,12 @@ fn translate_to_world_position(
         .map(|ray| ray.origin.truncate())
 }
 
-pub mod button_mini_game {
+pub mod button_minigame {
     use super::*;
 
     #[derive(Debug, Default, Bundle)]
     pub struct ButtonMiniGameBundle {
-        pub mini_game: ButtonMiniGame,
+        pub minigame: ButtonMiniGame,
         pub area: RectangularArea,
     }
 
@@ -307,7 +310,7 @@ pub mod button_mini_game {
         commands
             .spawn((
                 ButtonMiniGameBundle {
-                    mini_game: frozen.clone(),
+                    minigame: frozen.clone(),
                     area: area.clone(),
                 },
                 SpatialBundle {
