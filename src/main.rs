@@ -1,10 +1,12 @@
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::sprite::*;
+use bevy_framepace::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 use std::collections::*;
 use std::*;
+use time::Duration;
 
 fn main() {
     App::new()
@@ -14,6 +16,7 @@ fn main() {
             ShapePlugin,
             RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0),
             // RapierDebugRenderPlugin::default(),
+            FramepacePlugin {},
         ))
         .add_systems(Startup, (setup_board, setup_player, setup_camera))
         .add_systems(
@@ -43,6 +46,10 @@ fn main() {
             },
             scaled_shape_subdivision: 10,
             force_update_from_transform_changes: false,
+        })
+        .insert_resource(FramepaceSettings {
+            // limiter: Limiter::from_framerate(10.0),
+            ..default()
         })
         .run();
 }
@@ -143,12 +150,12 @@ fn player_move(
         if impulse == Vec2::ZERO {
             return;
         }
-        impulse = impulse.normalize() * 45000.0;
+        impulse = impulse.normalize() * 40000.0;
         if kb_input.pressed(KeyCode::ShiftLeft) {
-            impulse *= 5.0;
+            impulse *= 3.0;
         }
         if kb_input.pressed(KeyCode::ControlLeft) {
-            impulse *= 0.5;
+            impulse *= 0.1;
         }
         external_impulse.impulse = impulse;
     }
@@ -286,6 +293,8 @@ fn translate_to_world_position(
 
 pub mod button_minigame {
     use super::*;
+
+    pub const DESCRIPTION: &str = "Click the button, get clicks!";
 
     #[derive(Debug, Default, Bundle)]
     pub struct ButtonMiniGameBundle {
@@ -455,4 +464,27 @@ pub mod button_minigame {
             Collider::from(area),
         ));
     }
+}
+
+pub mod tree_minigame {
+    use super::*;
+
+    pub const DESCRIPTION: &str = "Pick fruits from the tree!";
+
+    #[derive(Debug, Default, Bundle)]
+    pub struct TreeMiniGameBundle {
+        pub minigame: TreeMiniGame,
+        pub area: RectangularArea,
+    }
+
+    #[derive(Debug, Default, Clone, Component)]
+    pub struct TreeMiniGame {
+        pub fruits: u64,
+    }
+}
+
+pub mod board_minigame {
+    use super::*;
+
+    pub const DESCRIPTION: &str = "TODO";
 }
