@@ -231,6 +231,16 @@ pub struct LooseResource {
     pub amount: f32,
 }
 
+pub enum ResourceKind {
+    Abstract,
+    Solid,
+    Liquid,
+    Gas,
+    Mana,
+    Energy,
+    Heat,
+}
+
 #[derive(Debug, Default, Copy, Clone, Component)]
 pub struct RectangularArea {
     pub width: f32,
@@ -587,24 +597,6 @@ pub mod tree_minigame {
         {
             for (entity, fruit, transform, area) in clickable_query.iter() {
                 let fruit_center = transform.translation().truncate();
-                println!("Clicked on fruit! Fruit: {:?}", fruit);
-                println!(
-                    "world_position: ({:?},{:?})",
-                    world_position.x, world_position.y
-                );
-                println!(
-                    "fruit_center: ({:?},{:?})",
-                    fruit_center.x, fruit_center.y
-                );
-                println!(
-                    "is_click_in_circle: {:?}",
-                    is_click_in_circle(
-                        world_position,
-                        fruit_center,
-                        area.radius,
-                    )
-                );
-
                 if is_click_in_circle(world_position, fruit_center, area.radius)
                 {
                     commands.entity(entity).despawn();
@@ -711,6 +703,15 @@ pub mod tree_minigame {
         pub fruit: Fruit,
         pub minigame: Entity,
     }
+}
+
+// Chest acts as an inventory. Only certain resources can be stored.
+// The resource must be a solid (not a fluid, mana, abstraction, etc).
+// It
+pub mod chest_minigame {
+    use super::*;
+
+    pub const DESCRIPTION: &str = "Store items!";
 }
 
 pub mod board_minigame {
