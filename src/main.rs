@@ -399,7 +399,7 @@ pub mod button_minigame {
         mut commands: Commands,
         asset_server: Res<AssetServer>,
         clickable_query: Query<
-            (&ClickMeButton, &Transform, &CircularArea),
+            (&ClickMeButton, &GlobalTransform, &CircularArea),
             With<Clickable>,
         >,
         camera_query: Query<(&Camera, &GlobalTransform)>,
@@ -422,8 +422,8 @@ pub mod button_minigame {
         if let Some(world_position) =
             translate_to_world_position(window, camera, camera_transform)
         {
-            for (button, transform, area) in clickable_query.iter() {
-                let button_center = transform.translation.truncate();
+            for (button, global_transform, area) in clickable_query.iter() {
+                let button_center = global_transform.translation().truncate();
 
                 if is_click_in_circle(
                     world_position,
@@ -567,7 +567,7 @@ pub mod tree_minigame {
         mut commands: Commands,
         asset_server: Res<AssetServer>,
         clickable_query: Query<
-            (Entity, &UnpickedFruit, &Transform, &CircularArea),
+            (Entity, &UnpickedFruit, &GlobalTransform, &CircularArea),
             With<Clickable>,
         >,
         camera_query: Query<(&Camera, &GlobalTransform)>,
@@ -586,7 +586,7 @@ pub mod tree_minigame {
             translate_to_world_position(window, camera, camera_transform)
         {
             for (entity, fruit, transform, area) in clickable_query.iter() {
-                let fruit_center = transform.translation.truncate();
+                let fruit_center = transform.translation().truncate();
                 println!("Clicked on fruit! Fruit: {:?}", fruit);
                 println!(
                     "world_position: ({:?},{:?})",
