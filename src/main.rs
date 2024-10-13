@@ -59,13 +59,13 @@ fn setup_board(mut commands: Commands, asset_server: Res<AssetServer>) {
     button_minigame::spawn(
         &mut commands,
         &mut Transform::from_xyz(0.0, 0.0, 0.0),
-        &button_minigame::ButtonMiniGame { ..default() },
+        &button_minigame::ButtonMinigame { ..default() },
     );
     tree_minigame::spawn(
         &mut commands,
         &asset_server,
         &mut Transform::from_xyz(400.0, 0.0, 0.0),
-        &tree_minigame::TreeMiniGame { ..default() },
+        &tree_minigame::TreeMinigame { ..default() },
     );
 }
 
@@ -314,20 +314,20 @@ pub mod button_minigame {
     pub const DESCRIPTION: &str = "Click the button, get clicks!";
 
     #[derive(Debug, Default, Bundle)]
-    pub struct ButtonMiniGameBundle {
-        pub minigame: ButtonMiniGame,
+    pub struct ButtonMinigameBundle {
+        pub minigame: ButtonMinigame,
         pub area: RectangularArea,
     }
 
     #[derive(Debug, Default, Clone, Component)]
-    pub struct ButtonMiniGame {
+    pub struct ButtonMinigame {
         pub count: u64,
     }
 
     pub fn spawn(
         commands: &mut Commands,
         transform: &Transform,
-        frozen: &ButtonMiniGame,
+        frozen: &ButtonMinigame,
     ) {
         let area = RectangularArea {
             width: 200.0,
@@ -335,7 +335,7 @@ pub mod button_minigame {
         };
         commands
             .spawn((
-                ButtonMiniGameBundle {
+                ButtonMinigameBundle {
                     minigame: frozen.clone(),
                     area: area.clone(),
                 },
@@ -415,7 +415,7 @@ pub mod button_minigame {
         camera_query: Query<(&Camera, &GlobalTransform)>,
         windows: Query<&Window>,
         mouse_button_input: Res<ButtonInput<MouseButton>>,
-        mut button_minigames_query: Query<&mut ButtonMiniGame>,
+        mut button_minigames_query: Query<&mut ButtonMinigame>,
         mut text_query: Query<&mut Text>,
     ) {
         // TODO: https://bevy-cheatbook.github.io/programming/run-conditions.html
@@ -489,20 +489,20 @@ pub mod tree_minigame {
     pub const DESCRIPTION: &str = "Pick fruits from the tree!";
 
     #[derive(Debug, Default, Bundle)]
-    pub struct TreeMiniGameBundle {
-        pub minigame: TreeMiniGame,
+    pub struct TreeMinigameBundle {
+        pub minigame: TreeMinigame,
         pub area: RectangularArea,
     }
 
     #[derive(Debug, Clone, Component)]
-    pub struct TreeMiniGame {
+    pub struct TreeMinigame {
         pub fruit: Fruit,
         pub count: u32,
         pub lushness: f32,
         pub last_fruit_time: f32,
     }
 
-    impl Default for TreeMiniGame {
+    impl Default for TreeMinigame {
         fn default() -> Self {
             Self {
                 fruit: Fruit::Apple,
@@ -543,14 +543,14 @@ pub mod tree_minigame {
         commands: &mut Commands,
         asset_server: &Res<AssetServer>,
         transform: &Transform,
-        frozen: &TreeMiniGame,
+        frozen: &TreeMinigame,
     ) {
         let area = RectangularArea {
             width: 300.0,
             height: 300.0,
         };
         commands.spawn((
-            TreeMiniGameBundle {
+            TreeMinigameBundle {
                 minigame: frozen.clone(),
                 area: area.clone(),
             },
@@ -581,7 +581,7 @@ pub mod tree_minigame {
         camera_query: Query<(&Camera, &GlobalTransform)>,
         windows: Query<&Window>,
         mouse_button_input: Res<ButtonInput<MouseButton>>,
-        mut tree_minigames_query: Query<&mut TreeMiniGame>,
+        mut tree_minigames_query: Query<&mut TreeMinigame>,
     ) {
         if !mouse_button_input.just_pressed(MouseButton::Left) {
             return;
@@ -621,7 +621,7 @@ pub mod tree_minigame {
         mut commands: Commands,
         time: Res<Time>,
         asset_server: Res<AssetServer>,
-        mut tree_minigames_query: Query<(&mut TreeMiniGame, Entity)>,
+        mut tree_minigames_query: Query<(&mut TreeMinigame, Entity)>,
     ) {
         for (mut minigame, entity) in tree_minigames_query.iter_mut() {
             // let max_fruit = minigame.lushness * 4.0;
