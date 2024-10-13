@@ -549,27 +549,25 @@ pub mod tree_minigame {
             width: 300.0,
             height: 300.0,
         };
-        let entity = commands
-            .spawn((
-                TreeMiniGameBundle {
-                    minigame: frozen.clone(),
-                    area: area.clone(),
-                },
-                SpriteBundle {
-                    texture: asset_server
-                        .load("oak-tree-white-background-300x300.png"),
-                    sprite: Sprite {
-                        color: Color::srgba(1.0, 1.0, 1.0, 1.0),
-                        custom_size: Some(Vec2::new(area.width, area.height)),
-                        ..default()
-                    },
-                    transform: transform.clone(),
+        commands.spawn((
+            TreeMiniGameBundle {
+                minigame: frozen.clone(),
+                area: area.clone(),
+            },
+            SpriteBundle {
+                texture: asset_server
+                    .load("oak-tree-white-background-300x300.png"),
+                sprite: Sprite {
+                    color: Color::srgba(1.0, 1.0, 1.0, 1.0),
+                    custom_size: Some(Vec2::new(area.width, area.height)),
                     ..default()
                 },
-                RigidBody::Fixed,
-                Collider::from(area),
-            ))
-            .id();
+                transform: transform.clone(),
+                ..default()
+            },
+            RigidBody::Fixed,
+            Collider::from(area),
+        ));
     }
 
     // When a fruit is clicked, replace it with a fruit resource.
