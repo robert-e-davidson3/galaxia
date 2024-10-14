@@ -668,7 +668,8 @@ pub mod button_minigame {
             },
             area,
             SpriteBundle {
-                texture: asset_server.load("slick_arrow-arrow.png"),
+                texture: asset_server
+                    .load(resource_to_asset(GalaxiaResource::ShortLeftClick)),
                 transform,
                 ..default()
             },
@@ -825,9 +826,6 @@ pub mod tree_minigame {
         fruit: GalaxiaResource,
     ) {
         let area = CircularArea { radius: 8.0 };
-        let asset_path: String = resource_to_asset(fruit);
-        println!("Spawning unpicked fruit: {:?}, path={}", fruit, asset_path);
-        let texture = asset_server.load(asset_path);
         commands
             .spawn((
                 UnpickedFruit {
@@ -836,8 +834,13 @@ pub mod tree_minigame {
                 },
                 area,
                 SpriteBundle {
-                    texture,
-                    transform,
+                    texture: asset_server.load(resource_to_asset(fruit)),
+                    // adjust by Z only
+                    transform: Transform::from_xyz(
+                        transform.translation.x,
+                        transform.translation.y,
+                        1.0,
+                    ),
                     ..default()
                 },
                 Clickable,
