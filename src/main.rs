@@ -914,10 +914,6 @@ pub mod ball_breaker_minigame {
         frozen: &BallBreakerMinigame,
     ) {
         let level = frozen.level;
-        let area = RectangularArea {
-            width: BLOCK_SIZE * 10.0,
-            height: BLOCK_SIZE * 10.0,
-        };
         let blocks_per_row: u32;
         let blocks_per_column: u32;
         let paddle_width: f32;
@@ -931,6 +927,10 @@ pub mod ball_breaker_minigame {
             blocks_per_column = (10 + (r % level)) as u32;
             paddle_width = BLOCK_SIZE * 3.0 + (r % level) as f32;
         }
+        let area = RectangularArea {
+            width: BLOCK_SIZE * blocks_per_row as f32,
+            height: BLOCK_SIZE * blocks_per_column as f32,
+        };
 
         let minigame = BallBreakerMinigame {
             level,
@@ -950,12 +950,28 @@ pub mod ball_breaker_minigame {
                 Collider::from(area),
             ))
             .with_children(|parent| {
-                for y in 0..(blocks_per_column - 3) {
+                let _background = parent.spawn(SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::srgb(1.0, 1.0, 1.0),
+                        custom_size: Some(Vec2::new(area.width, area.height)),
+                        ..default()
+                    },
+                    transform: Transform::from_xyz(0.0, 0.0, -1.0),
+                    ..default()
+                });
+
+                for y in 3..blocks_per_column {
                     for x in 0..blocks_per_row {
-                        let x = x as f32 * BLOCK_SIZE;
-                        let y = y as f32 * BLOCK_SIZE;
                         let resource = random_resource(level, &mut random);
-                        spawn_block(parent, &asset_server, resource, x, y);
+                        spawn_block(
+                            parent,
+                            &asset_server,
+                            resource,
+                            blocks_per_column,
+                            blocks_per_row,
+                            x,
+                            y,
+                        );
                     }
                 }
                 spawn_paddle(
@@ -1048,16 +1064,36 @@ pub mod ball_breaker_minigame {
 
     pub fn spawn_block(
         commands: &mut ChildBuilder,
-        _asset_server: &AssetServer,
+        asset_server: &AssetServer,
         resource: GalaxiaResource,
-        _x: f32,
-        _y: f32,
+        blocks_per_column: u32,
+        blocks_per_row: u32,
+        x: u32,
+        y: u32,
     ) {
         let area = RectangularArea {
             width: BLOCK_SIZE,
             height: BLOCK_SIZE,
         };
-        commands.spawn((Block { resource }, area, Collider::from(area)));
+        let x = BLOCK_SIZE
+            * ((x as f32) - (blocks_per_row as f32 / 2.0) + 1.0 / 2.0);
+        let y = BLOCK_SIZE
+            * ((y as f32) - (blocks_per_column as f32 / 2.0) + 1.0 / 2.0);
+
+        commands.spawn((
+            Block { resource },
+            SpriteBundle {
+                texture: asset_server.load(resource_to_asset(resource)),
+                transform: Transform::from_xyz(x, y, 0.0),
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(BLOCK_SIZE, BLOCK_SIZE)),
+                    ..default()
+                },
+                ..default()
+            },
+            area,
+            Collider::from(area),
+        ));
     }
 
     #[derive(Debug, Clone, Component)]
