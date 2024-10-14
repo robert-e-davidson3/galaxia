@@ -64,17 +64,28 @@ pub struct Random {
     rng: WyRand,
 }
 
-fn setup_board(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup_board(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut random: ResMut<Random>,
+) {
     button_minigame::spawn(
         &mut commands,
-        &mut Transform::from_xyz(0.0, 0.0, 0.0),
+        Transform::from_xyz(0.0, 0.0, 0.0),
         &button_minigame::ButtonMinigame { ..default() },
     );
     tree_minigame::spawn(
         &mut commands,
         &asset_server,
-        &mut Transform::from_xyz(400.0, 0.0, 0.0),
+        Transform::from_xyz(400.0, 0.0, 0.0),
         &tree_minigame::TreeMinigame { ..default() },
+    );
+    ball_breaker_minigame::spawn(
+        &mut commands,
+        &asset_server,
+        &mut random,
+        Transform::from_xyz(-400.0, -400.0, 0.0),
+        &ball_breaker_minigame::BallBreakerMinigame { ..default() },
     );
 }
 
@@ -510,7 +521,7 @@ pub mod button_minigame {
 
     pub fn spawn(
         commands: &mut Commands,
-        transform: &Transform,
+        transform: Transform,
         frozen: &ButtonMinigame,
     ) {
         let area = RectangularArea {
@@ -700,7 +711,7 @@ pub mod tree_minigame {
     pub fn spawn(
         commands: &mut Commands,
         asset_server: &Res<AssetServer>,
-        transform: &Transform,
+        transform: Transform,
         frozen: &TreeMinigame,
     ) {
         let area = RectangularArea {
@@ -814,6 +825,9 @@ pub mod tree_minigame {
         fruit: GalaxiaResource,
     ) {
         let area = CircularArea { radius: 8.0 };
+        let asset_path: String = resource_to_asset(fruit);
+        println!("Spawning unpicked fruit: {:?}, path={}", fruit, asset_path);
+        let texture = asset_server.load(asset_path);
         commands
             .spawn((
                 UnpickedFruit {
@@ -822,7 +836,7 @@ pub mod tree_minigame {
                 },
                 area,
                 SpriteBundle {
-                    texture: asset_server.load(resource_to_asset(fruit)),
+                    texture,
                     transform,
                     ..default()
                 },
@@ -876,12 +890,12 @@ pub mod ball_breaker_minigame {
 
     #[derive(Debug, Clone, Default, Bundle)]
     pub struct BallBreakderMinigameBundle {
-        pub minigame: BallBreakerMiniGame,
+        pub minigame: BallBreakerMinigame,
         pub area: RectangularArea,
     }
 
     #[derive(Debug, Clone, Default, Component)]
-    pub struct BallBreakerMiniGame {
+    pub struct BallBreakerMinigame {
         pub blocks_per_row: u32,
         pub blocks_per_column: u32,
         pub paddle_width: f32,
@@ -890,13 +904,13 @@ pub mod ball_breaker_minigame {
     }
 
     pub fn spawn(
-        mut commands: Commands,
+        commands: &mut Commands,
         asset_server: &AssetServer,
-        mut materials: &mut Assets<ColorMaterial>,
         mut random: &mut Random,
         transform: Transform,
-        level: u64,
+        frozen: &BallBreakerMinigame,
     ) {
+        let level = frozen.level;
         let area = RectangularArea {
             width: BLOCK_SIZE * 10.0,
             height: BLOCK_SIZE * 10.0,
@@ -915,7 +929,7 @@ pub mod ball_breaker_minigame {
             paddle_width = BLOCK_SIZE * 3.0 + (r % level) as f32;
         }
 
-        let minigame = BallBreakerMiniGame {
+        let minigame = BallBreakerMinigame {
             level,
             blocks_per_row,
             blocks_per_column,
@@ -938,19 +952,11 @@ pub mod ball_breaker_minigame {
                         let x = x as f32 * BLOCK_SIZE;
                         let y = y as f32 * BLOCK_SIZE;
                         let resource = random_resource(level, &mut random);
-                        spawn_block(
-                            parent,
-                            &asset_server,
-                            &mut materials,
-                            resource,
-                            x,
-                            y,
-                        );
+                        spawn_block(parent, &asset_server, resource, x, y);
                     }
                 }
                 spawn_paddle(
                     parent,
-                    &mut materials,
                     &asset_server,
                     RectangularArea {
                         width: paddle_width,
@@ -1040,7 +1046,6 @@ pub mod ball_breaker_minigame {
     pub fn spawn_block(
         commands: &mut ChildBuilder,
         _asset_server: &AssetServer,
-        _materials: &mut Assets<ColorMaterial>,
         resource: GalaxiaResource,
         _x: f32,
         _y: f32,
@@ -1059,7 +1064,6 @@ pub mod ball_breaker_minigame {
 
     pub fn spawn_paddle(
         commands: &mut ChildBuilder,
-        _materials: &Assets<ColorMaterial>,
         _asset_server: &AssetServer,
         area: RectangularArea,
         minigame: Entity,
