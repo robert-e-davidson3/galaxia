@@ -6,6 +6,7 @@ use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 use std::collections::*;
 use std::*;
+use wyrand::WyRand;
 
 fn main() {
     App::new()
@@ -52,7 +53,15 @@ fn main() {
             // limiter: Limiter::from_framerate(10.0),
             ..default()
         })
+        .insert_resource(Random {
+            rng: WyRand::new(42),
+        })
         .run();
+}
+
+#[derive(Resource)]
+pub struct Random {
+    rng: WyRand,
 }
 
 fn setup_board(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -215,7 +224,7 @@ pub struct Clickable;
 
 #[derive(Debug, Default, Component)]
 pub struct Player {
-    pub resources: HashMap<String, f32>,
+    pub resources: HashMap<GalaxiaResource, f32>,
 }
 
 #[derive(Debug, Bundle)]
@@ -224,10 +233,10 @@ pub struct LooseResourceBundle {
     pub transform: Transform,
 }
 
-#[derive(Debug, Default, Component)]
+#[derive(Debug, Component)]
 #[component(storage = "SparseSet")]
 pub struct LooseResource {
-    pub resource: String,
+    pub resource: GalaxiaResource,
     pub amount: f32,
 }
 
@@ -239,6 +248,181 @@ pub enum ResourceKind {
     Mana,
     Energy,
     Heat,
+}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub enum GalaxiaResource {
+    // abstract
+    ShortLeftClick,
+    LongLeftClick,
+
+    // solid
+    Apple,
+    Lemon,
+    Lime,
+    Mud,
+    Dirt,
+    Sandstone,
+    Granite,
+    Marble,
+    Obsidian,
+    Copper,
+    Tin,
+    Iron,
+    Silver,
+    Gold,
+    Diamond,
+    Amethyst,
+    Moss,
+    Unobtainium,
+
+    // liquid
+    SaltWater,
+    FreshWater,
+    // gas
+    // mana
+    // energy
+    // heat
+}
+
+pub fn resource_to_kind(resource: GalaxiaResource) -> ResourceKind {
+    match resource {
+        // abstract
+        GalaxiaResource::ShortLeftClick => ResourceKind::Abstract,
+        GalaxiaResource::LongLeftClick => ResourceKind::Abstract,
+        // solid
+        GalaxiaResource::Apple => ResourceKind::Solid,
+        GalaxiaResource::Lemon => ResourceKind::Solid,
+        GalaxiaResource::Lime => ResourceKind::Solid,
+        GalaxiaResource::Mud => ResourceKind::Solid,
+        GalaxiaResource::Dirt => ResourceKind::Solid,
+        GalaxiaResource::Sandstone => ResourceKind::Solid,
+        GalaxiaResource::Granite => ResourceKind::Solid,
+        GalaxiaResource::Marble => ResourceKind::Solid,
+        GalaxiaResource::Obsidian => ResourceKind::Solid,
+        GalaxiaResource::Copper => ResourceKind::Solid,
+        GalaxiaResource::Tin => ResourceKind::Solid,
+        GalaxiaResource::Iron => ResourceKind::Solid,
+        GalaxiaResource::Silver => ResourceKind::Solid,
+        GalaxiaResource::Gold => ResourceKind::Solid,
+        GalaxiaResource::Diamond => ResourceKind::Solid,
+        GalaxiaResource::Amethyst => ResourceKind::Solid,
+        GalaxiaResource::Moss => ResourceKind::Solid,
+        GalaxiaResource::Unobtainium => ResourceKind::Solid,
+        // liquid
+        GalaxiaResource::SaltWater => ResourceKind::Liquid,
+        GalaxiaResource::FreshWater => ResourceKind::Liquid,
+        // gas
+        // mana
+        // energy
+        // heat
+    }
+}
+
+pub fn resource_to_asset(resource: GalaxiaResource) -> String {
+    match resource {
+        // abstract
+        GalaxiaResource::ShortLeftClick => {
+            "abstract/short_left_click.png".to_string()
+        }
+        GalaxiaResource::LongLeftClick => {
+            "abstract/long_left_click.png".to_string()
+        }
+        // solid
+        GalaxiaResource::Apple => "solid/apple.png".to_string(),
+        GalaxiaResource::Lemon => "solid/lemon.png".to_string(),
+        GalaxiaResource::Lime => "solid/lime.png".to_string(),
+        GalaxiaResource::Mud => "solid/mud.png".to_string(),
+        GalaxiaResource::Dirt => "solid/dirt.png".to_string(),
+        GalaxiaResource::Sandstone => "solid/sandstone.png".to_string(),
+        GalaxiaResource::Granite => "solid/granite.png".to_string(),
+        GalaxiaResource::Marble => "solid/marble.png".to_string(),
+        GalaxiaResource::Obsidian => "solid/obsidian.png".to_string(),
+        GalaxiaResource::Copper => "solid/copper.png".to_string(),
+        GalaxiaResource::Tin => "solid/tin.png".to_string(),
+        GalaxiaResource::Iron => "solid/iron.png".to_string(),
+        GalaxiaResource::Silver => "solid/silver.png".to_string(),
+        GalaxiaResource::Gold => "solid/gold.png".to_string(),
+        GalaxiaResource::Diamond => "solid/diamond.png".to_string(),
+        GalaxiaResource::Amethyst => "solid/amethyst.png".to_string(),
+        GalaxiaResource::Moss => "solid/moss.png".to_string(),
+        GalaxiaResource::Unobtainium => "solid/unobtainium.png".to_string(),
+        // liquid
+        GalaxiaResource::SaltWater => "liquid/salt_water.png".to_string(),
+        GalaxiaResource::FreshWater => "liquid/fresh_water.png".to_string(),
+        // gas
+        // mana
+        // energy
+        // heat
+    }
+}
+
+pub fn resource_to_name(resource: GalaxiaResource, full: bool) -> String {
+    if full {
+        match resource {
+            // abstract
+            GalaxiaResource::ShortLeftClick => "Short Left Click".to_string(),
+            GalaxiaResource::LongLeftClick => "Long Left Click".to_string(),
+            // solid
+            GalaxiaResource::Apple => "Apple".to_string(),
+            GalaxiaResource::Lemon => "Lemon".to_string(),
+            GalaxiaResource::Lime => "Lime".to_string(),
+            GalaxiaResource::Mud => "Mud".to_string(),
+            GalaxiaResource::Dirt => "Dirt".to_string(),
+            GalaxiaResource::Sandstone => "Sandstone".to_string(),
+            GalaxiaResource::Granite => "Granite".to_string(),
+            GalaxiaResource::Marble => "Marble".to_string(),
+            GalaxiaResource::Obsidian => "Obsidian".to_string(),
+            GalaxiaResource::Copper => "Copper".to_string(),
+            GalaxiaResource::Tin => "Tin".to_string(),
+            GalaxiaResource::Iron => "Iron".to_string(),
+            GalaxiaResource::Silver => "Silver".to_string(),
+            GalaxiaResource::Gold => "Gold".to_string(),
+            GalaxiaResource::Diamond => "Diamond".to_string(),
+            GalaxiaResource::Amethyst => "Amethyst".to_string(),
+            GalaxiaResource::Moss => "Moss".to_string(),
+            GalaxiaResource::Unobtainium => "Unobtainium".to_string(),
+            // liquid
+            GalaxiaResource::SaltWater => "Salt Water".to_string(),
+            GalaxiaResource::FreshWater => "Fresh Water".to_string(),
+            // gas
+            // mana
+            // energy
+            // heat
+        }
+    } else {
+        match resource {
+            // abstract
+            GalaxiaResource::ShortLeftClick => "Click".to_string(),
+            GalaxiaResource::LongLeftClick => "Click".to_string(),
+            // solid
+            GalaxiaResource::Apple => "Fruit".to_string(),
+            GalaxiaResource::Lemon => "Fruit".to_string(),
+            GalaxiaResource::Lime => "Fruit".to_string(),
+            GalaxiaResource::Mud => "Dirt".to_string(),
+            GalaxiaResource::Dirt => "Dirt".to_string(),
+            GalaxiaResource::Sandstone => "Stone".to_string(),
+            GalaxiaResource::Granite => "Stone".to_string(),
+            GalaxiaResource::Marble => "Stone".to_string(),
+            GalaxiaResource::Obsidian => "Stone".to_string(),
+            GalaxiaResource::Copper => "Metal".to_string(),
+            GalaxiaResource::Tin => "Metal".to_string(),
+            GalaxiaResource::Iron => "Metal".to_string(),
+            GalaxiaResource::Silver => "Metal".to_string(),
+            GalaxiaResource::Gold => "Metal".to_string(),
+            GalaxiaResource::Diamond => "Gem".to_string(),
+            GalaxiaResource::Amethyst => "Gem".to_string(),
+            GalaxiaResource::Moss => "Plant".to_string(),
+            GalaxiaResource::Unobtainium => "Metal".to_string(),
+            // liquid
+            GalaxiaResource::SaltWater => "Water".to_string(),
+            GalaxiaResource::FreshWater => "Water".to_string(),
+            // gas
+            // mana
+            // energy
+            // heat
+        }
+    }
 }
 
 #[derive(Debug, Default, Copy, Clone, Component)]
@@ -468,7 +652,7 @@ pub mod button_minigame {
         let area = CircularArea { radius: 10.0 };
         commands.spawn((
             LooseResource {
-                resource: "click".to_string(),
+                resource: GalaxiaResource::ShortLeftClick,
                 amount: 1.0,
             },
             area,
@@ -496,7 +680,7 @@ pub mod tree_minigame {
 
     #[derive(Debug, Clone, Component)]
     pub struct TreeMinigame {
-        pub fruit: Fruit,
+        pub fruit: GalaxiaResource,
         pub count: u32,
         pub lushness: f32,
         pub last_fruit_time: f32,
@@ -505,37 +689,11 @@ pub mod tree_minigame {
     impl Default for TreeMinigame {
         fn default() -> Self {
             Self {
-                fruit: Fruit::Apple,
+                fruit: GalaxiaResource::Apple,
                 count: 0,
                 lushness: 1.0,
                 last_fruit_time: 0.0,
             }
-        }
-    }
-
-    #[derive(Debug, Default, Copy, Clone)]
-    pub enum Fruit {
-        #[default]
-        Apple,
-        Lemon,
-        Lime,
-    }
-
-    // fruit_to_string
-    pub fn fruit_to_string(fruit: Fruit) -> String {
-        match fruit {
-            Fruit::Apple => "Apple".to_string(),
-            Fruit::Lemon => "Lemon".to_string(),
-            Fruit::Lime => "Lime".to_string(),
-        }
-    }
-
-    pub fn fruit_to_asset(fruit: Fruit) -> String {
-        let base = "fruits/pngs";
-        match fruit {
-            Fruit::Apple => format!("{}/apple.png", base),
-            Fruit::Lemon => format!("{}/lemon.png", base),
-            Fruit::Lime => format!("{}/lime.png", base),
         }
     }
 
@@ -609,7 +767,7 @@ pub mod tree_minigame {
                             fruit_center.y,
                             0.0,
                         ),
-                        fruit.fruit,
+                        fruit.resource,
                     );
                 }
             }
@@ -653,18 +811,18 @@ pub mod tree_minigame {
         asset_server: &Res<AssetServer>,
         transform: Transform,
         parent: Entity,
-        fruit: Fruit,
+        fruit: GalaxiaResource,
     ) {
         let area = CircularArea { radius: 8.0 };
         commands
             .spawn((
                 UnpickedFruit {
-                    fruit,
+                    resource: fruit,
                     minigame: parent,
                 },
                 area,
                 SpriteBundle {
-                    texture: asset_server.load(fruit_to_asset(fruit)),
+                    texture: asset_server.load(resource_to_asset(fruit)),
                     transform,
                     ..default()
                 },
@@ -677,17 +835,17 @@ pub mod tree_minigame {
         commands: &mut Commands,
         asset_server: &Res<AssetServer>,
         transform: Transform,
-        fruit: Fruit,
+        fruit: GalaxiaResource,
     ) {
         let area = CircularArea { radius: 8.0 };
         commands.spawn((
             LooseResource {
-                resource: fruit_to_string(fruit),
+                resource: fruit,
                 amount: 1.0,
             },
             area,
             SpriteBundle {
-                texture: asset_server.load(fruit_to_asset(fruit)),
+                texture: asset_server.load(resource_to_asset(fruit)),
                 transform,
                 ..default()
             },
@@ -698,8 +856,215 @@ pub mod tree_minigame {
 
     #[derive(Debug, Clone, Component)]
     pub struct UnpickedFruit {
-        pub fruit: Fruit,
+        pub resource: GalaxiaResource,
         pub minigame: Entity,
+    }
+}
+
+// Grid of blocks or empty spaces. The bototm has a paddle that can move left
+// and right. The player inserts a ball which bounces off of or breaks the
+// blocks, depending on which is harder. The ball also bounces off of the
+// paddle - if the ball hits the bottom, it is lost.
+// When all blocks are broken, the player wins. This gives them a copy of the
+// minigame to use or deploy.
+pub mod ball_breaker_minigame {
+    use super::*;
+
+    pub const DESCRIPTION: &str = "Throw balls to break blocks!";
+
+    pub const BLOCK_SIZE: f32 = 20.0;
+
+    #[derive(Debug, Clone, Default, Bundle)]
+    pub struct BallBreakderMinigameBundle {
+        pub minigame: BallBreakerMiniGame,
+        pub area: RectangularArea,
+    }
+
+    #[derive(Debug, Clone, Default, Component)]
+    pub struct BallBreakerMiniGame {
+        pub blocks_per_row: u32,
+        pub blocks_per_column: u32,
+        pub paddle_width: f32,
+        pub level: u64,
+        pub balls: Vec<(Entity, f32, f32)>, // entity, x, y
+    }
+
+    pub fn spawn(
+        mut commands: Commands,
+        asset_server: &AssetServer,
+        mut materials: &mut Assets<ColorMaterial>,
+        mut random: &mut Random,
+        transform: Transform,
+        level: u64,
+    ) {
+        let area = RectangularArea {
+            width: BLOCK_SIZE * 10.0,
+            height: BLOCK_SIZE * 10.0,
+        };
+        let blocks_per_row: u32;
+        let blocks_per_column: u32;
+        let paddle_width: f32;
+        if level == 0 {
+            blocks_per_row = 10;
+            blocks_per_column = 10;
+            paddle_width = BLOCK_SIZE * 3.0;
+        } else {
+            let r: u64 = random.rng.rand();
+            blocks_per_row = (10 + (r % level)) as u32;
+            blocks_per_column = (10 + (r % level)) as u32;
+            paddle_width = BLOCK_SIZE * 3.0 + (r % level) as f32;
+        }
+
+        let minigame = BallBreakerMiniGame {
+            level,
+            blocks_per_row,
+            blocks_per_column,
+            paddle_width,
+            balls: Vec::new(),
+        };
+        commands
+            .spawn((
+                BallBreakderMinigameBundle { minigame, area },
+                SpatialBundle {
+                    transform,
+                    ..default()
+                },
+                RigidBody::Fixed,
+                Collider::from(area),
+            ))
+            .with_children(|parent| {
+                for y in 0..(blocks_per_column - 3) {
+                    for x in 0..blocks_per_row {
+                        let x = x as f32 * BLOCK_SIZE;
+                        let y = y as f32 * BLOCK_SIZE;
+                        let resource = random_resource(level, &mut random);
+                        spawn_block(
+                            parent,
+                            &asset_server,
+                            &mut materials,
+                            resource,
+                            x,
+                            y,
+                        );
+                    }
+                }
+                spawn_paddle(
+                    parent,
+                    &mut materials,
+                    &asset_server,
+                    RectangularArea {
+                        width: paddle_width,
+                        height: BLOCK_SIZE,
+                    },
+                    parent.parent_entity(),
+                );
+            });
+    }
+
+    #[derive(Debug, Clone, Component)]
+    pub struct Block {
+        pub resource: GalaxiaResource,
+    }
+
+    pub fn random_resource(level: u64, random: &mut Random) -> GalaxiaResource {
+        let r: u64;
+        if level == 0 {
+            r = 0;
+        } else {
+            r = 1 + random.rng.rand() % level;
+        }
+
+        match r {
+            0 => GalaxiaResource::Mud,
+            1 => GalaxiaResource::Dirt,
+            2 => GalaxiaResource::Sandstone,
+            3 => GalaxiaResource::Granite,
+            4 => GalaxiaResource::Marble,
+            5 => GalaxiaResource::Obsidian,
+            6 => GalaxiaResource::Copper,
+            7 => GalaxiaResource::Tin,
+            8 => GalaxiaResource::Iron,
+            9 => GalaxiaResource::Silver,
+            10 => GalaxiaResource::Gold,
+            11 => GalaxiaResource::Diamond,
+            12 => GalaxiaResource::Amethyst,
+            13 => GalaxiaResource::FreshWater,
+            14 => GalaxiaResource::Moss,
+            _ => GalaxiaResource::Unobtainium,
+        }
+    }
+
+    pub fn resource_health(resource: &str) -> u32 {
+        match resource {
+            "mud" => 1,
+            "dirt" => 2,
+            "sandstone" => 3,
+            "granite" => 4,
+            "marble" => 4,
+            "obsidian" => 2,
+            "copper" => 4,
+            "tin" => 4,
+            "iron" => 8,
+            "silver" => 4,
+            "gold" => 3,
+            "diamond" => 6,
+            "amethyst" => 6,
+            "fresh water" => 0,
+            "moss" => 1,
+            _ => 16,
+        }
+    }
+
+    pub fn resource_damage(resource: &str) -> u32 {
+        match resource {
+            "mud" => 2,
+            "dirt" => 3,
+            "sandstone" => 4,
+            "granite" => 4,
+            "marble" => 4,
+            "obsidian" => 6,
+            "copper" => 7,
+            "tin" => 7,
+            "bronze" => 8, // must be forged from copper and tin
+            "iron" => 10,
+            "silver" => 4,
+            "gold" => 3,
+            "diamond" => 11,
+            "amethyst" => 4,
+            "fresh water" => 1,
+            "moss" => 0,
+            _ => 16,
+        }
+    }
+
+    pub fn spawn_block(
+        commands: &mut ChildBuilder,
+        _asset_server: &AssetServer,
+        _materials: &mut Assets<ColorMaterial>,
+        resource: GalaxiaResource,
+        _x: f32,
+        _y: f32,
+    ) {
+        let area = RectangularArea {
+            width: BLOCK_SIZE,
+            height: BLOCK_SIZE,
+        };
+        commands.spawn((Block { resource }, area, Collider::from(area)));
+    }
+
+    #[derive(Debug, Clone, Component)]
+    pub struct Paddle {
+        pub minigame: Entity,
+    }
+
+    pub fn spawn_paddle(
+        commands: &mut ChildBuilder,
+        _materials: &Assets<ColorMaterial>,
+        _asset_server: &AssetServer,
+        area: RectangularArea,
+        minigame: Entity,
+    ) {
+        commands.spawn((Paddle { minigame }, area, Collider::from(area)));
     }
 }
 
