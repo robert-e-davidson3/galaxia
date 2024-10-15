@@ -955,7 +955,7 @@ pub mod tree_minigame {
     }
 }
 
-// Grid of blocks or empty spaces. The bototm has a paddle that can move left
+// Grid of blocks or empty spaces. The bottom has a paddle that can move left
 // and right. The player inserts a ball which bounces off of or breaks the
 // blocks, depending on which is harder. The ball also bounces off of the
 // paddle - if the ball hits the bottom, it is lost.
@@ -1116,7 +1116,7 @@ pub mod ball_breaker_minigame {
         }
     }
 
-    pub fn resource_health(resource: &str) -> u32 {
+    pub fn resource_toughness(resource: &str) -> u32 {
         match resource {
             "mud" => 1,
             "dirt" => 2,
