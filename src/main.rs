@@ -468,7 +468,7 @@ impl From<CircularArea> for Circle {
     }
 }
 
-fn is_click_in_rectangle(
+fn _is_click_in_rectangle(
     click_position: Vec2,
     rectangle_center: Vec2,
     rectangle_size: Vec2,
