@@ -24,6 +24,7 @@ fn main() {
                 keyboard_input,
                 update_camera,
                 player_move,
+                constant_velocity_system,
                 button_minigame::update,
                 tree_minigame::update,
             ),
@@ -100,8 +101,8 @@ fn setup_player(
             Player { ..default() },
             MaterialMesh2dBundle {
                 mesh: meshes.add(Circle::from(area)).into(),
-                material: materials.add(Color::srgb(6.25, 9.4, 9.1)),
-                transform: Transform::from_xyz(0.0, 250.0, 1.0),
+                material: materials.add(Color::srgb(0.625, 0.94, 0.91)),
+                transform: Transform::from_xyz(-200.0, -400.0, 1.0),
                 ..default()
             },
             area,
@@ -503,6 +504,81 @@ fn translate_to_world_position(
         .map(|ray| ray.origin.truncate())
 }
 
+pub fn spawn_bounding_rectangle(
+    parent: &mut ChildBuilder,
+    area: RectangularArea,
+) {
+    const WALL_THICKNESS: f32 = 1.0;
+    const HALF_WALL_THICKNESS: f32 = WALL_THICKNESS / 2.0;
+    let half_width: f32 = area.width / 2.0;
+    let half_height: f32 = area.height / 2.0;
+    parent
+        .spawn((
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&shapes::Rectangle {
+                    extents: Vec2::new(area.width, area.height),
+                    origin: RectangleOrigin::Center,
+                }),
+                ..Default::default()
+            },
+            Fill::color(Color::NONE),
+            Stroke::new(Color::BLACK, WALL_THICKNESS),
+        ))
+        .with_children(|parent| {
+            // top wall
+            parent.spawn((
+                TransformBundle::from(Transform::from_xyz(
+                    0.0,
+                    half_height,
+                    0.0,
+                )),
+                Collider::cuboid(half_width, HALF_WALL_THICKNESS),
+                RigidBody::Fixed,
+            ));
+            // bottom wall
+            parent.spawn((
+                TransformBundle::from(Transform::from_xyz(
+                    0.0,
+                    -half_height,
+                    0.0,
+                )),
+                Collider::cuboid(half_width, HALF_WALL_THICKNESS),
+                RigidBody::Fixed,
+            ));
+            // left wall
+            parent.spawn((
+                TransformBundle::from(Transform::from_xyz(
+                    -half_width,
+                    0.0,
+                    0.0,
+                )),
+                Collider::cuboid(HALF_WALL_THICKNESS, half_height),
+                RigidBody::Fixed,
+            ));
+            // right wall
+            parent.spawn((
+                TransformBundle::from(Transform::from_xyz(
+                    half_width, 0.0, 0.0,
+                )),
+                Collider::cuboid(HALF_WALL_THICKNESS, half_height),
+                RigidBody::Fixed,
+            ));
+        });
+}
+
+#[derive(Debug, Copy, Clone, Component)]
+pub struct ConstantSpeed {
+    pub speed: f32,
+}
+
+pub fn constant_velocity_system(
+    mut query: Query<(&ConstantSpeed, &mut Velocity)>,
+) {
+    for (speed, mut velocity) in query.iter_mut() {
+        velocity.linvel = velocity.linvel.normalize() * speed.speed;
+    }
+}
+
 pub mod button_minigame {
     use super::*;
 
@@ -542,10 +618,9 @@ pub mod button_minigame {
                     ),
                     ..default()
                 },
-                RigidBody::Fixed,
-                Collider::from(area),
             ))
             .with_children(|parent| {
+                spawn_bounding_rectangle(parent, area);
                 let _background = parent.spawn(SpriteBundle {
                     sprite: Sprite {
                         color: Color::srgb(0.9, 0.9, 0.9),
@@ -719,25 +794,27 @@ pub mod tree_minigame {
             width: 300.0,
             height: 300.0,
         };
-        commands.spawn((
-            TreeMinigameBundle {
-                minigame: frozen.clone(),
-                area: area.clone(),
-            },
-            SpriteBundle {
-                texture: asset_server
-                    .load("oak-tree-white-background-300x300.png"),
-                sprite: Sprite {
-                    color: Color::srgba(1.0, 1.0, 1.0, 1.0),
-                    custom_size: Some(Vec2::new(area.width, area.height)),
+        commands
+            .spawn((
+                TreeMinigameBundle {
+                    minigame: frozen.clone(),
+                    area: area.clone(),
+                },
+                SpriteBundle {
+                    texture: asset_server
+                        .load("oak-tree-white-background-300x300.png"),
+                    sprite: Sprite {
+                        color: Color::srgba(1.0, 1.0, 1.0, 1.0),
+                        custom_size: Some(Vec2::new(area.width, area.height)),
+                        ..default()
+                    },
+                    transform: transform.clone(),
                     ..default()
                 },
-                transform: transform.clone(),
-                ..default()
-            },
-            RigidBody::Fixed,
-            Collider::from(area),
-        ));
+            ))
+            .with_children(|parent| {
+                spawn_bounding_rectangle(parent, area);
+            });
     }
 
     // When a fruit is clicked, replace it with a fruit resource.
@@ -946,8 +1023,6 @@ pub mod ball_breaker_minigame {
                     transform,
                     ..default()
                 },
-                RigidBody::Fixed,
-                Collider::from(area),
             ))
             .with_children(|parent| {
                 let _background = parent.spawn(SpriteBundle {
@@ -959,6 +1034,13 @@ pub mod ball_breaker_minigame {
                     transform: Transform::from_xyz(0.0, 0.0, -1.0),
                     ..default()
                 });
+                spawn_bounding_rectangle(
+                    parent,
+                    RectangularArea {
+                        width: area.width,
+                        height: area.height,
+                    },
+                );
 
                 for y in 3..blocks_per_column {
                     for x in 0..blocks_per_row {
@@ -982,6 +1064,21 @@ pub mod ball_breaker_minigame {
                         height: BLOCK_SIZE,
                     },
                     parent.parent_entity(),
+                    blocks_per_column,
+                    paddle_width,
+                );
+
+                // TODO do not do this here - need an input ball
+                spawn_ball(
+                    parent,
+                    &asset_server,
+                    CircularArea {
+                        radius: BLOCK_SIZE / 2.0,
+                    },
+                    parent.parent_entity(),
+                    blocks_per_column,
+                    blocks_per_row,
+                    GalaxiaResource::Dirt, // TODO use actual resource
                 );
             });
     }
@@ -1097,17 +1194,84 @@ pub mod ball_breaker_minigame {
     }
 
     #[derive(Debug, Clone, Component)]
+    pub struct Ball {
+        pub resource: GalaxiaResource,
+        pub minigame: Entity,
+    }
+
+    pub fn spawn_ball(
+        commands: &mut ChildBuilder,
+        asset_server: &AssetServer,
+        area: CircularArea,
+        minigame: Entity,
+        blocks_per_column: u32,
+        blocks_per_row: u32,
+        resource: GalaxiaResource,
+    ) {
+        let x = -30.0 + BLOCK_SIZE * ((blocks_per_row / 2) as f32 - 0.5);
+        let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 1.5);
+        let square = area.radius * 2.0;
+        commands.spawn((
+            Ball { resource, minigame },
+            SpriteBundle {
+                texture: asset_server.load("block_breaker/ball.png"),
+                transform: Transform::from_xyz(x, y, 0.0),
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(square, square)),
+                    ..default()
+                },
+                ..default()
+            },
+            area,
+            Collider::from(area),
+            RigidBody::Dynamic {},
+            Velocity::linear(Vec2::new(-1.0, 1.0)),
+            LockedAxes::ROTATION_LOCKED,
+            ConstantSpeed { speed: 200.0 },
+            Friction {
+                coefficient: 0.0,
+                combine_rule: CoefficientCombineRule::Min,
+            },
+            Restitution {
+                coefficient: 1.0,
+                combine_rule: CoefficientCombineRule::Max,
+            },
+            Damping {
+                linear_damping: 0.0,
+                angular_damping: 0.0,
+            },
+        ));
+    }
+
+    #[derive(Debug, Clone, Component)]
     pub struct Paddle {
         pub minigame: Entity,
     }
 
     pub fn spawn_paddle(
         commands: &mut ChildBuilder,
-        _asset_server: &AssetServer,
+        asset_server: &AssetServer,
         area: RectangularArea,
         minigame: Entity,
+        blocks_per_column: u32,
+        paddle_width: f32,
     ) {
-        commands.spawn((Paddle { minigame }, area, Collider::from(area)));
+        let x = 0.0;
+        let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 0.5);
+        commands.spawn((
+            Paddle { minigame },
+            SpriteBundle {
+                texture: asset_server.load("block_breaker/paddle.png"),
+                transform: Transform::from_xyz(x, y, 0.0),
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(paddle_width, BLOCK_SIZE)),
+                    ..default()
+                },
+                ..default()
+            },
+            area,
+            Collider::from(area),
+        ));
     }
 }
 
