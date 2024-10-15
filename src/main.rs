@@ -25,13 +25,17 @@ fn main() {
                 update_camera,
                 player_move,
                 constant_velocity_system,
+                grab_resources,
                 button_minigame::update,
                 tree_minigame::update,
             ),
         )
         .add_systems(
             FixedUpdate,
-            (collect_loose_resources, tree_minigame::fixed_update),
+            (
+                //collect_loose_resources,
+                tree_minigame::fixed_update
+            ),
         )
         // Gather resources once every five seconds.
         .insert_resource(Time::<Fixed>::from_seconds(5.0))
@@ -98,7 +102,10 @@ fn setup_player(
     let area = CircularArea { radius: 25.0 };
     let _player = commands
         .spawn((
-            Player { ..default() },
+            Player {
+                sticky: true,
+                ..default()
+            },
             MaterialMesh2dBundle {
                 mesh: meshes.add(Circle::from(area)).into(),
                 material: materials.add(Color::srgb(0.625, 0.94, 0.91)),
@@ -108,6 +115,7 @@ fn setup_player(
             area,
             Collider::from(area),
             RigidBody::Dynamic,
+            ActiveEvents::COLLISION_EVENTS,
             AdditionalMassProperties::Mass(10.0),
             ExternalImpulse::default(),
             Damping {
@@ -202,6 +210,33 @@ fn keyboard_input(
     }
 }
 
+fn grab_resources(
+    mut _commands: Commands,
+    player: Query<(&Player, Entity)>,
+    mut _loose_resources: Query<(Entity, &LooseResource)>,
+    mut collision_events: EventReader<CollisionEvent>,
+) {
+    let Ok((player, player_entity)) = player.get_single() else {
+        return;
+    };
+    if !player.sticky {
+        return;
+    }
+
+    for collision_event in collision_events.read() {
+        match collision_event {
+            CollisionEvent::Started(entity1, entity2, _) => {
+                println!(
+                    "Collision started between {:?} and {:?}",
+                    entity1, entity2
+                );
+                println!("Player entity: {:?}", player_entity);
+            }
+            _ => {}
+        }
+    }
+}
+
 fn collect_loose_resources(
     mut commands: Commands,
     mut player: Query<&mut Player>,
@@ -237,12 +272,7 @@ pub struct Clickable;
 #[derive(Debug, Default, Component)]
 pub struct Player {
     pub resources: HashMap<GalaxiaResource, f32>,
-}
-
-#[derive(Debug, Bundle)]
-pub struct LooseResourceBundle {
-    pub resource: LooseResource,
-    pub transform: Transform,
+    pub sticky: bool,
 }
 
 #[derive(Debug, Component)]
@@ -750,6 +780,10 @@ pub mod button_minigame {
             },
             RigidBody::Dynamic,
             Collider::from(area),
+            Damping {
+                linear_damping: 1.0,
+                angular_damping: 0.0,
+            },
         ));
     }
 }
@@ -945,6 +979,10 @@ pub mod tree_minigame {
             },
             RigidBody::Dynamic,
             Collider::from(area),
+            Damping {
+                linear_damping: 1.0,
+                angular_damping: 1.0,
+            },
         ));
     }
 
