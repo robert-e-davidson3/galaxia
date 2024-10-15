@@ -26,17 +26,12 @@ fn main() {
                 player_move,
                 constant_velocity_system,
                 grab_resources,
+                release_resources,
                 button_minigame::update,
                 tree_minigame::update,
             ),
         )
-        .add_systems(
-            FixedUpdate,
-            (
-                //collect_loose_resources,
-                tree_minigame::fixed_update
-            ),
-        )
+        .add_systems(FixedUpdate, tree_minigame::fixed_update)
         // Gather resources once every five seconds.
         .insert_resource(Time::<Fixed>::from_seconds(5.0))
         .insert_resource(CameraController {
@@ -102,10 +97,7 @@ fn setup_player(
     let area = CircularArea { radius: 25.0 };
     let _player = commands
         .spawn((
-            Player {
-                sticky: true,
-                ..default()
-            },
+            Player { ..default() },
             MaterialMesh2dBundle {
                 mesh: meshes.add(Circle::from(area)).into(),
                 material: materials.add(Color::srgb(0.625, 0.94, 0.91)),
@@ -116,7 +108,7 @@ fn setup_player(
             Collider::from(area),
             RigidBody::Dynamic,
             ActiveEvents::COLLISION_EVENTS,
-            AdditionalMassProperties::Mass(10.0),
+            Dominance { groups: 1 },
             ExternalImpulse::default(),
             Damping {
                 linear_damping: 4.0,
@@ -166,11 +158,24 @@ fn update_camera(
 }
 
 fn player_move(
-    mut player_query: Query<&mut ExternalImpulse, With<Player>>,
+    mut commands: Commands,
+    mut player_query: Query<(Entity, &mut ExternalImpulse), With<Player>>,
+    stickiness_query: Query<Entity, (With<Sticky>, With<Player>)>,
     kb_input: Res<ButtonInput<KeyCode>>,
 ) {
-    for mut external_impulse in player_query.iter_mut() {
+    for (player_entity, mut external_impulse) in player_query.iter_mut() {
+        if kb_input.just_released(KeyCode::Space) {
+            if stickiness_query.get(player_entity).is_ok() {
+                println!("Player is no longer sticky");
+                commands.entity(player_entity).remove::<Sticky>();
+            } else {
+                println!("Player is now sticky");
+                commands.entity(player_entity).insert(Sticky);
+            }
+        }
+
         let mut impulse = Vec2::ZERO;
+        let mut torque = 0.0;
         if kb_input.pressed(KeyCode::KeyW) {
             impulse.y += 1.0;
         }
@@ -183,17 +188,25 @@ fn player_move(
         if kb_input.pressed(KeyCode::KeyD) {
             impulse.x += 1.0;
         }
-        if impulse == Vec2::ZERO {
-            return;
+        if kb_input.pressed(KeyCode::KeyQ) {
+            torque = 1.0;
         }
-        impulse = impulse.normalize() * 40000.0;
-        if kb_input.pressed(KeyCode::ShiftLeft) {
-            impulse *= 3.0;
+        if kb_input.pressed(KeyCode::KeyE) {
+            torque = -1.0;
         }
-        if kb_input.pressed(KeyCode::ControlLeft) {
-            impulse *= 0.1;
+        if impulse != Vec2::ZERO {
+            impulse = impulse.normalize() * 45000.0;
+            if kb_input.pressed(KeyCode::ShiftLeft) {
+                impulse *= 3.0;
+            }
+            if kb_input.pressed(KeyCode::ControlLeft) {
+                impulse *= 0.1;
+            }
+            external_impulse.impulse = impulse;
         }
-        external_impulse.impulse = impulse;
+        if torque != 0.0 {
+            external_impulse.torque_impulse = torque * 200000.0;
+        }
     }
 }
 
@@ -205,32 +218,75 @@ fn keyboard_input(
         return;
     }
 
-    if keys.just_pressed(KeyCode::Escape) || keys.just_pressed(KeyCode::KeyQ) {
+    if keys.just_pressed(KeyCode::Escape) {
         app_exit_events.send(AppExit::Success);
     }
 }
 
-fn grab_resources(
-    mut _commands: Commands,
-    player: Query<(&Player, Entity)>,
-    mut _loose_resources: Query<(Entity, &LooseResource)>,
+pub fn release_resources(
+    mut commands: Commands,
+    loose_resource_query: Query<(Entity, &Stuck), With<LooseResource>>,
+    player_query: Query<Entity, (With<Player>, Without<Sticky>)>,
+) {
+    for (stuck_entity, stuck) in loose_resource_query.iter() {
+        let player_entity = stuck.player;
+        if !player_query.contains(player_entity) {
+            continue;
+        }
+        commands.entity(stuck_entity).remove::<ImpulseJoint>();
+
+        //
+        // TODO stickiness does not return to the resource after releasing it
+        //      new resources can be grabbed so the problem isn't the player
+    }
+}
+
+pub fn grab_resources(
+    mut commands: Commands,
+    rapier_context: Res<RapierContext>,
+    player_query: Query<Entity, (With<Player>, With<Sticky>)>,
+    loose_resources: Query<&LooseResource, Without<Stuck>>,
     mut collision_events: EventReader<CollisionEvent>,
 ) {
-    let Ok((player, player_entity)) = player.get_single() else {
+    let Ok(player) = player_query.get_single() else {
         return;
     };
-    if !player.sticky {
-        return;
-    }
 
     for collision_event in collision_events.read() {
         match collision_event {
             CollisionEvent::Started(entity1, entity2, _) => {
-                println!(
-                    "Collision started between {:?} and {:?}",
-                    entity1, entity2
-                );
-                println!("Player entity: {:?}", player_entity);
+                let other: Entity;
+                if *entity1 == player {
+                    other = *entity2;
+                } else if *entity2 == player {
+                    other = *entity1;
+                } else {
+                    continue;
+                }
+                let Ok(resource) = loose_resources.get(other) else {
+                    continue;
+                };
+                let Some(contact_pair) =
+                    rapier_context.contact_pair(player, other)
+                else {
+                    continue;
+                };
+                let Some(manifold) = contact_pair.manifold(0) else {
+                    continue;
+                };
+                let contact_point = manifold.local_n1();
+                let direction = contact_point.normalize();
+                let attachment_position = direction * (25.0 + 10.0); // TODO player and resource radii
+
+                // TODO stick resource to player on touched side
+                println!("Player grabbed resource: {:?}", resource);
+                let joint = FixedJointBuilder::new()
+                    .local_anchor1(attachment_position)
+                    .local_anchor2(Vec2::ZERO);
+                commands
+                    .entity(other)
+                    .insert(ImpulseJoint::new(player, joint))
+                    .insert(Stuck { player });
             }
             _ => {}
         }
@@ -272,14 +328,48 @@ pub struct Clickable;
 #[derive(Debug, Default, Component)]
 pub struct Player {
     pub resources: HashMap<GalaxiaResource, f32>,
-    pub sticky: bool,
 }
+
+#[derive(Debug, Copy, Clone, Component)]
+pub struct Stuck {
+    pub player: Entity,
+}
+
+#[derive(Debug, Default, Copy, Clone, Component)]
+pub struct Sticky;
 
 #[derive(Debug, Component)]
 #[component(storage = "SparseSet")]
 pub struct LooseResource {
     pub resource: GalaxiaResource,
     pub amount: f32,
+}
+
+pub fn spawn_loose_resource(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    resource: GalaxiaResource,
+    amount: f32,
+    transform: Transform,
+) {
+    let area = CircularArea {
+        radius: 10.0 + (amount / 1_000_000.0),
+    };
+    commands.spawn((
+        LooseResource { resource, amount },
+        area,
+        SpriteBundle {
+            texture: asset_server.load(resource_to_asset(resource)),
+            transform,
+            ..default()
+        },
+        RigidBody::Dynamic,
+        Collider::from(area),
+        Damping {
+            linear_damping: 1.0,
+            angular_damping: 1.0,
+        },
+    ));
 }
 
 pub enum ResourceKind {
@@ -564,6 +654,7 @@ pub fn spawn_bounding_rectangle(
                 )),
                 Collider::cuboid(half_width, HALF_WALL_THICKNESS),
                 RigidBody::Fixed,
+                Dominance { groups: 1 },
             ));
             // bottom wall
             parent.spawn((
@@ -574,6 +665,7 @@ pub fn spawn_bounding_rectangle(
                 )),
                 Collider::cuboid(half_width, HALF_WALL_THICKNESS),
                 RigidBody::Fixed,
+                Dominance { groups: 1 },
             ));
             // left wall
             parent.spawn((
@@ -584,6 +676,7 @@ pub fn spawn_bounding_rectangle(
                 )),
                 Collider::cuboid(HALF_WALL_THICKNESS, half_height),
                 RigidBody::Fixed,
+                Dominance { groups: 1 },
             ));
             // right wall
             parent.spawn((
@@ -592,6 +685,7 @@ pub fn spawn_bounding_rectangle(
                 )),
                 Collider::cuboid(HALF_WALL_THICKNESS, half_height),
                 RigidBody::Fixed,
+                Dominance { groups: 1 },
             ));
         });
 }
@@ -746,11 +840,13 @@ pub mod button_minigame {
                     let mut text = text_query.get_mut(button.text).unwrap();
                     text.sections[0].value =
                         format!("Clicks: {}", minigame.count);
-                    spawn_click(
+                    spawn_loose_resource(
                         &mut commands,
                         &asset_server,
+                        GalaxiaResource::ShortLeftClick,
+                        1.0,
                         Transform::from_xyz(
-                            world_position.x + 100.0,
+                            world_position.x + 200.0,
                             world_position.y,
                             0.0,
                         ),
@@ -758,33 +854,6 @@ pub mod button_minigame {
                 }
             }
         }
-    }
-
-    fn spawn_click(
-        commands: &mut Commands,
-        asset_server: &Res<AssetServer>,
-        transform: Transform,
-    ) {
-        let area = CircularArea { radius: 10.0 };
-        commands.spawn((
-            LooseResource {
-                resource: GalaxiaResource::ShortLeftClick,
-                amount: 1.0,
-            },
-            area,
-            SpriteBundle {
-                texture: asset_server
-                    .load(resource_to_asset(GalaxiaResource::ShortLeftClick)),
-                transform,
-                ..default()
-            },
-            RigidBody::Dynamic,
-            Collider::from(area),
-            Damping {
-                linear_damping: 1.0,
-                angular_damping: 0.0,
-            },
-        ));
     }
 }
 
@@ -882,15 +951,16 @@ pub mod tree_minigame {
                     let mut minigame =
                         tree_minigames_query.get_mut(fruit.minigame).unwrap();
                     minigame.count -= 1;
-                    spawn_fruit(
+                    spawn_loose_resource(
                         &mut commands,
                         &asset_server,
+                        fruit.resource,
+                        1.0,
                         Transform::from_xyz(
-                            fruit_center.x + 200.0,
-                            fruit_center.y,
+                            world_position.x + 200.0,
+                            world_position.y,
                             0.0,
                         ),
-                        fruit.resource,
                     );
                 }
             }
@@ -957,33 +1027,6 @@ pub mod tree_minigame {
                 Clickable,
             ))
             .set_parent(parent);
-    }
-
-    fn spawn_fruit(
-        commands: &mut Commands,
-        asset_server: &Res<AssetServer>,
-        transform: Transform,
-        fruit: GalaxiaResource,
-    ) {
-        let area = CircularArea { radius: 8.0 };
-        commands.spawn((
-            LooseResource {
-                resource: fruit,
-                amount: 1.0,
-            },
-            area,
-            SpriteBundle {
-                texture: asset_server.load(resource_to_asset(fruit)),
-                transform,
-                ..default()
-            },
-            RigidBody::Dynamic,
-            Collider::from(area),
-            Damping {
-                linear_damping: 1.0,
-                angular_damping: 1.0,
-            },
-        ));
     }
 
     #[derive(Debug, Clone, Component)]
