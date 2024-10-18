@@ -234,10 +234,7 @@ pub fn release_resources(
             continue;
         }
         commands.entity(stuck_entity).remove::<ImpulseJoint>();
-
-        //
-        // TODO stickiness does not return to the resource after releasing it
-        //      new resources can be grabbed so the problem isn't the player
+        commands.entity(stuck_entity).remove::<Stuck>();
     }
 }
 
