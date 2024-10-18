@@ -35,7 +35,6 @@ fn main() {
         )
         .add_systems(FixedUpdate, tree_minigame::fixed_update)
         .insert_resource(mouse::MouseState::new(1.0))
-        // Gather resources once every five seconds.
         .insert_resource(Time::<Fixed>::from_seconds(5.0))
         .insert_resource(CameraController {
             dead_zone_squared: 1000.0,
