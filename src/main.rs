@@ -30,9 +30,11 @@ fn main() {
                 button_minigame::update,
                 tree_minigame::update,
                 mouse::update_mouse_state,
-            ),
+            )
+                .chain(),
         )
         .add_systems(FixedUpdate, tree_minigame::fixed_update)
+        .insert_resource(mouse::MouseState::new(1.0))
         // Gather resources once every five seconds.
         .insert_resource(Time::<Fixed>::from_seconds(5.0))
         .insert_resource(CameraController {
@@ -57,7 +59,6 @@ fn main() {
         .insert_resource(Random {
             rng: WyRand::new(42),
         })
-        .insert_resource(mouse::MouseState::new(1.0))
         .run();
 }
 
@@ -110,7 +111,6 @@ fn setup_player(
             Collider::from(area),
             RigidBody::Dynamic,
             ActiveEvents::COLLISION_EVENTS,
-            Dominance { groups: 1 },
             ExternalImpulse::default(),
             Damping {
                 linear_damping: 4.0,
@@ -363,6 +363,7 @@ pub fn spawn_loose_resource(
             ..default()
         },
         RigidBody::Dynamic,
+        Ccd::enabled(),
         Collider::from(area),
         Damping {
             linear_damping: 1.0,
@@ -653,7 +654,7 @@ pub fn spawn_bounding_rectangle(
                 )),
                 Collider::cuboid(half_width, HALF_WALL_THICKNESS),
                 RigidBody::Fixed,
-                Dominance { groups: 1 },
+                Dominance { groups: 2 },
             ));
             // bottom wall
             parent.spawn((
@@ -664,7 +665,7 @@ pub fn spawn_bounding_rectangle(
                 )),
                 Collider::cuboid(half_width, HALF_WALL_THICKNESS),
                 RigidBody::Fixed,
-                Dominance { groups: 1 },
+                Dominance { groups: 2 },
             ));
             // left wall
             parent.spawn((
@@ -675,7 +676,7 @@ pub fn spawn_bounding_rectangle(
                 )),
                 Collider::cuboid(HALF_WALL_THICKNESS, half_height),
                 RigidBody::Fixed,
-                Dominance { groups: 1 },
+                Dominance { groups: 2 },
             ));
             // right wall
             parent.spawn((
@@ -684,7 +685,7 @@ pub fn spawn_bounding_rectangle(
                 )),
                 Collider::cuboid(HALF_WALL_THICKNESS, half_height),
                 RigidBody::Fixed,
-                Dominance { groups: 1 },
+                Dominance { groups: 2 },
             ));
         });
 }
