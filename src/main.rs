@@ -29,6 +29,7 @@ fn main() {
                 release_resources,
                 button_minigame::update,
                 tree_minigame::update,
+                mouse::update_mouse_state,
             ),
         )
         .add_systems(FixedUpdate, tree_minigame::fixed_update)
@@ -56,6 +57,7 @@ fn main() {
         .insert_resource(Random {
             rng: WyRand::new(42),
         })
+        .insert_resource(mouse::MouseState::new(1.0))
         .run();
 }
 
@@ -700,6 +702,83 @@ pub fn constant_velocity_system(
     }
 }
 
+// //
+// // Mouse
+// //
+
+pub mod mouse {
+    use super::*;
+
+    #[derive(Resource, Default)]
+    pub struct MouseState {
+        pub left_button_press_start: Option<f32>,
+        pub long_click_threshold: f32,
+    }
+
+    impl MouseState {
+        pub fn new(long_click_threshold: f32) -> Self {
+            Self {
+                left_button_press_start: None,
+                long_click_threshold,
+            }
+        }
+
+        pub fn start_press(&mut self, time: f32) {
+            self.left_button_press_start = Some(time);
+        }
+
+        pub fn end_press(&mut self, current_time: f32) -> ClickType {
+            let start_time = self.left_button_press_start.take();
+            self.evaluate_click_type(current_time, start_time)
+        }
+
+        pub fn get_state(&self, current_time: f32) -> ClickType {
+            self.evaluate_click_type(current_time, self.left_button_press_start)
+        }
+
+        fn evaluate_click_type(
+            &self,
+            current_time: f32,
+            start_time: Option<f32>,
+        ) -> ClickType {
+            if let Some(start_time) = start_time {
+                let duration = current_time - start_time;
+                if duration >= self.long_click_threshold {
+                    ClickType::Long
+                } else {
+                    ClickType::Short
+                }
+            } else {
+                ClickType::Invalid
+            }
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub enum ClickType {
+        Short,
+        Long,
+        Invalid,
+    }
+
+    pub fn update_mouse_state(
+        time: Res<Time>,
+        mouse_button_input: Res<ButtonInput<MouseButton>>,
+        mut mouse_state: ResMut<MouseState>,
+    ) {
+        if mouse_button_input.just_pressed(MouseButton::Left) {
+            mouse_state.start_press(time.elapsed_seconds());
+        }
+        if mouse_button_input.just_released(MouseButton::Left) {
+            mouse_state.end_press(time.elapsed_seconds());
+        }
+    }
+}
+
+// //
+// // Minigames
+// //
+
 pub mod button_minigame {
     use super::*;
 
@@ -806,11 +885,13 @@ pub mod button_minigame {
         camera_query: Query<(&Camera, &GlobalTransform)>,
         windows: Query<&Window>,
         mouse_button_input: Res<ButtonInput<MouseButton>>,
+        mouse_state: Res<mouse::MouseState>,
+        time: Res<Time>,
         mut button_minigames_query: Query<&mut ButtonMinigame>,
         mut text_query: Query<&mut Text>,
     ) {
         // TODO: https://bevy-cheatbook.github.io/programming/run-conditions.html
-        if !mouse_button_input.just_pressed(MouseButton::Left) {
+        if !mouse_button_input.just_released(MouseButton::Left) {
             return;
         }
         if button_minigames_query.iter().count() == 0 {
@@ -837,10 +918,25 @@ pub mod button_minigame {
                     let mut text = text_query.get_mut(button.text).unwrap();
                     text.sections[0].value =
                         format!("Clicks: {}", minigame.count);
+
+                    let click_type =
+                        mouse_state.get_state(time.elapsed_seconds());
+                    let resource = match click_type {
+                        mouse::ClickType::Short => {
+                            GalaxiaResource::ShortLeftClick
+                        }
+                        mouse::ClickType::Long => {
+                            GalaxiaResource::LongLeftClick
+                        }
+                        mouse::ClickType::Invalid => {
+                            println!("unexpected: invalid click type");
+                            continue;
+                        }
+                    };
                     spawn_loose_resource(
                         &mut commands,
                         &asset_server,
-                        GalaxiaResource::ShortLeftClick,
+                        resource,
                         1.0,
                         Transform::from_xyz(
                             world_position.x + 200.0,
