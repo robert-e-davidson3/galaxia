@@ -14,7 +14,7 @@ fn main() {
             DefaultPlugins,
             ShapePlugin,
             RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0),
-            RapierDebugRenderPlugin::default(),
+            // RapierDebugRenderPlugin::default(),
             FramepacePlugin {},
         ))
         .add_systems(Startup, (setup_board, setup_player, setup_camera))
@@ -599,6 +599,16 @@ impl RectangularArea {
     pub fn bottom(&self) -> f32 {
         -self.height / 2.0
     }
+
+    pub fn dimensions(&self) -> Vec2 {
+        Vec2::new(self.width, self.height)
+    }
+}
+
+impl From<RectangularArea> for Vec2 {
+    fn from(area: RectangularArea) -> Self {
+        area.dimensions()
+    }
 }
 
 impl From<RectangularArea> for Collider {
@@ -763,20 +773,49 @@ pub fn spawn_minigame_container(
     area: RectangularArea,
     name: &str,
 ) {
+    let minigame = parent.parent_entity();
     spawn_minigame_bounds(parent, area);
-    spawn_minigame_name(parent, area, name);
-    spawn_minigame_buttons(parent, area);
+    let meta_area = RectangularArea {
+        width: area.width,
+        height: META_HEIGHT,
+    };
+    parent
+        .spawn(SpatialBundle {
+            transform: Transform::from_xyz(
+                0.0,
+                area.top() + META_HEIGHT / 2.0,
+                0.0,
+            ),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn((
+                ShapeBundle {
+                    path: GeometryBuilder::build_as(&shapes::Rectangle {
+                        extents: meta_area.into(),
+                        ..default()
+                    }),
+                    spatial: SpatialBundle {
+                        transform: Transform::from_xyz(
+                            0.0, 0.0, -1.0, // background
+                        ),
+                        ..default()
+                    },
+                    ..default()
+                },
+                Fill::color(Color::WHITE),
+                Stroke::new(Color::BLACK, WALL_THICKNESS),
+            ));
+            spawn_minigame_name(parent, name);
+            spawn_minigame_buttons(parent, meta_area, minigame);
+        });
 }
 
 const META_HEIGHT: f32 = 25.0;
 const BUTTON_WIDTH: f32 = 25.0;
 const BUTTON_COUNT: f32 = 1.0;
 
-pub fn spawn_minigame_name(
-    parent: &mut ChildBuilder,
-    area: RectangularArea,
-    name: &str,
-) {
+pub fn spawn_minigame_name(parent: &mut ChildBuilder, name: &str) {
     parent.spawn(Text2dBundle {
         text: Text {
             sections: vec![TextSection {
@@ -793,7 +832,7 @@ pub fn spawn_minigame_name(
         transform: Transform {
             translation: Vec3::new(
                 -(BUTTON_WIDTH * BUTTON_COUNT) / 2.0,
-                area.top() + META_HEIGHT / 2.0,
+                0.0,
                 0.0,
             ),
             ..default()
@@ -805,13 +844,14 @@ pub fn spawn_minigame_name(
 pub fn spawn_minigame_buttons(
     parent: &mut ChildBuilder,
     area: RectangularArea,
+    minigame: Entity,
 ) {
-    spawn_minigame_engage_button(parent, area);
+    spawn_minigame_engage_button(parent, area, minigame);
 }
 
 #[derive(Debug, Copy, Clone, Component)]
 pub struct MinigameEngageButton {
-    pub game: Entity,
+    pub minigame: Entity,
 }
 
 #[derive(Debug, Copy, Clone, Component)]
@@ -837,11 +877,10 @@ pub struct Engaged {
 pub fn spawn_minigame_engage_button(
     parent: &mut ChildBuilder,
     area: RectangularArea,
+    minigame: Entity,
 ) {
     parent.spawn((
-        MinigameEngageButton {
-            game: parent.parent_entity(),
-        },
+        MinigameEngageButton { minigame },
         Button::new(),
         CircularArea { radius: 90.0 },
         ShapeBundle {
@@ -852,7 +891,7 @@ pub fn spawn_minigame_engage_button(
             spatial: SpatialBundle {
                 transform: Transform::from_xyz(
                     area.right() - BUTTON_WIDTH / 2.0,
-                    area.top() + META_HEIGHT / 2.0,
+                    0.0,
                     0.0,
                 ),
                 ..default()
@@ -906,8 +945,8 @@ pub fn engage_button_update(
                 engaged.game = None;
                 fill.color.set_alpha(1.0);
             } else {
-                engaged.game = Some(engage_button.game);
-                fill.color.set_alpha(0.1);
+                engaged.game = Some(engage_button.minigame);
+                fill.color.set_alpha(0.8);
             }
             button.toggle();
         }
@@ -953,15 +992,18 @@ impl MinigameBoundBundle {
     }
 }
 
-pub fn spawn_minigame_bounds(parent: &mut ChildBuilder, area: RectangularArea) {
-    const WALL_THICKNESS: f32 = 1.0;
+const WALL_THICKNESS: f32 = 1.0;
 
+pub fn spawn_minigame_bounds(parent: &mut ChildBuilder, area: RectangularArea) {
     parent
         .spawn((
             ShapeBundle {
                 path: GeometryBuilder::build_as(&shapes::Rectangle {
-                    extents: Vec2::new(area.width, area.height),
-                    origin: RectangleOrigin::Center,
+                    extents: Vec2::new(area.width, area.height + META_HEIGHT),
+                    origin: RectangleOrigin::CustomCenter(Vec2::new(
+                        0.0,
+                        META_HEIGHT / 2.0,
+                    )),
                 }),
                 ..Default::default()
             },
@@ -1388,7 +1430,7 @@ pub mod tree_minigame {
 pub mod ball_breaker_minigame {
     use super::*;
 
-    pub const NAME: &str = "ball_breaker";
+    pub const NAME: &str = "ball breaker";
     pub const DESCRIPTION: &str = "Throw balls to break blocks!";
 
     pub const BLOCK_SIZE: f32 = 20.0;
