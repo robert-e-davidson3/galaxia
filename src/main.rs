@@ -14,7 +14,7 @@ fn main() {
             DefaultPlugins,
             ShapePlugin,
             RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0),
-            // RapierDebugRenderPlugin::default(),
+            RapierDebugRenderPlugin::default(),
             FramepacePlugin {},
         ))
         .add_systems(Startup, (setup_board, setup_player, setup_camera))
@@ -27,6 +27,7 @@ fn main() {
                 constant_velocity_system,
                 grab_resources,
                 release_resources,
+                engage_button_update,
                 button_minigame::update,
                 tree_minigame::update,
                 mouse::update_mouse_state,
@@ -58,6 +59,7 @@ fn main() {
         .insert_resource(Random {
             rng: WyRand::new(42),
         })
+        .insert_resource(Engaged { game: None })
         .run();
 }
 
@@ -129,9 +131,14 @@ fn setup_camera(mut commands: Commands) {
 
 fn update_camera(
     mut camera: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
-    camera_controller: ResMut<CameraController>,
     player: Query<&Transform, (With<Player>, Without<Camera2d>)>,
+    camera_controller: ResMut<CameraController>,
     time: Res<Time>,
+    engaged: Res<Engaged>,
+    minigame_query: Query<
+        &Transform,
+        (With<Minigame>, Without<Player>, Without<Camera2d>),
+    >,
 ) {
     let Ok(mut camera) = camera.get_single_mut() else {
         return;
@@ -140,6 +147,16 @@ fn update_camera(
     let Ok(player) = player.get_single() else {
         return;
     };
+
+    if let Some(minigame) = engaged.game {
+        let minigame_transform = minigame_query.get(minigame).unwrap();
+        let Vec3 { x, y, .. } = minigame_transform.translation;
+        let direction = Vec3::new(x, y, camera.translation.z);
+        camera.translation = camera
+            .translation
+            .lerp(direction, time.delta_seconds() * 2.0);
+        return;
+    }
 
     let Vec3 { x, y, .. } = player.translation;
     let direction = Vec3::new(x, y, camera.translation.z);
@@ -562,6 +579,28 @@ pub struct RectangularArea {
     pub height: f32,
 }
 
+impl RectangularArea {
+    pub fn new(width: f32, height: f32) -> Self {
+        Self { width, height }
+    }
+
+    pub fn left(&self) -> f32 {
+        -self.width / 2.0
+    }
+
+    pub fn right(&self) -> f32 {
+        self.width / 2.0
+    }
+
+    pub fn top(&self) -> f32 {
+        self.height / 2.0
+    }
+
+    pub fn bottom(&self) -> f32 {
+        -self.height / 2.0
+    }
+}
+
 impl From<RectangularArea> for Collider {
     fn from(area: RectangularArea) -> Self {
         Collider::cuboid(area.width / 2.0, area.height / 2.0)
@@ -587,15 +626,15 @@ impl From<CircularArea> for Circle {
     }
 }
 
-fn _is_click_in_rectangle(
+fn is_click_in_rectangle(
     click_position: Vec2,
     rectangle_center: Vec2,
-    rectangle_size: Vec2,
+    area: &RectangularArea,
 ) -> bool {
-    let min_x = rectangle_center.x - rectangle_size.x / 2.0;
-    let max_x = rectangle_center.x + rectangle_size.x / 2.0;
-    let min_y = rectangle_center.y - rectangle_size.y / 2.0;
-    let max_y = rectangle_center.y + rectangle_size.y / 2.0;
+    let min_x = rectangle_center.x - area.width / 2.0;
+    let max_x = rectangle_center.x + area.width / 2.0;
+    let min_y = rectangle_center.y - area.height / 2.0;
+    let max_y = rectangle_center.y + area.height / 2.0;
 
     click_position.x >= min_x
         && click_position.x <= max_x
@@ -621,72 +660,6 @@ fn translate_to_world_position(
         .cursor_position()
         .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor))
         .map(|ray| ray.origin.truncate())
-}
-
-pub fn spawn_bounding_rectangle(
-    parent: &mut ChildBuilder,
-    area: RectangularArea,
-) {
-    const WALL_THICKNESS: f32 = 1.0;
-    const HALF_WALL_THICKNESS: f32 = WALL_THICKNESS / 2.0;
-    let half_width: f32 = area.width / 2.0;
-    let half_height: f32 = area.height / 2.0;
-    parent
-        .spawn((
-            ShapeBundle {
-                path: GeometryBuilder::build_as(&shapes::Rectangle {
-                    extents: Vec2::new(area.width, area.height),
-                    origin: RectangleOrigin::Center,
-                }),
-                ..Default::default()
-            },
-            Fill::color(Color::NONE),
-            Stroke::new(Color::BLACK, WALL_THICKNESS),
-        ))
-        .with_children(|parent| {
-            // top wall
-            parent.spawn((
-                TransformBundle::from(Transform::from_xyz(
-                    0.0,
-                    half_height,
-                    0.0,
-                )),
-                Collider::cuboid(half_width, HALF_WALL_THICKNESS),
-                RigidBody::Fixed,
-                Dominance { groups: 2 },
-            ));
-            // bottom wall
-            parent.spawn((
-                TransformBundle::from(Transform::from_xyz(
-                    0.0,
-                    -half_height,
-                    0.0,
-                )),
-                Collider::cuboid(half_width, HALF_WALL_THICKNESS),
-                RigidBody::Fixed,
-                Dominance { groups: 2 },
-            ));
-            // left wall
-            parent.spawn((
-                TransformBundle::from(Transform::from_xyz(
-                    -half_width,
-                    0.0,
-                    0.0,
-                )),
-                Collider::cuboid(HALF_WALL_THICKNESS, half_height),
-                RigidBody::Fixed,
-                Dominance { groups: 2 },
-            ));
-            // right wall
-            parent.spawn((
-                TransformBundle::from(Transform::from_xyz(
-                    half_width, 0.0, 0.0,
-                )),
-                Collider::cuboid(HALF_WALL_THICKNESS, half_height),
-                RigidBody::Fixed,
-                Dominance { groups: 2 },
-            ));
-        });
 }
 
 #[derive(Debug, Copy, Clone, Component)]
@@ -775,6 +748,262 @@ pub mod mouse {
     }
 }
 
+// pub trait Minigame: Component {
+//     fn name<'a>(&self) -> &'a str;
+//     fn description<'a>(&self) -> &'a str;
+//     fn area(&self) -> RectangularArea;
+// }
+
+#[derive(Debug, Default, Copy, Clone, Component)]
+pub struct Minigame;
+
+// Draw bounds around the minigame, plus the meta buttons.
+pub fn spawn_minigame_container(
+    parent: &mut ChildBuilder,
+    area: RectangularArea,
+    name: &str,
+) {
+    spawn_minigame_bounds(parent, area);
+    spawn_minigame_name(parent, area, name);
+    spawn_minigame_buttons(parent, area);
+}
+
+const META_HEIGHT: f32 = 25.0;
+const BUTTON_WIDTH: f32 = 25.0;
+
+pub fn spawn_minigame_name(
+    parent: &mut ChildBuilder,
+    area: RectangularArea,
+    name: &str,
+) {
+    parent.spawn((
+        Text2dBundle {
+            text: Text::from_section(
+                name,
+                TextStyle {
+                    font_size: 24.0,
+                    color: Color::BLACK,
+                    ..default()
+                },
+            ),
+            ..Default::default()
+        },
+        Transform {
+            translation: Vec3::new(
+                area.left(), // TODO probably needs to offset for the text width
+                area.top() + META_HEIGHT / 2.0,
+                0.0,
+            ),
+            ..Default::default()
+        },
+    ));
+}
+
+pub fn spawn_minigame_buttons(
+    parent: &mut ChildBuilder,
+    area: RectangularArea,
+) {
+    spawn_minigame_engage_button(parent, area);
+}
+
+#[derive(Debug, Copy, Clone, Component)]
+pub struct MinigameEngageButton {
+    pub game: Entity,
+}
+
+#[derive(Debug, Copy, Clone, Component)]
+pub struct Button {
+    pub active: bool,
+}
+
+impl Button {
+    pub fn new() -> Self {
+        Self { active: false }
+    }
+
+    pub fn toggle(&mut self) {
+        self.active = !self.active;
+    }
+}
+
+#[derive(Debug, Copy, Clone, Resource)]
+pub struct Engaged {
+    pub game: Option<Entity>,
+}
+
+pub fn spawn_minigame_engage_button(
+    parent: &mut ChildBuilder,
+    area: RectangularArea,
+) {
+    parent.spawn((
+        MinigameEngageButton {
+            game: parent.parent_entity(),
+        },
+        Button::new(),
+        CircularArea { radius: 90.0 },
+        ShapeBundle {
+            path: GeometryBuilder::build_as(&shapes::Rectangle {
+                extents: Vec2::new(BUTTON_WIDTH, META_HEIGHT),
+                ..default()
+            }),
+            spatial: SpatialBundle {
+                transform: Transform::from_xyz(
+                    area.right() - BUTTON_WIDTH / 2.0,
+                    area.top() + META_HEIGHT / 2.0,
+                    0.0,
+                ),
+                ..default()
+            },
+            ..default()
+        },
+        Fill::color(Color::srgba(0.2, 0.8, 0.8, 1.0)),
+        Stroke::new(Color::BLACK, 1.0),
+        RectangularArea {
+            width: BUTTON_WIDTH,
+            height: META_HEIGHT,
+        },
+    ));
+}
+
+pub fn engage_button_update(
+    mut button_query: Query<(
+        &MinigameEngageButton,
+        &mut Button,
+        &mut Fill,
+        &GlobalTransform,
+        &RectangularArea,
+    )>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    windows: Query<&Window>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    mut engaged: ResMut<Engaged>,
+) {
+    // TODO: https://bevy-cheatbook.github.io/programming/run-conditions.html
+    if !mouse_button_input.just_released(MouseButton::Left) {
+        return;
+    }
+
+    let (camera, camera_transform) = camera_query.single();
+    let window = windows.single();
+
+    let world_position =
+        translate_to_world_position(window, camera, camera_transform);
+    if world_position.is_none() {
+        return;
+    }
+    let world_position = world_position.unwrap();
+
+    for (engage_button, mut button, mut fill, global_transform, area) in
+        button_query.iter_mut()
+    {
+        let button_center = global_transform.translation().truncate();
+
+        if is_click_in_rectangle(world_position, button_center, area) {
+            if button.active {
+                engaged.game = None;
+                fill.color = Color::srgba(0.8, 0.2, 0.2, 0.5);
+            } else {
+                engaged.game = Some(engage_button.game);
+                fill.color = Color::srgba(0.8, 0.2, 0.2, 1.0);
+            }
+            button.toggle();
+        }
+    }
+}
+
+#[derive(Bundle, Default)]
+pub struct MinigameBoundBundle {
+    pub transform: TransformBundle,
+    pub collider: Collider,
+    pub rigid_body: RigidBody,
+    pub dominance: Dominance,
+}
+
+impl MinigameBoundBundle {
+    pub fn horizontal(
+        x_offset: f32,
+        y_offset: f32,
+        length: f32,
+        thickness: f32,
+    ) -> Self {
+        Self::build(x_offset, y_offset, length, thickness)
+    }
+
+    pub fn vertical(
+        x_offset: f32,
+        y_offset: f32,
+        length: f32,
+        thickness: f32,
+    ) -> Self {
+        Self::build(x_offset, y_offset, thickness, length)
+    }
+
+    fn build(x_offset: f32, y_offset: f32, width: f32, height: f32) -> Self {
+        Self {
+            transform: TransformBundle::from(Transform::from_xyz(
+                x_offset, y_offset, 0.0,
+            )),
+            collider: Collider::cuboid(width / 2.0, height / 2.0),
+            rigid_body: RigidBody::Fixed,
+            dominance: Dominance { groups: 2 },
+        }
+    }
+}
+
+pub fn spawn_minigame_bounds(parent: &mut ChildBuilder, area: RectangularArea) {
+    const WALL_THICKNESS: f32 = 1.0;
+
+    parent
+        .spawn((
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&shapes::Rectangle {
+                    extents: Vec2::new(area.width, area.height),
+                    origin: RectangleOrigin::Center,
+                }),
+                ..Default::default()
+            },
+            Fill::color(Color::NONE),
+            Stroke::new(Color::BLACK, WALL_THICKNESS),
+        ))
+        .with_children(|parent| {
+            // top wall
+            parent.spawn(MinigameBoundBundle::horizontal(
+                0.0,
+                (area.height / 2.0) + META_HEIGHT,
+                area.width,
+                WALL_THICKNESS,
+            ));
+            // divider wall
+            parent.spawn(MinigameBoundBundle::horizontal(
+                0.0,
+                area.height / 2.0,
+                area.width,
+                WALL_THICKNESS,
+            ));
+            // bottom wall
+            parent.spawn(MinigameBoundBundle::horizontal(
+                0.0,
+                -area.height / 2.0,
+                area.width,
+                WALL_THICKNESS,
+            ));
+            // left wall
+            parent.spawn(MinigameBoundBundle::vertical(
+                -area.width / 2.0,
+                META_HEIGHT / 2.0,
+                area.height + META_HEIGHT,
+                WALL_THICKNESS,
+            ));
+            // right wall
+            parent.spawn(MinigameBoundBundle::vertical(
+                area.width / 2.0,
+                META_HEIGHT / 2.0,
+                area.height + META_HEIGHT,
+                WALL_THICKNESS,
+            ));
+        });
+}
+
 // //
 // // Minigames
 // //
@@ -782,12 +1011,28 @@ pub mod mouse {
 pub mod button_minigame {
     use super::*;
 
-    pub const DESCRIPTION: &str = "Click the button, get clicks!";
+    const NAME: &str = "Button";
+    const DESCRIPTION: &str = "Click the button, get clicks!";
+    const AREA: RectangularArea = RectangularArea {
+        width: 200.0,
+        height: 220.0,
+    };
 
     #[derive(Debug, Default, Bundle)]
     pub struct ButtonMinigameBundle {
         pub minigame: ButtonMinigame,
         pub area: RectangularArea,
+        pub tag: Minigame,
+    }
+
+    impl ButtonMinigameBundle {
+        pub fn new(minigame: ButtonMinigame) -> Self {
+            Self {
+                minigame,
+                area: AREA,
+                tag: Minigame,
+            }
+        }
     }
 
     #[derive(Debug, Default, Clone, Component)]
@@ -800,16 +1045,9 @@ pub mod button_minigame {
         transform: Transform,
         frozen: &ButtonMinigame,
     ) {
-        let area = RectangularArea {
-            width: 200.0,
-            height: 220.0,
-        };
         commands
             .spawn((
-                ButtonMinigameBundle {
-                    minigame: frozen.clone(),
-                    area: area.clone(),
-                },
+                ButtonMinigameBundle::new(frozen.clone()),
                 SpatialBundle {
                     transform: Transform::from_xyz(
                         transform.translation.x,
@@ -820,11 +1058,11 @@ pub mod button_minigame {
                 },
             ))
             .with_children(|parent| {
-                spawn_bounding_rectangle(parent, area);
+                spawn_minigame_bounds(parent, AREA);
                 let _background = parent.spawn(SpriteBundle {
                     sprite: Sprite {
                         color: Color::srgb(0.9, 0.9, 0.9),
-                        custom_size: Some(Vec2::new(area.width, area.height)),
+                        custom_size: Some(Vec2::new(AREA.width, AREA.height)),
                         ..default()
                     },
                     transform: Transform::from_xyz(0.0, 0.0, -1.0),
@@ -953,12 +1191,28 @@ pub mod button_minigame {
 pub mod tree_minigame {
     use super::*;
 
-    pub const DESCRIPTION: &str = "Pick fruits from the tree!";
+    const NAME: &str = "Tree";
+    const DESCRIPTION: &str = "Pick fruits from the tree!";
+    const AREA: RectangularArea = RectangularArea {
+        width: 300.0,
+        height: 300.0,
+    };
 
     #[derive(Debug, Default, Bundle)]
     pub struct TreeMinigameBundle {
         pub minigame: TreeMinigame,
         pub area: RectangularArea,
+        pub tag: Minigame,
+    }
+
+    impl TreeMinigameBundle {
+        pub fn new(minigame: TreeMinigame) -> Self {
+            Self {
+                minigame,
+                area: AREA,
+                tag: Minigame,
+            }
+        }
     }
 
     #[derive(Debug, Clone, Component)]
@@ -986,22 +1240,15 @@ pub mod tree_minigame {
         transform: Transform,
         frozen: &TreeMinigame,
     ) {
-        let area = RectangularArea {
-            width: 300.0,
-            height: 300.0,
-        };
         commands
             .spawn((
-                TreeMinigameBundle {
-                    minigame: frozen.clone(),
-                    area: area.clone(),
-                },
+                TreeMinigameBundle::new(frozen.clone()),
                 SpriteBundle {
                     texture: asset_server
                         .load("oak-tree-white-background-300x300.png"),
                     sprite: Sprite {
                         color: Color::srgba(1.0, 1.0, 1.0, 1.0),
-                        custom_size: Some(Vec2::new(area.width, area.height)),
+                        custom_size: Some(Vec2::new(AREA.width, AREA.height)),
                         ..default()
                     },
                     transform: transform.clone(),
@@ -1009,7 +1256,7 @@ pub mod tree_minigame {
                 },
             ))
             .with_children(|parent| {
-                spawn_bounding_rectangle(parent, area);
+                spawn_minigame_bounds(parent, AREA);
             });
     }
 
@@ -1138,6 +1385,7 @@ pub mod tree_minigame {
 pub mod ball_breaker_minigame {
     use super::*;
 
+    pub const NAME: &str = "ball_breaker";
     pub const DESCRIPTION: &str = "Throw balls to break blocks!";
 
     pub const BLOCK_SIZE: f32 = 20.0;
@@ -1146,6 +1394,20 @@ pub mod ball_breaker_minigame {
     pub struct BallBreakderMinigameBundle {
         pub minigame: BallBreakerMinigame,
         pub area: RectangularArea,
+        pub tag: Minigame,
+    }
+
+    impl BallBreakderMinigameBundle {
+        pub fn new(
+            minigame: BallBreakerMinigame,
+            area: RectangularArea,
+        ) -> Self {
+            Self {
+                minigame,
+                area,
+                tag: Minigame,
+            }
+        }
     }
 
     #[derive(Debug, Clone, Default, Component)]
@@ -1192,7 +1454,7 @@ pub mod ball_breaker_minigame {
         };
         commands
             .spawn((
-                BallBreakderMinigameBundle { minigame, area },
+                BallBreakderMinigameBundle::new(minigame, area),
                 SpatialBundle {
                     transform,
                     ..default()
@@ -1208,7 +1470,7 @@ pub mod ball_breaker_minigame {
                     transform: Transform::from_xyz(0.0, 0.0, -1.0),
                     ..default()
                 });
-                spawn_bounding_rectangle(
+                spawn_minigame_bounds(
                     parent,
                     RectangularArea {
                         width: area.width,
@@ -1454,12 +1716,8 @@ pub mod ball_breaker_minigame {
 // It
 pub mod chest_minigame {
     use super::*;
-
-    pub const DESCRIPTION: &str = "Store items!";
 }
 
 pub mod board_minigame {
     use super::*;
-
-    pub const DESCRIPTION: &str = "TODO";
 }
