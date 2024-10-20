@@ -308,7 +308,7 @@ pub fn grab_resources(
     }
 }
 
-fn collect_loose_resources(
+fn _collect_loose_resources(
     mut commands: Commands,
     mut player: Query<&mut Player>,
     loose_resources: Query<(Entity, &LooseResource)>,
@@ -770,33 +770,36 @@ pub fn spawn_minigame_container(
 
 const META_HEIGHT: f32 = 25.0;
 const BUTTON_WIDTH: f32 = 25.0;
+const BUTTON_COUNT: f32 = 1.0;
 
 pub fn spawn_minigame_name(
     parent: &mut ChildBuilder,
     area: RectangularArea,
     name: &str,
 ) {
-    parent.spawn((
-        Text2dBundle {
-            text: Text::from_section(
-                name,
-                TextStyle {
+    parent.spawn(Text2dBundle {
+        text: Text {
+            sections: vec![TextSection {
+                value: name.into(),
+                style: TextStyle {
                     font_size: 24.0,
                     color: Color::BLACK,
                     ..default()
                 },
-            ),
-            ..Default::default()
+            }],
+            justify: JustifyText::Left,
+            ..default()
         },
-        Transform {
+        transform: Transform {
             translation: Vec3::new(
-                area.left(), // TODO probably needs to offset for the text width
+                -(BUTTON_WIDTH * BUTTON_COUNT) / 2.0,
                 area.top() + META_HEIGHT / 2.0,
                 0.0,
             ),
-            ..Default::default()
+            ..default()
         },
-    ));
+        ..default()
+    });
 }
 
 pub fn spawn_minigame_buttons(
@@ -901,10 +904,10 @@ pub fn engage_button_update(
         if is_click_in_rectangle(world_position, button_center, area) {
             if button.active {
                 engaged.game = None;
-                fill.color = Color::srgba(0.8, 0.2, 0.2, 0.5);
+                fill.color.set_alpha(1.0);
             } else {
                 engaged.game = Some(engage_button.game);
-                fill.color = Color::srgba(0.8, 0.2, 0.2, 1.0);
+                fill.color.set_alpha(0.1);
             }
             button.toggle();
         }
@@ -1011,8 +1014,8 @@ pub fn spawn_minigame_bounds(parent: &mut ChildBuilder, area: RectangularArea) {
 pub mod button_minigame {
     use super::*;
 
-    const NAME: &str = "Button";
-    const DESCRIPTION: &str = "Click the button, get clicks!";
+    pub const NAME: &str = "Button";
+    pub const DESCRIPTION: &str = "Click the button, get clicks!";
     const AREA: RectangularArea = RectangularArea {
         width: 200.0,
         height: 220.0,
@@ -1058,7 +1061,7 @@ pub mod button_minigame {
                 },
             ))
             .with_children(|parent| {
-                spawn_minigame_bounds(parent, AREA);
+                spawn_minigame_container(parent, AREA, NAME);
                 let _background = parent.spawn(SpriteBundle {
                     sprite: Sprite {
                         color: Color::srgb(0.9, 0.9, 0.9),
@@ -1191,8 +1194,8 @@ pub mod button_minigame {
 pub mod tree_minigame {
     use super::*;
 
-    const NAME: &str = "Tree";
-    const DESCRIPTION: &str = "Pick fruits from the tree!";
+    pub const NAME: &str = "Tree";
+    pub const DESCRIPTION: &str = "Pick fruits from the tree!";
     const AREA: RectangularArea = RectangularArea {
         width: 300.0,
         height: 300.0,
@@ -1256,7 +1259,7 @@ pub mod tree_minigame {
                 },
             ))
             .with_children(|parent| {
-                spawn_minigame_bounds(parent, AREA);
+                spawn_minigame_container(parent, AREA, NAME);
             });
     }
 
@@ -1470,6 +1473,7 @@ pub mod ball_breaker_minigame {
                     transform: Transform::from_xyz(0.0, 0.0, -1.0),
                     ..default()
                 });
+                spawn_minigame_container(parent, area, NAME);
                 spawn_minigame_bounds(
                     parent,
                     RectangularArea {
@@ -1714,10 +1718,6 @@ pub mod ball_breaker_minigame {
 // Chest acts as an inventory. Only certain resources can be stored.
 // The resource must be a solid (not a fluid, mana, abstraction, etc).
 // It
-pub mod chest_minigame {
-    use super::*;
-}
+pub mod chest_minigame {}
 
-pub mod board_minigame {
-    use super::*;
-}
+pub mod board_minigame {}
