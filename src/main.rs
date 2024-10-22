@@ -31,6 +31,7 @@ fn main() {
                 button_minigame::update,
                 tree_minigame::update,
                 mouse::update_mouse_state,
+                ball_breaker_minigame::paddle_update,
             )
                 .chain(),
         )
@@ -608,7 +609,7 @@ impl RectangularArea {
         Vec3::new(self.width, self.height, 0.0)
     }
 
-    pub fn is_click_within(
+    pub fn is_within(
         &self,
         click_position: Vec2,
         rectangle_center: Vec2,
@@ -646,11 +647,7 @@ impl CircularArea {
         Self { radius }
     }
 
-    pub fn is_click_within(
-        &self,
-        click_position: Vec2,
-        circle_center: Vec2,
-    ) -> bool {
+    pub fn is_within(&self, click_position: Vec2, circle_center: Vec2) -> bool {
         let distance_squared = click_position.distance_squared(circle_center);
         distance_squared <= self.radius * self.radius
     }
@@ -681,6 +678,17 @@ fn translate_to_world_position(
         .map(|ray| ray.origin.truncate())
 }
 
+fn world_position_to_global_transform(
+    world_position: Vec2,
+    camera_transform: &GlobalTransform,
+) -> GlobalTransform {
+    GlobalTransform::from_translation(Vec3::new(
+        world_position.x,
+        world_position.y,
+        camera_transform.translation().z,
+    ))
+}
+
 #[derive(Debug, Copy, Clone, Component)]
 pub struct ConstantSpeed {
     pub speed: f32,
@@ -703,28 +711,44 @@ pub mod mouse {
 
     #[derive(Resource, Default)]
     pub struct MouseState {
-        pub left_button_press_start: Option<f32>,
         pub long_click_threshold: f32,
+        pub left_button_press_start: Option<f32>,
+        pub start_position: Option<Vec2>,
+        pub current_position: Option<Vec2>,
     }
 
     impl MouseState {
         pub fn new(long_click_threshold: f32) -> Self {
             Self {
-                left_button_press_start: None,
                 long_click_threshold,
+                left_button_press_start: None,
+                start_position: None,
+                current_position: None,
             }
         }
 
-        pub fn start_press(&mut self, time: f32) {
+        pub fn dragging(&self) -> bool {
+            self.start_position.is_some()
+        }
+
+        pub fn start_press(&mut self, time: f32, position: Vec2) {
             self.left_button_press_start = Some(time);
+            self.start_position = Some(position);
+            self.current_position = Some(position);
+        }
+
+        pub fn update_position(&mut self, position: Vec2) {
+            self.current_position = Some(position);
         }
 
         pub fn end_press(&mut self, current_time: f32) -> ClickType {
             let start_time = self.left_button_press_start.take();
+            self.start_position.take();
+            self.current_position.take();
             self.evaluate_click_type(current_time, start_time)
         }
 
-        pub fn get_state(&self, current_time: f32) -> ClickType {
+        pub fn get_click_type(&self, current_time: f32) -> ClickType {
             self.evaluate_click_type(current_time, self.left_button_press_start)
         }
 
@@ -754,14 +778,24 @@ pub mod mouse {
     }
 
     pub fn update_mouse_state(
+        camera_query: Query<(&Camera, &GlobalTransform)>,
+        window_query: Query<&Window>,
         time: Res<Time>,
         mouse_button_input: Res<ButtonInput<MouseButton>>,
         mut mouse_state: ResMut<MouseState>,
     ) {
-        if mouse_button_input.just_pressed(MouseButton::Left) {
-            mouse_state.start_press(time.elapsed_seconds());
+        if let Some(position) = get_mouse_position(&camera_query, &window_query)
+        {
+            mouse_state.update_position(position);
         }
-        if mouse_button_input.just_released(MouseButton::Left) {
+
+        if mouse_button_input.just_pressed(MouseButton::Left) {
+            if let Some(click_position) =
+                get_mouse_position(&camera_query, &window_query)
+            {
+                mouse_state.start_press(time.elapsed_seconds(), click_position);
+            }
+        } else if mouse_button_input.just_released(MouseButton::Left) {
             mouse_state.end_press(time.elapsed_seconds());
         }
     }
@@ -925,21 +959,24 @@ pub fn engage_button_update(
         &RectangularArea,
     )>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    windows: Query<&Window>,
+    window_query: Query<&Window>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     mut engaged: ResMut<Engaged>,
 ) {
-    let camera_position =
-        match get_camera_position(camera_query, windows, mouse_button_input) {
-            Some(world_position) => world_position,
-            None => return,
-        };
+    let click_position = match get_click_release_position(
+        camera_query,
+        window_query,
+        mouse_button_input,
+    ) {
+        Some(world_position) => world_position,
+        None => return,
+    };
 
     for (engage_button, mut button, mut fill, global_transform, area) in
         button_query.iter_mut()
     {
-        if area.is_click_within(
-            camera_position,
+        if area.is_within(
+            click_position,
             global_transform.translation().truncate(),
         ) {
             if button.active {
@@ -954,7 +991,19 @@ pub fn engage_button_update(
     }
 }
 
-pub fn get_camera_position(
+pub fn get_click_press_position(
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    window_query: Query<&Window>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+) -> Option<Vec2> {
+    // TODO: https://bevy-cheatbook.github.io/programming/run-conditions.html
+    if !mouse_button_input.just_pressed(MouseButton::Left) {
+        return None;
+    }
+    get_mouse_position(&camera_query, &window_query)
+}
+
+pub fn get_click_release_position(
     camera_query: Query<(&Camera, &GlobalTransform)>,
     window_query: Query<&Window>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
@@ -963,10 +1012,15 @@ pub fn get_camera_position(
     if !mouse_button_input.just_released(MouseButton::Left) {
         return None;
     }
+    get_mouse_position(&camera_query, &window_query)
+}
 
+fn get_mouse_position(
+    camera_query: &Query<(&Camera, &GlobalTransform)>,
+    window_query: &Query<&Window>,
+) -> Option<Vec2> {
     let (camera, camera_transform) = camera_query.single();
     let window = window_query.single();
-
     let world_position =
         translate_to_world_position(window, camera, camera_transform);
     return world_position;
@@ -1207,7 +1261,7 @@ pub mod button_minigame {
         )>,
         mut text_query: Query<&mut Text>,
     ) {
-        let camera_position = match get_camera_position(
+        let click_position = match get_click_release_position(
             camera_query,
             windows,
             mouse_button_input,
@@ -1217,8 +1271,8 @@ pub mod button_minigame {
         };
 
         for (button, global_transform, area) in clickable_query.iter() {
-            if area.is_click_within(
-                camera_position,
+            if area.is_within(
+                click_position,
                 global_transform.translation().truncate(),
             ) {
                 let (mut minigame, minigame_transform, minigame_area) =
@@ -1227,7 +1281,8 @@ pub mod button_minigame {
                 let mut text = text_query.get_mut(button.text).unwrap();
                 text.sections[0].value = format!("Clicks: {}", minigame.count);
 
-                let click_type = mouse_state.get_state(time.elapsed_seconds());
+                let click_type =
+                    mouse_state.get_click_type(time.elapsed_seconds());
                 let resource = match click_type {
                     mouse::ClickType::Short => GalaxiaResource::ShortLeftClick,
                     mouse::ClickType::Long => GalaxiaResource::LongLeftClick,
@@ -1340,7 +1395,7 @@ pub mod tree_minigame {
             &RectangularArea,
         )>,
     ) {
-        let camera_position = match get_camera_position(
+        let click_position = match get_click_release_position(
             camera_query,
             windows,
             mouse_button_input,
@@ -1350,8 +1405,8 @@ pub mod tree_minigame {
         };
 
         for (entity, fruit, global_transform, area) in clickable_query.iter() {
-            if area.is_click_within(
-                camera_position,
+            if area.is_within(
+                click_position,
                 global_transform.translation().truncate(),
             ) {
                 commands.entity(entity).despawn();
@@ -1777,13 +1832,46 @@ pub mod ball_breaker_minigame {
     }
 
     pub fn paddle_update(
-        mut paddle_query: Query<(&Paddle, &mut Transform)>,
-        input: Res<ButtonInput<KeyCode>>,
-        time: Res<Time>,
+        mut paddle_query: Query<(
+            &Paddle,
+            &GlobalTransform,
+            &mut Transform,
+            &RectangularArea,
+        )>,
+        minigame_query: Query<&RectangularArea, With<BallBreakerMinigame>>,
+        mouse_state: Res<mouse::MouseState>,
     ) {
-        for (_, mut transform) in paddle_query.iter_mut() {
-            let mut x = 0.0;
-            transform.translation.x += x * time.delta_seconds();
+        if !mouse_state.dragging() {
+            return;
+        }
+
+        for (
+            paddle,
+            paddle_global_transform,
+            mut paddle_transform,
+            paddle_area,
+        ) in paddle_query.iter_mut()
+        {
+            let mouse_start_position = mouse_state.start_position.unwrap();
+            if !paddle_area.is_within(
+                mouse_start_position,
+                paddle_global_transform.translation().truncate(),
+            ) {
+                continue;
+            }
+            let mouse_current_position = mouse_state.current_position.unwrap();
+            let mouse_delta = mouse_current_position - mouse_start_position;
+
+            let paddle_start_x = paddle_global_transform.translation().x;
+            let paddle_end_x = paddle_start_x + mouse_delta.x;
+
+            let minigame_area = minigame_query.get(paddle.minigame).unwrap();
+            let left_edge = minigame_area.left() - paddle_area.left();
+            let right_edge = minigame_area.right() - paddle_area.right();
+            let x = paddle_end_x.max(left_edge).min(right_edge);
+
+            paddle_transform.translation.x = x;
+            return; // can only drag one paddle at a time
         }
     }
 }
