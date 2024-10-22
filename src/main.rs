@@ -603,6 +603,25 @@ impl RectangularArea {
     pub fn dimensions(&self) -> Vec2 {
         Vec2::new(self.width, self.height)
     }
+
+    pub fn dimensions3(&self) -> Vec3 {
+        Vec3::new(self.width, self.height, 0.0)
+    }
+
+    pub fn is_click_within(
+        &self,
+        click_position: Vec2,
+        rectangle_center: Vec2,
+    ) -> bool {
+        let min_x = rectangle_center.x + self.left();
+        let max_x = rectangle_center.x + self.right();
+        let min_y = rectangle_center.y + self.bottom();
+        let max_y = rectangle_center.y + self.top();
+        click_position.x >= min_x
+            && click_position.x <= max_x
+            && click_position.y >= min_y
+            && click_position.y <= max_y
+    }
 }
 
 impl From<RectangularArea> for Vec2 {
@@ -622,6 +641,21 @@ pub struct CircularArea {
     pub radius: f32,
 }
 
+impl CircularArea {
+    pub fn new(radius: f32) -> Self {
+        Self { radius }
+    }
+
+    pub fn is_click_within(
+        &self,
+        click_position: Vec2,
+        circle_center: Vec2,
+    ) -> bool {
+        let distance_squared = click_position.distance_squared(circle_center);
+        distance_squared <= self.radius * self.radius
+    }
+}
+
 impl From<CircularArea> for Collider {
     fn from(area: CircularArea) -> Self {
         Collider::ball(area.radius)
@@ -634,31 +668,6 @@ impl From<CircularArea> for Circle {
             radius: area.radius,
         }
     }
-}
-
-fn is_click_in_rectangle(
-    click_position: Vec2,
-    rectangle_center: Vec2,
-    area: &RectangularArea,
-) -> bool {
-    let min_x = rectangle_center.x - area.width / 2.0;
-    let max_x = rectangle_center.x + area.width / 2.0;
-    let min_y = rectangle_center.y - area.height / 2.0;
-    let max_y = rectangle_center.y + area.height / 2.0;
-
-    click_position.x >= min_x
-        && click_position.x <= max_x
-        && click_position.y >= min_y
-        && click_position.y <= max_y
-}
-
-fn is_click_in_circle(
-    click_position: Vec2,
-    circle_center: Vec2,
-    circle_radius: f32,
-) -> bool {
-    let distance_squared = click_position.distance_squared(circle_center);
-    distance_squared <= circle_radius * circle_radius
 }
 
 fn translate_to_world_position(
@@ -920,27 +929,19 @@ pub fn engage_button_update(
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     mut engaged: ResMut<Engaged>,
 ) {
-    // TODO: https://bevy-cheatbook.github.io/programming/run-conditions.html
-    if !mouse_button_input.just_released(MouseButton::Left) {
-        return;
-    }
-
-    let (camera, camera_transform) = camera_query.single();
-    let window = windows.single();
-
-    let world_position =
-        translate_to_world_position(window, camera, camera_transform);
-    if world_position.is_none() {
-        return;
-    }
-    let world_position = world_position.unwrap();
+    let camera_position =
+        match get_camera_position(camera_query, windows, mouse_button_input) {
+            Some(world_position) => world_position,
+            None => return,
+        };
 
     for (engage_button, mut button, mut fill, global_transform, area) in
         button_query.iter_mut()
     {
-        let button_center = global_transform.translation().truncate();
-
-        if is_click_in_rectangle(world_position, button_center, area) {
+        if area.is_click_within(
+            camera_position,
+            global_transform.translation().truncate(),
+        ) {
             if button.active {
                 engaged.game = None;
                 fill.color.set_alpha(1.0);
@@ -951,6 +952,24 @@ pub fn engage_button_update(
             button.toggle();
         }
     }
+}
+
+pub fn get_camera_position(
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    window_query: Query<&Window>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+) -> Option<Vec2> {
+    // TODO: https://bevy-cheatbook.github.io/programming/run-conditions.html
+    if !mouse_button_input.just_released(MouseButton::Left) {
+        return None;
+    }
+
+    let (camera, camera_transform) = camera_query.single();
+    let window = window_query.single();
+
+    let world_position =
+        translate_to_world_position(window, camera, camera_transform);
+    return world_position;
 }
 
 #[derive(Bundle, Default)]
@@ -1104,52 +1123,63 @@ pub mod button_minigame {
             ))
             .with_children(|parent| {
                 spawn_minigame_container(parent, AREA, NAME);
-                let _background = parent.spawn(SpriteBundle {
-                    sprite: Sprite {
-                        color: Color::srgb(0.9, 0.9, 0.9),
-                        custom_size: Some(Vec2::new(AREA.width, AREA.height)),
-                        ..default()
-                    },
-                    transform: Transform::from_xyz(0.0, 0.0, -1.0),
-                    ..default()
-                });
-                let text = parent
-                    .spawn(Text2dBundle {
-                        text: Text::from_section(
-                            format!("Clicks: {}", frozen.count),
-                            TextStyle {
-                                font_size: 24.0,
-                                color: Color::BLACK,
-                                ..default()
-                            },
-                        ),
-                        transform: Transform::from_xyz(0.0, 100.0, 0.0),
-                        ..default()
-                    })
-                    .id();
-
-                let _button = parent.spawn((
-                    ClickMeButton {
-                        game: parent.parent_entity(),
-                        text,
-                    },
-                    Clickable,
-                    CircularArea { radius: 90.0 },
-                    ShapeBundle {
-                        path: GeometryBuilder::build_as(&shapes::Circle {
-                            radius: 90.0,
-                            ..default()
-                        }),
-                        spatial: SpatialBundle {
-                            transform: Transform::from_xyz(0.0, -18.0, 0.0),
-                            ..default()
-                        },
-                        ..default()
-                    },
-                    Fill::color(Color::srgb(0.8, 0.1, 0.1)),
-                    Stroke::new(Color::BLACK, 2.0),
-                ));
+                spawn_background(parent);
+                let text = spawn_text(parent, frozen.count);
+                spawn_button(parent, text);
             });
+    }
+
+    fn spawn_background(parent: &mut ChildBuilder) {
+        parent.spawn(SpriteBundle {
+            sprite: Sprite {
+                color: Color::srgb(0.9, 0.9, 0.9),
+                custom_size: Some(Vec2::new(AREA.width, AREA.height)),
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, 0.0, -1.0),
+            ..default()
+        });
+    }
+
+    fn spawn_text(parent: &mut ChildBuilder, initial_clicks: u64) -> Entity {
+        parent
+            .spawn(Text2dBundle {
+                text: Text::from_section(
+                    format!("Clicks: {}", initial_clicks),
+                    TextStyle {
+                        font_size: 24.0,
+                        color: Color::BLACK,
+                        ..default()
+                    },
+                ),
+                transform: Transform::from_xyz(0.0, 100.0, 0.0),
+                ..default()
+            })
+            .id()
+    }
+
+    fn spawn_button(parent: &mut ChildBuilder, text: Entity) {
+        parent.spawn((
+            ClickMeButton {
+                game: parent.parent_entity(),
+                text,
+            },
+            Clickable,
+            CircularArea { radius: 90.0 },
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&shapes::Circle {
+                    radius: 90.0,
+                    ..default()
+                }),
+                spatial: SpatialBundle {
+                    transform: Transform::from_xyz(0.0, -18.0, 0.0),
+                    ..default()
+                },
+                ..default()
+            },
+            Fill::color(Color::srgb(0.8, 0.1, 0.1)),
+            Stroke::new(Color::BLACK, 2.0),
+        ));
     }
 
     #[derive(Debug, Component)]
@@ -1170,64 +1200,52 @@ pub mod button_minigame {
         mouse_button_input: Res<ButtonInput<MouseButton>>,
         mouse_state: Res<mouse::MouseState>,
         time: Res<Time>,
-        mut button_minigames_query: Query<&mut ButtonMinigame>,
+        mut button_minigames_query: Query<(
+            &mut ButtonMinigame,
+            &GlobalTransform,
+            &RectangularArea,
+        )>,
         mut text_query: Query<&mut Text>,
     ) {
-        // TODO: https://bevy-cheatbook.github.io/programming/run-conditions.html
-        if !mouse_button_input.just_released(MouseButton::Left) {
-            return;
-        }
-        if button_minigames_query.iter().count() == 0 {
-            return;
-        }
+        let camera_position = match get_camera_position(
+            camera_query,
+            windows,
+            mouse_button_input,
+        ) {
+            Some(world_position) => world_position,
+            None => return,
+        };
 
-        let (camera, camera_transform) = camera_query.single();
-        let window = windows.single();
+        for (button, global_transform, area) in clickable_query.iter() {
+            if area.is_click_within(
+                camera_position,
+                global_transform.translation().truncate(),
+            ) {
+                let (mut minigame, minigame_transform, minigame_area) =
+                    button_minigames_query.get_mut(button.game).unwrap();
+                minigame.count += 1;
+                let mut text = text_query.get_mut(button.text).unwrap();
+                text.sections[0].value = format!("Clicks: {}", minigame.count);
 
-        if let Some(world_position) =
-            translate_to_world_position(window, camera, camera_transform)
-        {
-            for (button, global_transform, area) in clickable_query.iter() {
-                let button_center = global_transform.translation().truncate();
-
-                if is_click_in_circle(
-                    world_position,
-                    button_center,
-                    area.radius,
-                ) {
-                    let mut minigame =
-                        button_minigames_query.get_mut(button.game).unwrap();
-                    minigame.count += 1;
-                    let mut text = text_query.get_mut(button.text).unwrap();
-                    text.sections[0].value =
-                        format!("Clicks: {}", minigame.count);
-
-                    let click_type =
-                        mouse_state.get_state(time.elapsed_seconds());
-                    let resource = match click_type {
-                        mouse::ClickType::Short => {
-                            GalaxiaResource::ShortLeftClick
-                        }
-                        mouse::ClickType::Long => {
-                            GalaxiaResource::LongLeftClick
-                        }
-                        mouse::ClickType::Invalid => {
-                            println!("unexpected: invalid click type");
-                            continue;
-                        }
-                    };
-                    spawn_loose_resource(
-                        &mut commands,
-                        &asset_server,
-                        resource,
-                        1.0,
-                        Transform::from_xyz(
-                            world_position.x + 200.0,
-                            world_position.y,
-                            0.0,
-                        ),
-                    );
-                }
+                let click_type = mouse_state.get_state(time.elapsed_seconds());
+                let resource = match click_type {
+                    mouse::ClickType::Short => GalaxiaResource::ShortLeftClick,
+                    mouse::ClickType::Long => GalaxiaResource::LongLeftClick,
+                    mouse::ClickType::Invalid => {
+                        println!("unexpected: invalid click type");
+                        continue;
+                    }
+                };
+                spawn_loose_resource(
+                    &mut commands,
+                    &asset_server,
+                    resource,
+                    1.0,
+                    Transform::from_translation(
+                        minigame_transform.translation()
+                            + minigame_area.dimensions3() / 1.8,
+                    ),
+                );
             }
         }
     }
@@ -1316,38 +1334,40 @@ pub mod tree_minigame {
         camera_query: Query<(&Camera, &GlobalTransform)>,
         windows: Query<&Window>,
         mouse_button_input: Res<ButtonInput<MouseButton>>,
-        mut tree_minigames_query: Query<&mut TreeMinigame>,
+        mut tree_minigames_query: Query<(
+            &mut TreeMinigame,
+            &GlobalTransform,
+            &RectangularArea,
+        )>,
     ) {
-        if !mouse_button_input.just_pressed(MouseButton::Left) {
-            return;
-        }
+        let camera_position = match get_camera_position(
+            camera_query,
+            windows,
+            mouse_button_input,
+        ) {
+            Some(world_position) => world_position,
+            None => return,
+        };
 
-        let (camera, camera_transform) = camera_query.single();
-        let window = windows.single();
-
-        if let Some(world_position) =
-            translate_to_world_position(window, camera, camera_transform)
-        {
-            for (entity, fruit, transform, area) in clickable_query.iter() {
-                let fruit_center = transform.translation().truncate();
-                if is_click_in_circle(world_position, fruit_center, area.radius)
-                {
-                    commands.entity(entity).despawn();
-                    let mut minigame =
-                        tree_minigames_query.get_mut(fruit.minigame).unwrap();
-                    minigame.count -= 1;
-                    spawn_loose_resource(
-                        &mut commands,
-                        &asset_server,
-                        fruit.resource,
-                        1.0,
-                        Transform::from_xyz(
-                            world_position.x + 200.0,
-                            world_position.y,
-                            0.0,
-                        ),
-                    );
-                }
+        for (entity, fruit, global_transform, area) in clickable_query.iter() {
+            if area.is_click_within(
+                camera_position,
+                global_transform.translation().truncate(),
+            ) {
+                commands.entity(entity).despawn();
+                let (mut minigame, minigame_transform, minigame_area) =
+                    tree_minigames_query.get_mut(fruit.minigame).unwrap();
+                minigame.count -= 1;
+                spawn_loose_resource(
+                    &mut commands,
+                    &asset_server,
+                    fruit.resource,
+                    1.0,
+                    Transform::from_translation(
+                        minigame_transform.translation()
+                            + minigame_area.dimensions3() / 1.8,
+                    ),
+                );
             }
         }
     }
@@ -1754,6 +1774,17 @@ pub mod ball_breaker_minigame {
             area,
             Collider::from(area),
         ));
+    }
+
+    pub fn paddle_update(
+        mut paddle_query: Query<(&Paddle, &mut Transform)>,
+        input: Res<ButtonInput<KeyCode>>,
+        time: Res<Time>,
+    ) {
+        for (_, mut transform) in paddle_query.iter_mut() {
+            let mut x = 0.0;
+            transform.translation.x += x * time.delta_seconds();
+        }
     }
 }
 
