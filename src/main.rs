@@ -31,7 +31,8 @@ fn main() {
                 button_minigame::update,
                 tree_minigame::update,
                 mouse::update_mouse_state,
-                ball_breaker_minigame::paddle_update,
+                mouse::follow_mouse_update,
+                ball_breaker_minigame::unselected_paddle_update,
             )
                 .chain(),
         )
@@ -799,13 +800,54 @@ pub mod mouse {
             mouse_state.end_press(time.elapsed_seconds());
         }
     }
-}
 
-// pub trait Minigame: Component {
-//     fn name<'a>(&self) -> &'a str;
-//     fn description<'a>(&self) -> &'a str;
-//     fn area(&self) -> RectangularArea;
-// }
+    #[derive(Debug, Copy, Clone, Component)]
+    pub struct FollowsMouse {
+        pub bounds: RectangularArea,
+        pub bound_center: Vec2,
+        pub entity: Entity,
+        pub entity_area: RectangularArea,
+        // offset from the center of the entity - usually where the user clicked
+        pub click_offset: Vec2,
+        pub only_while_dragging: bool,
+    }
+
+    pub fn follow_mouse_update(
+        mut commands: Commands,
+        mouse_state: Res<MouseState>,
+        mut query: Query<(
+            Entity,
+            &FollowsMouse,
+            &mut Transform,
+            &GlobalTransform,
+        )>,
+    ) {
+        let mouse_position = match mouse_state.current_position {
+            Some(position) => position,
+            None => return, // shouldn't happen
+        };
+
+        let is_dragging = mouse_state.dragging();
+
+        for (entity, follows_mouse, mut transform, global_transform) in
+            query.iter_mut()
+        {
+            if follows_mouse.only_while_dragging && !is_dragging {
+                commands.entity(entity).remove::<FollowsMouse>();
+                continue;
+            }
+
+            let old_global_position = global_transform.translation().truncate();
+            let new_global_position =
+                mouse_position - follows_mouse.click_offset;
+
+            let delta = new_global_position - old_global_position;
+
+            transform.translation.x += delta.x;
+            transform.translation.y += delta.y;
+        }
+    }
+}
 
 #[derive(Debug, Default, Copy, Clone, Component)]
 pub struct Minigame;
@@ -1387,7 +1429,7 @@ pub mod tree_minigame {
             With<Clickable>,
         >,
         camera_query: Query<(&Camera, &GlobalTransform)>,
-        windows: Query<&Window>,
+        window_query: Query<&Window>,
         mouse_button_input: Res<ButtonInput<MouseButton>>,
         mut tree_minigames_query: Query<(
             &mut TreeMinigame,
@@ -1397,7 +1439,7 @@ pub mod tree_minigame {
     ) {
         let click_position = match get_click_release_position(
             camera_query,
-            windows,
+            window_query,
             mouse_button_input,
         ) {
             Some(world_position) => world_position,
@@ -1831,47 +1873,90 @@ pub mod ball_breaker_minigame {
         ));
     }
 
-    pub fn paddle_update(
-        mut paddle_query: Query<(
-            &Paddle,
-            &GlobalTransform,
-            &mut Transform,
-            &RectangularArea,
-        )>,
-        minigame_query: Query<&RectangularArea, With<BallBreakerMinigame>>,
-        mouse_state: Res<mouse::MouseState>,
+    pub fn unselected_paddle_update(
+        mut commands: Commands,
+        mut paddle_query: Query<
+            (
+                Entity,
+                &Paddle,
+                &GlobalTransform,
+                &mut Transform,
+                &RectangularArea,
+            ),
+            Without<mouse::FollowsMouse>,
+        >,
+        minigame_query: Query<
+            (&RectangularArea, &GlobalTransform),
+            With<BallBreakerMinigame>,
+        >,
+        camera_query: Query<(&Camera, &GlobalTransform)>,
+        window_query: Query<&Window>,
+        mouse_button_input: Res<ButtonInput<MouseButton>>,
     ) {
-        if !mouse_state.dragging() {
-            return;
-        }
+        let click_position = match get_click_press_position(
+            camera_query,
+            window_query,
+            mouse_button_input,
+        ) {
+            Some(world_position) => world_position,
+            None => return,
+        };
 
         for (
+            paddle_entity,
             paddle,
             paddle_global_transform,
             mut paddle_transform,
             paddle_area,
         ) in paddle_query.iter_mut()
         {
-            let mouse_start_position = mouse_state.start_position.unwrap();
-            if !paddle_area.is_within(
-                mouse_start_position,
-                paddle_global_transform.translation().truncate(),
-            ) {
+            let paddle_position =
+                paddle_global_transform.translation().truncate();
+            if !paddle_area.is_within(click_position, paddle_position) {
                 continue;
             }
-            let mouse_current_position = mouse_state.current_position.unwrap();
-            let mouse_delta = mouse_current_position - mouse_start_position;
 
-            let paddle_start_x = paddle_global_transform.translation().x;
-            let paddle_end_x = paddle_start_x + mouse_delta.x;
+            let (minigame_area, minigame_transform) =
+                minigame_query.get(paddle.minigame).unwrap();
 
-            let minigame_area = minigame_query.get(paddle.minigame).unwrap();
-            let left_edge = minigame_area.left() - paddle_area.left();
-            let right_edge = minigame_area.right() - paddle_area.right();
-            let x = paddle_end_x.max(left_edge).min(right_edge);
+            commands.entity(paddle_entity).insert(mouse::FollowsMouse {
+                bounds: RectangularArea {
+                    width: minigame_area.width,
+                    height: 0.0, // only moves on x-axis
+                },
+                bound_center: minigame_transform.translation().truncate(),
+                entity: paddle_entity,
+                entity_area: *paddle_area,
+                click_offset: click_position - paddle_position,
+                only_while_dragging: true,
+            });
 
-            paddle_transform.translation.x = x;
-            return; // can only drag one paddle at a time
+            // let mouse_start_position = mouse_state.start_position.unwrap();
+            // if !paddle_area.is_within(
+            //     mouse_start_position,
+            //     paddle_global_transform.translation().truncate(),
+            // ) {
+            //     continue;
+            // }
+
+            // // let left_edge = minigame_area.left() - paddle_area.left();
+            // // let right_edge = minigame_area.right() - paddle_area.right();
+            // // let left_edge = minigame_area.left();
+            // // let right_edge = minigame_area.right();
+
+            // let mouse_current_position = mouse_state.current_position.unwrap();
+            // let mouse_delta_x =
+            //     (mouse_current_position.x - mouse_start_position.x);
+            // // .max(left_edge)
+            // // .min(right_edge);
+
+            // let paddle_start_x = paddle_global_transform.translation().x;
+            // let paddle_end_x = paddle_start_x + mouse_delta_x;
+            // let relative_paddle_end_x =
+            //     paddle_end_x - paddle_global_transform.translation().x;
+
+            // paddle_transform.translation.x = relative_paddle_end_x;
+            // return; // can only drag one paddle at a time
         }
     }
 }
