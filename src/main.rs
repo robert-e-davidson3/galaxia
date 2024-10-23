@@ -30,9 +30,10 @@ fn main() {
                 engage_button_update,
                 button_minigame::update,
                 tree_minigame::update,
+                ball_breaker_minigame::unselected_paddle_update,
+                primordial_ocean_minigame::update,
                 mouse::update_mouse_state,
                 mouse::follow_mouse_update,
-                ball_breaker_minigame::unselected_paddle_update,
             )
                 .chain(),
         )
@@ -92,6 +93,11 @@ fn setup_board(
         &mut random,
         Transform::from_xyz(-400.0, -400.0, 0.0),
         &ball_breaker_minigame::BallBreakerMinigame { ..default() },
+    );
+    primordial_ocean_minigame::spawn(
+        &mut commands,
+        Transform::from_xyz(0.0, 400.0, 0.0),
+        &primordial_ocean_minigame::PrimordialOceanMinigame { ..default() },
     );
 }
 
@@ -369,13 +375,16 @@ pub fn spawn_loose_resource(
     amount: f32,
     transform: Transform,
 ) {
-    let area = CircularArea {
-        radius: 10.0 + (amount / 1_000_000.0),
-    };
+    let radius = 10.0 + (amount / 1_000_000.0);
+    let area = CircularArea { radius };
     commands.spawn((
         LooseResource { resource, amount },
         area,
         SpriteBundle {
+            sprite: Sprite {
+                custom_size: Some(Vec2::new(radius * 2.0, radius * 2.0)),
+                ..default()
+            },
             texture: asset_server.load(resource_to_asset(resource)),
             transform,
             ..default()
@@ -586,6 +595,13 @@ impl RectangularArea {
         Self { width, height }
     }
 
+    pub fn new_square(size: f32) -> Self {
+        Self {
+            width: size,
+            height: size,
+        }
+    }
+
     pub fn left(&self) -> f32 {
         -self.width / 2.0
     }
@@ -663,6 +679,14 @@ impl CircularArea {
         Self { radius }
     }
 
+    pub fn dimensions(&self) -> Vec2 {
+        Vec2::new(self.radius * 2.0, self.radius * 2.0)
+    }
+
+    pub fn dimensions3(&self) -> Vec3 {
+        Vec3::new(self.radius * 2.0, self.radius * 2.0, 0.0)
+    }
+
     pub fn is_within(&self, position: Vec2, center: Vec2) -> bool {
         let distance_squared = position.distance_squared(center);
         distance_squared <= self.radius * self.radius
@@ -692,17 +716,6 @@ fn translate_to_world_position(
         .cursor_position()
         .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor))
         .map(|ray| ray.origin.truncate())
-}
-
-fn world_position_to_global_transform(
-    world_position: Vec2,
-    camera_transform: &GlobalTransform,
-) -> GlobalTransform {
-    GlobalTransform::from_translation(Vec3::new(
-        world_position.x,
-        world_position.y,
-        camera_transform.translation().z,
-    ))
 }
 
 #[derive(Debug, Copy, Clone, Component)]
@@ -1653,13 +1666,6 @@ pub mod ball_breaker_minigame {
                     ..default()
                 });
                 spawn_minigame_container(parent, area, NAME);
-                spawn_minigame_bounds(
-                    parent,
-                    RectangularArea {
-                        width: area.width,
-                        height: area.height,
-                    },
-                );
 
                 for y in 3..blocks_per_column {
                     for x in 0..blocks_per_row {
@@ -1942,6 +1948,139 @@ pub mod ball_breaker_minigame {
                 click_offset: click_position - paddle_position,
                 only_while_dragging: true,
             });
+        }
+    }
+}
+
+pub mod primordial_ocean_minigame {
+    use super::*;
+
+    pub const NAME: &str = "Primordial Ocean";
+    pub const DESCRIPTION: &str =
+        "Infinitely deep, the source of water and mud.";
+
+    #[derive(Debug, Clone, Bundle)]
+    pub struct PrimordialOceanMinigameBundle {
+        pub minigame: Minigame,
+        pub primordial_ocean_minigame: PrimordialOceanMinigame,
+        pub area: CircularArea,
+    }
+
+    #[derive(Debug, Clone, Component)]
+    pub struct PrimordialOceanMinigame {
+        pub size: f32,
+    }
+
+    impl Default for PrimordialOceanMinigame {
+        fn default() -> Self {
+            Self { size: 120.0 }
+        }
+    }
+
+    pub fn spawn(
+        commands: &mut Commands,
+        transform: Transform,
+        frozen: &PrimordialOceanMinigame,
+    ) {
+        let radius = frozen.size;
+        commands
+            .spawn((
+                PrimordialOceanMinigameBundle {
+                    minigame: Minigame,
+                    primordial_ocean_minigame: frozen.clone(),
+                    area: CircularArea { radius },
+                },
+                SpatialBundle {
+                    transform,
+                    ..default()
+                },
+            ))
+            .with_children(|parent| {
+                spawn_minigame_container(
+                    parent,
+                    RectangularArea::new_square(radius * 2.0),
+                    NAME,
+                );
+                spawn_ocean(parent, radius);
+            });
+    }
+
+    #[derive(Debug, Clone, Component)]
+    pub struct Ocean {
+        pub minigame: Entity,
+    }
+
+    fn spawn_ocean(parent: &mut ChildBuilder, radius: f32) {
+        let minigame = parent.parent_entity();
+        parent.spawn((
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&shapes::Circle {
+                    radius,
+                    ..default()
+                }),
+                ..default()
+            },
+            Fill::color(Color::srgb(0.0, 0.25, 1.0)),
+            Clickable,
+            Ocean { minigame },
+            CircularArea { radius },
+        ));
+    }
+
+    pub fn update(
+        mut commands: Commands,
+        asset_server: Res<AssetServer>,
+        mouse_button_input: Res<ButtonInput<MouseButton>>,
+        mouse_state: Res<mouse::MouseState>,
+        time: Res<Time>,
+        camera_query: Query<(&Camera, &GlobalTransform)>,
+        window_query: Query<&Window>,
+        primordial_ocean_minigame_query: Query<
+            (&GlobalTransform, &CircularArea),
+            With<PrimordialOceanMinigame>,
+        >,
+        mut ocean_query: Query<(&Ocean, &GlobalTransform, &CircularArea)>,
+    ) {
+        let click_position = match get_click_release_position(
+            camera_query,
+            window_query,
+            mouse_button_input,
+        ) {
+            Some(position) => position,
+            None => return,
+        };
+
+        for (ocean, ocean_transform, ocean_area) in ocean_query.iter_mut() {
+            if ocean_area.is_within(
+                click_position,
+                ocean_transform.translation().truncate(),
+            ) {
+                let (minigame_transform, minigame_area) =
+                    primordial_ocean_minigame_query
+                        .get(ocean.minigame)
+                        .unwrap();
+
+                let click_type =
+                    mouse_state.get_click_type(time.elapsed_seconds());
+                let resource = match click_type {
+                    mouse::ClickType::Short => GalaxiaResource::SaltWater,
+                    mouse::ClickType::Long => GalaxiaResource::Mud,
+                    mouse::ClickType::Invalid => {
+                        println!("unexpected: invalid click type");
+                        continue;
+                    }
+                };
+                spawn_loose_resource(
+                    &mut commands,
+                    &asset_server,
+                    resource,
+                    1.0,
+                    Transform::from_translation(
+                        minigame_transform.translation()
+                            + minigame_area.dimensions3() / 1.8,
+                    ),
+                );
+            }
         }
     }
 }
