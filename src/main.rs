@@ -610,19 +610,34 @@ impl RectangularArea {
         Vec3::new(self.width, self.height, 0.0)
     }
 
-    pub fn is_within(
-        &self,
-        click_position: Vec2,
-        rectangle_center: Vec2,
-    ) -> bool {
-        let min_x = rectangle_center.x + self.left();
-        let max_x = rectangle_center.x + self.right();
-        let min_y = rectangle_center.y + self.bottom();
-        let max_y = rectangle_center.y + self.top();
-        click_position.x >= min_x
-            && click_position.x <= max_x
-            && click_position.y >= min_y
-            && click_position.y <= max_y
+    pub fn is_within(&self, position: Vec2, center: Vec2) -> bool {
+        let min_x = center.x + self.left();
+        let max_x = center.x + self.right();
+        let min_y = center.y + self.bottom();
+        let max_y = center.y + self.top();
+        position.x >= min_x
+            && position.x <= max_x
+            && position.y >= min_y
+            && position.y <= max_y
+    }
+
+    pub fn clamp(&self, position: Vec2, center: Vec2) -> Vec2 {
+        let min_x = center.x + self.left();
+        let max_x = center.x + self.right();
+        let min_y = center.y + self.bottom();
+        let max_y = center.y + self.top();
+
+        Vec2::new(
+            position.x.max(min_x).min(max_x),
+            position.y.max(min_y).min(max_y),
+        )
+    }
+
+    pub fn grow(&self, x: f32, y: f32) -> Self {
+        Self {
+            width: self.width + x,
+            height: self.height + y,
+        }
     }
 }
 
@@ -648,8 +663,8 @@ impl CircularArea {
         Self { radius }
     }
 
-    pub fn is_within(&self, click_position: Vec2, circle_center: Vec2) -> bool {
-        let distance_squared = click_position.distance_squared(circle_center);
+    pub fn is_within(&self, position: Vec2, center: Vec2) -> bool {
+        let distance_squared = position.distance_squared(center);
         distance_squared <= self.radius * self.radius
     }
 }
@@ -838,11 +853,16 @@ pub mod mouse {
             }
 
             let old_global_position = global_transform.translation().truncate();
-            let new_global_position =
-                mouse_position - follows_mouse.click_offset;
+            let bounds = follows_mouse
+                .bounds
+                .grow(-follows_mouse.entity_area.width, 0.0);
+            let new_global_position = bounds.clamp(
+                mouse_position - follows_mouse.click_offset,
+                follows_mouse.bound_center,
+            );
 
+            // delta needed because GlobalTransform is read-only
             let delta = new_global_position - old_global_position;
-
             transform.translation.x += delta.x;
             transform.translation.y += delta.y;
         }
@@ -1876,13 +1896,7 @@ pub mod ball_breaker_minigame {
     pub fn unselected_paddle_update(
         mut commands: Commands,
         mut paddle_query: Query<
-            (
-                Entity,
-                &Paddle,
-                &GlobalTransform,
-                &mut Transform,
-                &RectangularArea,
-            ),
+            (Entity, &Paddle, &GlobalTransform, &RectangularArea),
             Without<mouse::FollowsMouse>,
         >,
         minigame_query: Query<
@@ -1902,13 +1916,8 @@ pub mod ball_breaker_minigame {
             None => return,
         };
 
-        for (
-            paddle_entity,
-            paddle,
-            paddle_global_transform,
-            mut paddle_transform,
-            paddle_area,
-        ) in paddle_query.iter_mut()
+        for (paddle_entity, paddle, paddle_global_transform, paddle_area) in
+            paddle_query.iter_mut()
         {
             let paddle_position =
                 paddle_global_transform.translation().truncate();
@@ -1916,7 +1925,7 @@ pub mod ball_breaker_minigame {
                 continue;
             }
 
-            let (minigame_area, minigame_transform) =
+            let (minigame_area, minigame_global_transform) =
                 minigame_query.get(paddle.minigame).unwrap();
 
             commands.entity(paddle_entity).insert(mouse::FollowsMouse {
@@ -1924,46 +1933,21 @@ pub mod ball_breaker_minigame {
                     width: minigame_area.width,
                     height: 0.0, // only moves on x-axis
                 },
-                bound_center: minigame_transform.translation().truncate(),
+                bound_center: Vec2::new(
+                    minigame_global_transform.translation().truncate().x,
+                    paddle_position.y,
+                ),
                 entity: paddle_entity,
                 entity_area: *paddle_area,
                 click_offset: click_position - paddle_position,
                 only_while_dragging: true,
             });
-
-            // let mouse_start_position = mouse_state.start_position.unwrap();
-            // if !paddle_area.is_within(
-            //     mouse_start_position,
-            //     paddle_global_transform.translation().truncate(),
-            // ) {
-            //     continue;
-            // }
-
-            // // let left_edge = minigame_area.left() - paddle_area.left();
-            // // let right_edge = minigame_area.right() - paddle_area.right();
-            // // let left_edge = minigame_area.left();
-            // // let right_edge = minigame_area.right();
-
-            // let mouse_current_position = mouse_state.current_position.unwrap();
-            // let mouse_delta_x =
-            //     (mouse_current_position.x - mouse_start_position.x);
-            // // .max(left_edge)
-            // // .min(right_edge);
-
-            // let paddle_start_x = paddle_global_transform.translation().x;
-            // let paddle_end_x = paddle_start_x + mouse_delta_x;
-            // let relative_paddle_end_x =
-            //     paddle_end_x - paddle_global_transform.translation().x;
-
-            // paddle_transform.translation.x = relative_paddle_end_x;
-            // return; // can only drag one paddle at a time
         }
     }
 }
 
 // Chest acts as an inventory. Only certain resources can be stored.
 // The resource must be a solid (not a fluid, mana, abstraction, etc).
-// It
 pub mod chest_minigame {}
 
 pub mod board_minigame {}
