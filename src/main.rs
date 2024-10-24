@@ -307,8 +307,6 @@ pub fn grab_resources(
                 let direction = contact_point.normalize();
                 let attachment_position = direction * (25.0 + 10.0); // TODO player and resource radii
 
-                // TODO stick resource to player on touched side
-                println!("Player grabbed resource: {:?}", resource);
                 let joint = FixedJointBuilder::new()
                     .local_anchor1(attachment_position)
                     .local_anchor2(Vec2::ZERO);
@@ -347,8 +345,6 @@ fn _collect_loose_resources(
 #[derive(Resource)]
 struct CameraController {
     pub dead_zone_squared: f32,
-    //pub dead_zone_delay: f32,
-    //pub dead_zone_last_time: f64,
 }
 
 #[derive(Debug, Default, Component)]
