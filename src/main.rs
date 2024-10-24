@@ -40,6 +40,7 @@ fn main() {
                 grab_resources,
                 release_resources,
                 engage_button_update,
+                despawn_distant_loose_resources,
                 minigames::button::update,
                 minigames::tree::update,
                 minigames::ball_breaker::unselected_paddle_update,
@@ -353,20 +354,4 @@ struct CameraController {
 #[derive(Debug, Default, Component)]
 pub struct Player {
     pub resources: HashMap<GalaxiaResource, f32>,
-}
-
-#[derive(Debug, Copy, Clone, Component)]
-pub struct Stuck {
-    pub player: Entity,
-}
-
-#[derive(Debug, Default, Copy, Clone, Component)]
-pub struct Sticky;
-
-pub fn constant_velocity_system(
-    mut query: Query<(&ConstantSpeed, &mut Velocity)>,
-) {
-    for (speed, mut velocity) in query.iter_mut() {
-        velocity.linvel = velocity.linvel.normalize() * speed.speed;
-    }
 }

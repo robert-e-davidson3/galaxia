@@ -385,3 +385,11 @@ pub fn unselected_paddle_update(
 pub struct ConstantSpeed {
     pub speed: f32,
 }
+
+pub fn constant_velocity_system(
+    mut query: Query<(&ConstantSpeed, &mut Velocity)>,
+) {
+    for (speed, mut velocity) in query.iter_mut() {
+        velocity.linvel = velocity.linvel.normalize() * speed.speed;
+    }
+}

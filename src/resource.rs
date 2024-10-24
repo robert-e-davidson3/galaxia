@@ -3,12 +3,22 @@ use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
 
+pub const MAX_RESOURCE_DISTANCE: f32 = 10000.0;
+
 #[derive(Debug, Component)]
 #[component(storage = "SparseSet")]
 pub struct LooseResource {
     pub resource: GalaxiaResource,
     pub amount: f32,
 }
+
+#[derive(Debug, Copy, Clone, Component)]
+pub struct Stuck {
+    pub player: Entity,
+}
+
+#[derive(Debug, Default, Copy, Clone, Component)]
+pub struct Sticky;
 
 pub fn spawn_loose_resource(
     commands: &mut Commands,
@@ -40,6 +50,17 @@ pub fn spawn_loose_resource(
         },
         Velocity::linear(Vec2::new(70.0, -70.0)),
     ));
+}
+
+pub fn despawn_distant_loose_resources(
+    mut commands: Commands,
+    query: Query<(Entity, &Transform), (With<LooseResource>, Without<Stuck>)>,
+) {
+    for (entity, transform) in query.iter() {
+        if transform.translation.length() > MAX_RESOURCE_DISTANCE {
+            commands.entity(entity).despawn();
+        }
+    }
 }
 
 pub enum ResourceKind {
