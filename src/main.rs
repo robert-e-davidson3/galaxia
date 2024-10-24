@@ -1,3 +1,9 @@
+mod area;
+mod minigames;
+mod mouse;
+mod resource;
+mod toggleable;
+
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::sprite::*;
@@ -7,19 +13,12 @@ use bevy_rapier2d::prelude::*;
 use std::collections::*;
 use std::*;
 
-mod area;
-use area::*;
-mod mouse;
-use mouse::*;
-mod toggleable;
-use toggleable::*;
-mod resource;
 use resource::*;
 mod random;
-use random::*;
-
-mod minigames;
+use area::*;
 use minigames::*;
+use mouse::*;
+use random::*;
 
 fn main() {
     App::new()

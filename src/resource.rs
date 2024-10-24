@@ -38,6 +38,7 @@ pub fn spawn_loose_resource(
             linear_damping: 1.0,
             angular_damping: 1.0,
         },
+        Velocity::linear(Vec2::new(70.0, -70.0)),
     ));
 }
 
