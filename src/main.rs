@@ -1,4 +1,5 @@
 mod area;
+mod collision;
 mod minigames;
 mod mouse;
 mod resource;
@@ -16,6 +17,7 @@ use std::*;
 use resource::*;
 mod random;
 use area::*;
+use collision::*;
 use minigames::*;
 use mouse::*;
 use random::*;
@@ -50,7 +52,13 @@ fn main() {
             )
                 .chain(),
         )
-        .add_systems(FixedUpdate, minigames::tree::fixed_update)
+        .add_systems(
+            FixedUpdate,
+            (
+                minigames::tree::fixed_update,
+                minigames::ball_breaker::ingest_resource_fixed_update,
+            ),
+        )
         .insert_resource(MouseState::new(1.0))
         .insert_resource(Time::<Fixed>::from_seconds(5.0))
         .insert_resource(CameraController {
@@ -113,27 +121,26 @@ fn setup_player(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let area = CircularArea { radius: 25.0 };
-    let _player = commands
-        .spawn((
-            Player { ..default() },
-            MaterialMesh2dBundle {
-                mesh: meshes.add(Circle::from(area)).into(),
-                material: materials.add(Color::srgb(0.625, 0.94, 0.91)),
-                transform: Transform::from_xyz(-200.0, -400.0, 1.0),
-                ..default()
-            },
-            area,
-            Collider::from(area),
-            RigidBody::Dynamic,
-            ActiveEvents::COLLISION_EVENTS,
-            ExternalImpulse::default(),
-            Damping {
-                linear_damping: 4.0,
-                angular_damping: 4.0,
-            },
-            Velocity::default(),
-        ))
-        .id();
+    commands.spawn((
+        Player { ..default() },
+        MaterialMesh2dBundle {
+            mesh: meshes.add(Circle::from(area)).into(),
+            material: materials.add(Color::srgb(0.625, 0.94, 0.91)),
+            transform: Transform::from_xyz(-200.0, -400.0, 1.0),
+            ..default()
+        },
+        area,
+        Collider::from(area),
+        RigidBody::Dynamic,
+        ActiveEvents::COLLISION_EVENTS,
+        CollisionGroups::new(PLAYER_GROUP, player_filter()),
+        ExternalImpulse::default(),
+        Damping {
+            linear_damping: 4.0,
+            angular_damping: 4.0,
+        },
+        Velocity::default(),
+    ));
 }
 
 fn setup_camera(mut commands: Commands) {
@@ -292,9 +299,14 @@ pub fn grab_resources(
                 } else {
                     continue;
                 }
-                let Ok(resource) = loose_resources.get(other) else {
+
+                if !loose_resources.get(other).is_ok() {
                     continue;
-                };
+                }
+                // let Ok(resource) = loose_resources.get(other) else {
+                // continue;
+                // };
+
                 let Some(contact_pair) =
                     rapier_context.contact_pair(player, other)
                 else {

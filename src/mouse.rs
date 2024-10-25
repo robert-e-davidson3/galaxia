@@ -96,11 +96,28 @@ pub fn update_mouse_state(
 pub struct FollowsMouse {
     pub bounds: RectangularArea,
     pub bound_center: Vec2,
-    pub entity: Entity,
     pub entity_area: RectangularArea,
     // offset from the center of the entity - usually where the user clicked
     pub click_offset: Vec2,
     pub only_while_dragging: bool,
+}
+
+impl FollowsMouse {
+    pub fn new(
+        bounds: RectangularArea,
+        bound_center: Vec2,
+        entity_area: RectangularArea,
+        click_offset: Vec2,
+        only_while_dragging: bool,
+    ) -> Self {
+        Self {
+            bounds,
+            bound_center,
+            entity_area,
+            click_offset,
+            only_while_dragging,
+        }
+    }
 }
 
 pub fn follow_mouse_update(

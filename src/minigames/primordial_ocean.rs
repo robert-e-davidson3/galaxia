@@ -1,19 +1,50 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
+use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
+use crate::collision::*;
 use crate::common::*;
 use crate::mouse::*;
 use crate::resource::*;
 
 pub const NAME: &str = "Primordial Ocean";
-pub const DESCRIPTION: &str = "Infinitely deep, the source of water and mud.";
+pub const _DESCRIPTION: &str = "Infinitely deep, the source of water and mud.";
 
 #[derive(Debug, Clone, Bundle)]
 pub struct PrimordialOceanMinigameBundle {
-    pub minigame: Minigame,
-    pub primordial_ocean_minigame: PrimordialOceanMinigame,
+    pub minigame: PrimordialOceanMinigame,
     pub area: CircularArea,
+    pub tag: Minigame,
+    pub aura: Collider,
+    pub active_events: ActiveEvents,
+    pub collision_groups: CollisionGroups,
+    pub spatial: SpatialBundle,
+}
+
+impl PrimordialOceanMinigameBundle {
+    pub fn new(
+        minigame: PrimordialOceanMinigame,
+        radius: f32,
+        transform: Transform,
+    ) -> Self {
+        let area = CircularArea { radius };
+        Self {
+            minigame,
+            area,
+            tag: Minigame,
+            aura: area.into(),
+            active_events: ActiveEvents::COLLISION_EVENTS,
+            collision_groups: CollisionGroups::new(
+                MINIGAME_AURA_GROUP,
+                minigame_aura_filter(),
+            ),
+            spatial: SpatialBundle {
+                transform,
+                ..default()
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Component)]
@@ -34,16 +65,10 @@ pub fn spawn(
 ) {
     let radius = frozen.size;
     commands
-        .spawn((
-            PrimordialOceanMinigameBundle {
-                minigame: Minigame,
-                primordial_ocean_minigame: frozen.clone(),
-                area: CircularArea { radius },
-            },
-            SpatialBundle {
-                transform,
-                ..default()
-            },
+        .spawn(PrimordialOceanMinigameBundle::new(
+            frozen.clone(),
+            radius,
+            transform,
         ))
         .with_children(|parent| {
             spawn_minigame_container(

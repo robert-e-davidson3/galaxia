@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
+use crate::collision::*;
 
 pub const MAX_RESOURCE_DISTANCE: f32 = 10000.0;
 
@@ -44,6 +45,7 @@ pub fn spawn_loose_resource(
         RigidBody::Dynamic,
         Ccd::enabled(),
         Collider::from(area),
+        CollisionGroups::new(ETHER_GROUP, ether_filter()),
         Damping {
             linear_damping: 1.0,
             angular_damping: 1.0,

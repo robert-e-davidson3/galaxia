@@ -3,6 +3,7 @@ use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
+use crate::collision::*;
 use crate::mouse::*;
 use crate::toggleable::*;
 
@@ -176,10 +177,11 @@ pub fn engage_button_update(
     }
 }
 
-#[derive(Bundle, Default)]
+#[derive(Bundle)]
 pub struct MinigameBoundBundle {
     pub transform: TransformBundle,
     pub collider: Collider,
+    pub collision_groups: CollisionGroups,
     pub rigid_body: RigidBody,
     pub dominance: Dominance,
 }
@@ -209,6 +211,10 @@ impl MinigameBoundBundle {
                 x_offset, y_offset, 0.0,
             )),
             collider: Collider::cuboid(width / 2.0, height / 2.0),
+            collision_groups: CollisionGroups::new(
+                BORDER_GROUP,
+                border_filter(),
+            ),
             rigid_body: RigidBody::Fixed,
             dominance: Dominance { groups: 2 },
         }

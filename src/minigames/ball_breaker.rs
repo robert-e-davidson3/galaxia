@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
+use crate::collision::*;
 use crate::common::*;
 use crate::mouse::*;
 use crate::random::*;
@@ -15,23 +16,41 @@ use crate::resource::*;
 // minigame to use or deploy.
 
 pub const NAME: &str = "ball breaker";
-pub const DESCRIPTION: &str = "Throw balls to break blocks!";
+pub const _DESCRIPTION: &str = "Throw balls to break blocks!";
 
 pub const BLOCK_SIZE: f32 = 20.0;
 
-#[derive(Debug, Clone, Default, Bundle)]
+#[derive(Debug, Clone, Bundle)]
 pub struct BallBreakerMinigameBundle {
     pub minigame: BallBreakerMinigame,
     pub area: RectangularArea,
     pub tag: Minigame,
+    pub aura: Collider,
+    pub collision_groups: CollisionGroups,
+    pub active_events: ActiveEvents,
+    pub spatial: SpatialBundle,
 }
 
 impl BallBreakerMinigameBundle {
-    pub fn new(minigame: BallBreakerMinigame, area: RectangularArea) -> Self {
+    pub fn new(
+        minigame: BallBreakerMinigame,
+        area: RectangularArea,
+        transform: Transform,
+    ) -> Self {
         Self {
             minigame,
             area,
             tag: Minigame,
+            aura: area.into(),
+            collision_groups: CollisionGroups::new(
+                MINIGAME_AURA_GROUP,
+                minigame_aura_filter(),
+            ),
+            active_events: ActiveEvents::COLLISION_EVENTS,
+            spatial: SpatialBundle {
+                transform,
+                ..default()
+            },
         }
     }
 }
@@ -40,9 +59,9 @@ impl BallBreakerMinigameBundle {
 pub struct BallBreakerMinigame {
     pub blocks_per_row: u32,
     pub blocks_per_column: u32,
-    pub paddle_width: f32,
+    pub _paddle_width: f32,
     pub level: u64,
-    pub balls: Vec<(Entity, f32, f32)>, // entity, x, y
+    pub _balls: Vec<(GalaxiaResource, f32, f32)>, // for (de)serialization
 }
 
 pub fn spawn(
@@ -75,17 +94,11 @@ pub fn spawn(
         level,
         blocks_per_row,
         blocks_per_column,
-        paddle_width,
-        balls: Vec::new(),
+        _paddle_width: paddle_width,
+        _balls: Vec::new(),
     };
     commands
-        .spawn((
-            BallBreakerMinigameBundle::new(minigame, area),
-            SpatialBundle {
-                transform,
-                ..default()
-            },
-        ))
+        .spawn(BallBreakerMinigameBundle::new(minigame, area, transform))
         .with_children(|parent| {
             let _background = parent.spawn(SpriteBundle {
                 sprite: Sprite {
@@ -246,6 +259,10 @@ pub fn spawn_block(
         },
         area,
         Collider::from(area),
+        CollisionGroups::new(
+            MINIGAME_CONTENTS_GROUP,
+            minigame_contents_filter(),
+        ),
     ));
 }
 
@@ -264,8 +281,8 @@ pub fn spawn_ball(
     blocks_per_row: u32,
     resource: GalaxiaResource,
 ) {
-    let x = -30.0 + BLOCK_SIZE * ((blocks_per_row / 2) as f32 - 0.5);
-    let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 1.5);
+    let x = BLOCK_SIZE * ((blocks_per_row / 2) as f32 - 2.0);
+    let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 1.0);
     let square = area.radius * 2.0;
     commands.spawn((
         Ball { resource, minigame },
@@ -280,6 +297,10 @@ pub fn spawn_ball(
         },
         area,
         Collider::from(area),
+        CollisionGroups::new(
+            MINIGAME_CONTENTS_GROUP,
+            minigame_contents_filter(),
+        ),
         RigidBody::Dynamic {},
         Velocity::linear(Vec2::new(-1.0, 1.0)),
         LockedAxes::ROTATION_LOCKED,
@@ -327,6 +348,10 @@ pub fn spawn_paddle(
         },
         area,
         Collider::from(area),
+        CollisionGroups::new(
+            MINIGAME_CONTENTS_GROUP,
+            minigame_contents_filter(),
+        ),
     ));
 }
 
@@ -364,20 +389,19 @@ pub fn unselected_paddle_update(
         let (minigame_area, minigame_global_transform) =
             minigame_query.get(paddle.minigame).unwrap();
 
-        commands.entity(paddle_entity).insert(FollowsMouse {
-            bounds: RectangularArea {
+        commands.entity(paddle_entity).insert(FollowsMouse::new(
+            RectangularArea {
                 width: minigame_area.width,
                 height: 0.0, // only moves on x-axis
             },
-            bound_center: Vec2::new(
+            Vec2::new(
                 minigame_global_transform.translation().truncate().x,
                 paddle_position.y,
             ),
-            entity: paddle_entity,
-            entity_area: *paddle_area,
-            click_offset: click_position - paddle_position,
-            only_while_dragging: true,
-        });
+            *paddle_area,
+            click_position - paddle_position,
+            true,
+        ));
     }
 }
 
@@ -390,6 +414,70 @@ pub fn constant_velocity_system(
     mut query: Query<(&ConstantSpeed, &mut Velocity)>,
 ) {
     for (speed, mut velocity) in query.iter_mut() {
-        velocity.linvel = velocity.linvel.normalize() * speed.speed;
+        if speed.speed == 0.0 {
+            velocity.linvel = Vec2::ZERO;
+        } else {
+            velocity.linvel = velocity.linvel.normalize() * speed.speed;
+        }
+    }
+}
+
+pub fn ingest_resource_fixed_update(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut collision_events: EventReader<CollisionEvent>,
+    minigame_query: Query<&BallBreakerMinigame>,
+    resource_query: Query<&LooseResource>,
+) {
+    for event in collision_events.read() {
+        // only care about collision start
+        let (a, b) = match event {
+            CollisionEvent::Started(a, b, _flags) => (a, b),
+            _ => continue,
+        };
+
+        // only care about collisions between minigames and resources
+        let resource_entity: Entity;
+        let minigame_entity: Entity;
+        let resource: &LooseResource;
+        match resource_query.get(*a) {
+            Ok(x) => {
+                resource_entity = *a;
+                minigame_entity = *b;
+                resource = x;
+            }
+            Err(_) => match resource_query.get(*b) {
+                Ok(x) => {
+                    resource_entity = *b;
+                    minigame_entity = *a;
+                    resource = x;
+                }
+                Err(_) => continue,
+            },
+        };
+
+        let minigame = match minigame_query.get(minigame_entity) {
+            Ok(x) => x,
+            Err(_) => continue,
+        };
+
+        // remove loose resource
+        commands.entity(resource_entity).despawn();
+
+        // add ball to minigame
+        commands.entity(minigame_entity).with_children(|parent| {
+            spawn_ball(
+                parent,
+                &asset_server,
+                CircularArea {
+                    radius: BLOCK_SIZE / 2.0,
+                    ..default()
+                },
+                minigame_entity,
+                minigame.blocks_per_column,
+                minigame.blocks_per_row,
+                resource.resource,
+            );
+        });
     }
 }

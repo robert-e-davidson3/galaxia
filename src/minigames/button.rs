@@ -1,13 +1,15 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
+use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
+use crate::collision::*;
 use crate::common::*;
 use crate::mouse::*;
 use crate::resource::*;
 
 pub const NAME: &str = "Button";
-pub const DESCRIPTION: &str = "Click the button, get clicks!";
+pub const _DESCRIPTION: &str = "Click the button, get clicks!";
 const AREA: RectangularArea = RectangularArea {
     width: 200.0,
     height: 220.0,
@@ -18,14 +20,28 @@ pub struct ButtonMinigameBundle {
     pub minigame: ButtonMinigame,
     pub area: RectangularArea,
     pub tag: Minigame,
+    pub aura: Collider,
+    pub active_events: ActiveEvents,
+    pub collision_groups: CollisionGroups,
+    pub spatial: SpatialBundle,
 }
 
 impl ButtonMinigameBundle {
-    pub fn new(minigame: ButtonMinigame) -> Self {
+    pub fn new(minigame: ButtonMinigame, transform: Transform) -> Self {
         Self {
             minigame,
             area: AREA,
             tag: Minigame,
+            aura: AREA.into(),
+            active_events: ActiveEvents::COLLISION_EVENTS,
+            collision_groups: CollisionGroups::new(
+                MINIGAME_AURA_GROUP,
+                minigame_aura_filter(),
+            ),
+            spatial: SpatialBundle {
+                transform,
+                ..default()
+            },
         }
     }
 }
@@ -41,17 +57,7 @@ pub fn spawn(
     frozen: &ButtonMinigame,
 ) {
     commands
-        .spawn((
-            ButtonMinigameBundle::new(frozen.clone()),
-            SpatialBundle {
-                transform: Transform::from_xyz(
-                    transform.translation.x,
-                    transform.translation.y,
-                    0.0,
-                ),
-                ..default()
-            },
-        ))
+        .spawn(ButtonMinigameBundle::new(frozen.clone(), transform))
         .with_children(|parent| {
             spawn_minigame_container(parent, AREA, NAME);
             spawn_background(parent);

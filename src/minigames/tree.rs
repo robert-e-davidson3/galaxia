@@ -1,12 +1,14 @@
 use bevy::prelude::*;
+use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
+use crate::collision::*;
 use crate::common::*;
 use crate::mouse::*;
 use crate::resource::*;
 
 pub const NAME: &str = "Tree";
-pub const DESCRIPTION: &str = "Pick fruits from the tree!";
+pub const _DESCRIPTION: &str = "Pick fruits from the tree!";
 const AREA: RectangularArea = RectangularArea {
     width: 300.0,
     height: 300.0,
@@ -17,14 +19,25 @@ pub struct TreeMinigameBundle {
     pub minigame: TreeMinigame,
     pub area: RectangularArea,
     pub tag: Minigame,
+    pub aura: Collider,
+    pub collision_groups: CollisionGroups,
+    pub active_events: ActiveEvents,
+    pub sprite: SpriteBundle,
 }
 
 impl TreeMinigameBundle {
-    pub fn new(minigame: TreeMinigame) -> Self {
+    pub fn new(minigame: TreeMinigame, sprite: SpriteBundle) -> Self {
         Self {
             minigame,
             area: AREA,
             tag: Minigame,
+            aura: AREA.into(),
+            collision_groups: CollisionGroups::new(
+                MINIGAME_AURA_GROUP,
+                minigame_aura_filter(),
+            ),
+            active_events: ActiveEvents::COLLISION_EVENTS,
+            sprite,
         }
     }
 }
@@ -33,7 +46,7 @@ impl TreeMinigameBundle {
 pub struct TreeMinigame {
     pub fruit: GalaxiaResource,
     pub count: u32,
-    pub lushness: f32,
+    pub _lushness: f32,
     pub last_fruit_time: f32,
 }
 
@@ -42,7 +55,7 @@ impl Default for TreeMinigame {
         Self {
             fruit: GalaxiaResource::Apple,
             count: 0,
-            lushness: 1.0,
+            _lushness: 1.0,
             last_fruit_time: 0.0,
         }
     }
@@ -55,8 +68,8 @@ pub fn spawn(
     frozen: &TreeMinigame,
 ) {
     commands
-        .spawn((
-            TreeMinigameBundle::new(frozen.clone()),
+        .spawn(TreeMinigameBundle::new(
+            frozen.clone(),
             SpriteBundle {
                 texture: asset_server
                     .load("oak-tree-white-background-300x300.png"),

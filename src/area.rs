@@ -123,3 +123,9 @@ impl From<CircularArea> for Circle {
         }
     }
 }
+
+impl From<CircularArea> for RectangularArea {
+    fn from(area: CircularArea) -> Self {
+        RectangularArea::new_square(area.radius * 2.0)
+    }
+}
