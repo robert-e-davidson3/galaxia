@@ -31,7 +31,7 @@ impl TreeMinigameBundle {
             minigame,
             area: AREA,
             tag: Minigame,
-            aura: AREA.into(),
+            aura: AREA.grow(1.0, 1.0).into(),
             collision_groups: CollisionGroups::new(
                 MINIGAME_AURA_GROUP,
                 minigame_aura_filter(),

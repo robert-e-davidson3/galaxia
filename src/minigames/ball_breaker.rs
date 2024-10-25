@@ -41,7 +41,7 @@ impl BallBreakerMinigameBundle {
             minigame,
             area,
             tag: Minigame,
-            aura: area.into(),
+            aura: area.grow(1.0, 1.0).into(),
             collision_groups: CollisionGroups::new(
                 MINIGAME_AURA_GROUP,
                 minigame_aura_filter(),

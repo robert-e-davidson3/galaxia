@@ -108,6 +108,12 @@ impl CircularArea {
         let distance_squared = position.distance_squared(center);
         distance_squared <= self.radius * self.radius
     }
+
+    pub fn grow(&self, radius: f32) -> Self {
+        Self {
+            radius: self.radius + radius,
+        }
+    }
 }
 
 impl From<CircularArea> for Collider {

@@ -33,7 +33,7 @@ impl PrimordialOceanMinigameBundle {
             minigame,
             area,
             tag: Minigame,
-            aura: area.into(),
+            aura: area.grow(1.0).into(),
             active_events: ActiveEvents::COLLISION_EVENTS,
             collision_groups: CollisionGroups::new(
                 MINIGAME_AURA_GROUP,

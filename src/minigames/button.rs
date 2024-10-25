@@ -32,7 +32,7 @@ impl ButtonMinigameBundle {
             minigame,
             area: AREA,
             tag: Minigame,
-            aura: AREA.into(),
+            aura: AREA.grow(1.0, 1.0).into(),
             active_events: ActiveEvents::COLLISION_EVENTS,
             collision_groups: CollisionGroups::new(
                 MINIGAME_AURA_GROUP,
