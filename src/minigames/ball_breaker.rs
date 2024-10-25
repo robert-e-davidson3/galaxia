@@ -157,6 +157,27 @@ pub struct Block {
     pub resource: GalaxiaResource,
 }
 
+pub fn resource_is_valid(resource: GalaxiaResource) -> bool {
+    match resource {
+        GalaxiaResource::Mud
+        | GalaxiaResource::Dirt
+        | GalaxiaResource::Sandstone
+        | GalaxiaResource::Granite
+        | GalaxiaResource::Marble
+        | GalaxiaResource::Obsidian
+        | GalaxiaResource::Copper
+        | GalaxiaResource::Tin
+        | GalaxiaResource::Iron
+        | GalaxiaResource::Silver
+        | GalaxiaResource::Gold
+        | GalaxiaResource::Diamond
+        | GalaxiaResource::Amethyst
+        | GalaxiaResource::FreshWater
+        | GalaxiaResource::Moss => true,
+        _ => false,
+    }
+}
+
 pub fn random_resource(level: u64, random: &mut Random) -> GalaxiaResource {
     let r: u64;
     if level == 0 {
@@ -455,6 +476,11 @@ pub fn ingest_resource_fixed_update(
                 Err(_) => continue,
             },
         };
+
+        // only certain resources can be ingested
+        if !resource_is_valid(resource.resource) {
+            continue;
+        }
 
         let minigame = match minigame_query.get(minigame_entity) {
             Ok(x) => x,
