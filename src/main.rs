@@ -6,6 +6,7 @@ mod resource;
 mod toggleable;
 
 use bevy::app::AppExit;
+use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 use bevy::sprite::*;
 use bevy_framepace::*;
@@ -150,49 +151,72 @@ fn setup_camera(mut commands: Commands) {
     });
 }
 
+const MIN_ZOOM: f32 = 0.2;
+const MAX_ZOOM: f32 = 3.0;
+
 fn update_camera(
-    mut camera: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
-    player: Query<&Transform, (With<Player>, Without<Camera2d>)>,
     camera_controller: ResMut<CameraController>,
     time: Res<Time>,
     engaged: Res<Engaged>,
+    mut evr_scroll: EventReader<MouseWheel>,
+    mut camera_query: Query<
+        (&mut Transform, &mut OrthographicProjection),
+        (With<Camera2d>, Without<Player>),
+    >,
+    player_query: Query<&Transform, (With<Player>, Without<Camera2d>)>,
     minigame_query: Query<
         &Transform,
         (With<Minigame>, Without<Player>, Without<Camera2d>),
     >,
 ) {
-    let Ok(mut camera) = camera.get_single_mut() else {
+    let Ok(camera) = camera_query.get_single_mut() else {
+        return;
+    };
+    let (mut camera_transform, mut camera_projection) = camera;
+
+    let Ok(player) = player_query.get_single() else {
         return;
     };
 
-    let Ok(player) = player.get_single() else {
-        return;
-    };
-
+    // focused on minigame
     if let Some(minigame) = engaged.game {
         let minigame_transform = minigame_query.get(minigame).unwrap();
         let Vec3 { x, y, .. } = minigame_transform.translation;
-        let direction = Vec3::new(x, y, camera.translation.z);
-        camera.translation = camera
+        let direction = Vec3::new(x, y, camera_transform.translation.z);
+        camera_transform.translation = camera_transform
             .translation
             .lerp(direction, time.delta_seconds() * 2.0);
+        camera_projection.scale = 1.0;
         return;
     }
 
+    // focused on player
+
     let Vec3 { x, y, .. } = player.translation;
-    let direction = Vec3::new(x, y, camera.translation.z);
+    let direction = Vec3::new(x, y, camera_transform.translation.z);
 
     // Applies a smooth effect to camera movement using interpolation between
     // the camera position and the player position on the x and y axes.
     // Here we use the in-game time, to get the elapsed time (in seconds)
     // since the previous update. This avoids jittery movement when tracking
     // the player.
-    if (player.translation - camera.translation).length_squared()
+    if (player.translation - camera_transform.translation).length_squared()
         > camera_controller.dead_zone_squared
     {
-        camera.translation = camera
+        camera_transform.translation = camera_transform
             .translation
             .lerp(direction, time.delta_seconds() * 2.0);
+    }
+
+    // adjust zoom
+    for ev in evr_scroll.read() {
+        if camera_projection.scale <= MIN_ZOOM && ev.y > 0.0 {
+            continue;
+        }
+        if camera_projection.scale >= MAX_ZOOM && ev.y < 0.0 {
+            continue;
+        }
+        camera_projection.scale -= ev.y * 0.1;
     }
 }
 
