@@ -364,7 +364,7 @@ impl PaddleBundle {
         blocks_per_column: u32,
     ) -> Self {
         let x = 0.0;
-        let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 0.5);
+        let y = -BLOCK_SIZE * ((blocks_per_column as f32 / 2.0) - 0.5);
         let area = RectangularArea {
             width: BLOCK_SIZE * 3.0,
             height: BLOCK_SIZE,
