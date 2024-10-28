@@ -305,52 +305,67 @@ pub fn release_resources(
 pub fn grab_resources(
     mut commands: Commands,
     rapier_context: Res<RapierContext>,
-    player_query: Query<Entity, (With<Player>, With<Sticky>)>,
-    loose_resources: Query<&LooseResource, Without<Stuck>>,
+    player_query: Query<
+        (Entity, &CircularArea, &Transform),
+        (With<Player>, With<Sticky>),
+    >,
+    mut loose_resource_query: Query<
+        (&CircularArea, &mut Velocity),
+        (With<LooseResource>, Without<Stuck>),
+    >,
     mut collision_events: EventReader<CollisionEvent>,
 ) {
     let Ok(player) = player_query.get_single() else {
         return;
     };
+    let (player_entity, player_area, player_transform) = player;
 
     for collision_event in collision_events.read() {
         match collision_event {
             CollisionEvent::Started(entity1, entity2, _) => {
                 let other: Entity;
-                if *entity1 == player {
+                let player_is_first: bool;
+                if *entity1 == player_entity {
                     other = *entity2;
-                } else if *entity2 == player {
+                    player_is_first = true;
+                } else if *entity2 == player_entity {
                     other = *entity1;
+                    player_is_first = false;
                 } else {
                     continue;
                 }
 
-                if !loose_resources.get(other).is_ok() {
+                let Ok(resource) = loose_resource_query.get_mut(other) else {
                     continue;
-                }
-                // let Ok(resource) = loose_resources.get(other) else {
-                // continue;
-                // };
+                };
+                let (resource_area, mut resource_velocity) = resource;
 
                 let Some(contact_pair) =
-                    rapier_context.contact_pair(player, other)
+                    rapier_context.contact_pair(player_entity, other)
                 else {
                     continue;
                 };
                 let Some(manifold) = contact_pair.manifold(0) else {
                     continue;
                 };
-                let contact_point = manifold.local_n1();
-                let direction = contact_point.normalize();
-                let attachment_position = direction * (25.0 + 10.0); // TODO player and resource radii
+                let direction = (if player_is_first {
+                    manifold.local_n1()
+                } else {
+                    manifold.local_n2()
+                })
+                .normalize();
+                let distance = player_area.radius + resource_area.radius;
 
                 let joint = FixedJointBuilder::new()
-                    .local_anchor1(attachment_position)
-                    .local_anchor2(Vec2::ZERO);
+                    .local_anchor1(direction * distance);
                 commands
                     .entity(other)
-                    .insert(ImpulseJoint::new(player, joint))
-                    .insert(Stuck { player });
+                    .insert(ImpulseJoint::new(player_entity, joint))
+                    .insert(Stuck {
+                        player: player_entity,
+                    });
+                resource_velocity.linvel = Vec2::ZERO;
+                resource_velocity.angvel = 0.0;
             }
             _ => {}
         }

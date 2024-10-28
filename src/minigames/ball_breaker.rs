@@ -640,7 +640,7 @@ pub fn ingest_resource_fixed_update(
         };
 
         // remove loose resource
-        commands.entity(resource_entity).despawn();
+        commands.entity(resource_entity).despawn_recursive();
         ingested.insert(resource_entity);
 
         // add ball to minigame
