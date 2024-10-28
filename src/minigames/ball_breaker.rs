@@ -59,7 +59,6 @@ impl BallBreakerMinigameBundle {
 pub struct BallBreakerMinigame {
     pub blocks_per_row: u32,
     pub blocks_per_column: u32,
-    pub _paddle_width: f32,
     pub level: u64,
     pub _balls: Vec<(GalaxiaResource, f32, f32)>, // for (de)serialization
 }
@@ -74,16 +73,13 @@ pub fn spawn(
     let level = frozen.level;
     let blocks_per_row: u32;
     let blocks_per_column: u32;
-    let paddle_width: f32;
     if level == 0 {
         blocks_per_row = 10;
         blocks_per_column = 10;
-        paddle_width = BLOCK_SIZE * 3.0;
     } else {
         let r: u64 = random.next();
         blocks_per_row = (10 + (r % level)) as u32;
         blocks_per_column = (10 + (r % level)) as u32;
-        paddle_width = BLOCK_SIZE * 3.0 + (r % level) as f32;
     }
     let area = RectangularArea {
         width: BLOCK_SIZE * blocks_per_row as f32,
@@ -94,7 +90,6 @@ pub fn spawn(
         level,
         blocks_per_row,
         blocks_per_column,
-        _paddle_width: paddle_width,
         _balls: Vec::new(),
     };
     commands
@@ -113,43 +108,69 @@ pub fn spawn(
 
             for y in 3..blocks_per_column {
                 for x in 0..blocks_per_row {
-                    let resource = random_resource(level, &mut random);
-                    spawn_block(
-                        parent,
-                        &asset_server,
-                        resource,
+                    parent.spawn(BlockBundle::new(
+                        asset_server,
+                        random_resource(level, &mut random),
                         blocks_per_column,
                         blocks_per_row,
                         x,
                         y,
-                    );
+                    ));
                 }
             }
-            spawn_paddle(
-                parent,
-                &asset_server,
-                RectangularArea {
-                    width: paddle_width,
-                    height: BLOCK_SIZE,
-                },
+            parent.spawn(PaddleBundle::new(
+                asset_server,
                 parent.parent_entity(),
                 blocks_per_column,
-                paddle_width,
-            );
-
-            // TODO do not do this here - need an input ball
-            spawn_ball(
-                parent,
-                &asset_server,
-                CircularArea {
-                    radius: BLOCK_SIZE / 2.0,
-                },
-                parent.parent_entity(),
-                blocks_per_column,
-                blocks_per_row,
-                GalaxiaResource::Dirt, // TODO use actual resource
-            );
+            ));
         });
+}
+
+#[derive(Debug, Clone, Bundle)]
+pub struct BlockBundle {
+    pub block: Block,
+    pub sprite: SpriteBundle,
+    pub area: RectangularArea,
+    pub collider: Collider,
+    pub collision_groups: CollisionGroups,
+}
+
+impl BlockBundle {
+    pub fn new(
+        asset_server: &AssetServer,
+        resource: GalaxiaResource,
+        blocks_per_column: u32,
+        blocks_per_row: u32,
+        x: u32,
+        y: u32,
+    ) -> Self {
+        let area = RectangularArea {
+            width: BLOCK_SIZE,
+            height: BLOCK_SIZE,
+        };
+        let x = BLOCK_SIZE
+            * ((x as f32) - (blocks_per_row as f32 / 2.0) + 1.0 / 2.0);
+        let y = BLOCK_SIZE
+            * ((y as f32) - (blocks_per_column as f32 / 2.0) + 1.0 / 2.0);
+        Self {
+            block: Block { resource },
+            sprite: SpriteBundle {
+                texture: asset_server.load(resource_to_asset(resource)),
+                transform: Transform::from_xyz(x, y, 0.0),
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(BLOCK_SIZE, BLOCK_SIZE)),
+                    ..default()
+                },
+                ..default()
+            },
+            area,
+            collider: area.into(),
+            collision_groups: CollisionGroups::new(
+                MINIGAME_CONTENTS_GROUP,
+                minigame_contents_filter(),
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Component)]
@@ -249,42 +270,70 @@ pub fn resource_damage(resource: &str) -> u32 {
     }
 }
 
-pub fn spawn_block(
-    commands: &mut ChildBuilder,
-    asset_server: &AssetServer,
-    resource: GalaxiaResource,
-    blocks_per_column: u32,
-    blocks_per_row: u32,
-    x: u32,
-    y: u32,
-) {
-    let area = RectangularArea {
-        width: BLOCK_SIZE,
-        height: BLOCK_SIZE,
-    };
-    let x =
-        BLOCK_SIZE * ((x as f32) - (blocks_per_row as f32 / 2.0) + 1.0 / 2.0);
-    let y = BLOCK_SIZE
-        * ((y as f32) - (blocks_per_column as f32 / 2.0) + 1.0 / 2.0);
+#[derive(Debug, Clone, Bundle)]
+pub struct BallBundle {
+    pub ball: Ball,
+    pub sprite: SpriteBundle,
+    pub area: CircularArea,
+    pub collider: Collider,
+    pub collision_groups: CollisionGroups,
+    pub rigid_body: RigidBody,
+    pub velocity: Velocity,
+    pub locked_axes: LockedAxes,
+    pub constant_speed: ConstantSpeed,
+    pub friction: Friction,
+    pub restitution: Restitution,
+    pub damping: Damping,
+}
 
-    commands.spawn((
-        Block { resource },
-        SpriteBundle {
-            texture: asset_server.load(resource_to_asset(resource)),
-            transform: Transform::from_xyz(x, y, 0.0),
-            sprite: Sprite {
-                custom_size: Some(Vec2::new(BLOCK_SIZE, BLOCK_SIZE)),
+impl BallBundle {
+    pub fn new(
+        asset_server: &AssetServer,
+        resource: GalaxiaResource,
+        minigame: Entity,
+        blocks_per_column: u32,
+        blocks_per_row: u32,
+    ) -> Self {
+        let x = BLOCK_SIZE * ((blocks_per_row / 2) as f32 - 2.0);
+        let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 1.0);
+        let area = CircularArea {
+            radius: BLOCK_SIZE / 2.0,
+        };
+        Self {
+            ball: Ball { resource, minigame },
+            sprite: SpriteBundle {
+                texture: asset_server.load("block_breaker/ball.png"),
+                transform: Transform::from_xyz(x, y, 0.0),
+                sprite: Sprite {
+                    custom_size: Some(area.into()),
+                    ..default()
+                },
                 ..default()
             },
-            ..default()
-        },
-        area,
-        Collider::from(area),
-        CollisionGroups::new(
-            MINIGAME_CONTENTS_GROUP,
-            minigame_contents_filter(),
-        ),
-    ));
+            area,
+            collider: Collider::from(area),
+            collision_groups: CollisionGroups::new(
+                MINIGAME_CONTENTS_GROUP,
+                minigame_contents_filter(),
+            ),
+            rigid_body: RigidBody::Dynamic {},
+            velocity: Velocity::linear(Vec2::new(-1.0, 1.0)),
+            locked_axes: LockedAxes::ROTATION_LOCKED,
+            constant_speed: ConstantSpeed { speed: 200.0 },
+            friction: Friction {
+                coefficient: 0.0,
+                combine_rule: CoefficientCombineRule::Min,
+            },
+            restitution: Restitution {
+                coefficient: 1.0,
+                combine_rule: CoefficientCombineRule::Max,
+            },
+            damping: Damping {
+                linear_damping: 0.0,
+                angular_damping: 0.0,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Component)]
@@ -293,87 +342,51 @@ pub struct Ball {
     pub minigame: Entity,
 }
 
-pub fn spawn_ball(
-    commands: &mut ChildBuilder,
-    asset_server: &AssetServer,
-    area: CircularArea,
-    minigame: Entity,
-    blocks_per_column: u32,
-    blocks_per_row: u32,
-    resource: GalaxiaResource,
-) {
-    let x = BLOCK_SIZE * ((blocks_per_row / 2) as f32 - 2.0);
-    let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 1.0);
-    let square = area.radius * 2.0;
-    commands.spawn((
-        Ball { resource, minigame },
-        SpriteBundle {
-            texture: asset_server.load("block_breaker/ball.png"),
-            transform: Transform::from_xyz(x, y, 0.0),
-            sprite: Sprite {
-                custom_size: Some(Vec2::new(square, square)),
+#[derive(Debug, Clone, Bundle)]
+pub struct PaddleBundle {
+    pub paddle: Paddle,
+    pub sprite: SpriteBundle,
+    pub area: RectangularArea,
+    pub collider: Collider,
+    pub collision_groups: CollisionGroups,
+}
+
+impl PaddleBundle {
+    pub fn new(
+        asset_server: &AssetServer,
+        minigame: Entity,
+        blocks_per_column: u32,
+    ) -> Self {
+        let x = 0.0;
+        let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 0.5);
+        let area = RectangularArea {
+            width: BLOCK_SIZE * 3.0,
+            height: BLOCK_SIZE,
+        };
+        Self {
+            paddle: Paddle { minigame },
+            sprite: SpriteBundle {
+                texture: asset_server.load("block_breaker/paddle.png"),
+                transform: Transform::from_xyz(x, y, 0.0),
+                sprite: Sprite {
+                    custom_size: Some(area.into()),
+                    ..default()
+                },
                 ..default()
             },
-            ..default()
-        },
-        area,
-        Collider::from(area),
-        CollisionGroups::new(
-            MINIGAME_CONTENTS_GROUP,
-            minigame_contents_filter(),
-        ),
-        RigidBody::Dynamic {},
-        Velocity::linear(Vec2::new(-1.0, 1.0)),
-        LockedAxes::ROTATION_LOCKED,
-        ConstantSpeed { speed: 200.0 },
-        Friction {
-            coefficient: 0.0,
-            combine_rule: CoefficientCombineRule::Min,
-        },
-        Restitution {
-            coefficient: 1.0,
-            combine_rule: CoefficientCombineRule::Max,
-        },
-        Damping {
-            linear_damping: 0.0,
-            angular_damping: 0.0,
-        },
-    ));
+            area,
+            collider: Collider::from(area),
+            collision_groups: CollisionGroups::new(
+                MINIGAME_CONTENTS_GROUP,
+                minigame_contents_filter(),
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Component)]
 pub struct Paddle {
     pub minigame: Entity,
-}
-
-pub fn spawn_paddle(
-    commands: &mut ChildBuilder,
-    asset_server: &AssetServer,
-    area: RectangularArea,
-    minigame: Entity,
-    blocks_per_column: u32,
-    paddle_width: f32,
-) {
-    let x = 0.0;
-    let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 0.5);
-    commands.spawn((
-        Paddle { minigame },
-        SpriteBundle {
-            texture: asset_server.load("block_breaker/paddle.png"),
-            transform: Transform::from_xyz(x, y, 0.0),
-            sprite: Sprite {
-                custom_size: Some(Vec2::new(paddle_width, BLOCK_SIZE)),
-                ..default()
-            },
-            ..default()
-        },
-        area,
-        Collider::from(area),
-        CollisionGroups::new(
-            MINIGAME_CONTENTS_GROUP,
-            minigame_contents_filter(),
-        ),
-    ));
 }
 
 pub fn unselected_paddle_update(
@@ -492,18 +505,13 @@ pub fn ingest_resource_fixed_update(
 
         // add ball to minigame
         commands.entity(minigame_entity).with_children(|parent| {
-            spawn_ball(
-                parent,
+            parent.spawn(BallBundle::new(
                 &asset_server,
-                CircularArea {
-                    radius: BLOCK_SIZE / 2.0,
-                    ..default()
-                },
+                resource.resource,
                 minigame_entity,
                 minigame.blocks_per_column,
                 minigame.blocks_per_row,
-                resource.resource,
-            );
+            ));
         });
     }
 }

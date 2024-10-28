@@ -116,6 +116,12 @@ impl CircularArea {
     }
 }
 
+impl From<CircularArea> for Vec2 {
+    fn from(area: CircularArea) -> Self {
+        area.dimensions()
+    }
+}
+
 impl From<CircularArea> for Collider {
     fn from(area: CircularArea) -> Self {
         Collider::ball(area.radius)
