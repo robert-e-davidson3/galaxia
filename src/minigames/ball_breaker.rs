@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
@@ -26,6 +28,7 @@ pub struct BallBreakerMinigameBundle {
     pub area: RectangularArea,
     pub tag: Minigame,
     pub aura: Collider,
+    pub sensor: Sensor,
     pub collision_groups: CollisionGroups,
     pub active_events: ActiveEvents,
     pub spatial: SpatialBundle,
@@ -42,6 +45,7 @@ impl BallBreakerMinigameBundle {
             area,
             tag: Minigame,
             aura: area.grow(1.0, 1.0).into(),
+            sensor: Sensor {},
             collision_groups: CollisionGroups::new(
                 MINIGAME_AURA_GROUP,
                 minigame_aura_filter(),
@@ -227,45 +231,45 @@ pub fn random_resource(level: u64, random: &mut Random) -> GalaxiaResource {
     }
 }
 
-pub fn resource_toughness(resource: &str) -> u32 {
+pub fn resource_toughness(resource: GalaxiaResource) -> u32 {
     match resource {
-        "mud" => 1,
-        "dirt" => 2,
-        "sandstone" => 3,
-        "granite" => 4,
-        "marble" => 4,
-        "obsidian" => 2,
-        "copper" => 4,
-        "tin" => 4,
-        "iron" => 8,
-        "silver" => 4,
-        "gold" => 3,
-        "diamond" => 6,
-        "amethyst" => 6,
-        "fresh water" => 0,
-        "moss" => 1,
+        GalaxiaResource::Mud => 1,
+        GalaxiaResource::Dirt => 2,
+        GalaxiaResource::Sandstone => 3,
+        GalaxiaResource::Granite => 4,
+        GalaxiaResource::Marble => 4,
+        GalaxiaResource::Obsidian => 2,
+        GalaxiaResource::Copper => 4,
+        GalaxiaResource::Tin => 4,
+        GalaxiaResource::Iron => 8,
+        GalaxiaResource::Silver => 4,
+        GalaxiaResource::Gold => 3,
+        GalaxiaResource::Diamond => 6,
+        GalaxiaResource::Amethyst => 6,
+        GalaxiaResource::FreshWater => 0,
+        GalaxiaResource::Moss => 1,
         _ => 16,
     }
 }
 
-pub fn resource_damage(resource: &str) -> u32 {
+pub fn resource_damage(resource: GalaxiaResource) -> u32 {
     match resource {
-        "mud" => 2,
-        "dirt" => 3,
-        "sandstone" => 4,
-        "granite" => 4,
-        "marble" => 4,
-        "obsidian" => 6,
-        "copper" => 7,
-        "tin" => 7,
-        "bronze" => 8, // must be forged from copper and tin
-        "iron" => 10,
-        "silver" => 4,
-        "gold" => 3,
-        "diamond" => 11,
-        "amethyst" => 4,
-        "fresh water" => 1,
-        "moss" => 0,
+        GalaxiaResource::Mud => 2,
+        GalaxiaResource::Dirt => 3,
+        GalaxiaResource::Sandstone => 4,
+        GalaxiaResource::Granite => 4,
+        GalaxiaResource::Marble => 4,
+        GalaxiaResource::Obsidian => 6,
+        GalaxiaResource::Copper => 7,
+        GalaxiaResource::Tin => 7,
+        GalaxiaResource::Bronze => 8, // must be forged from copper and tin
+        GalaxiaResource::Iron => 10,
+        GalaxiaResource::Silver => 4,
+        GalaxiaResource::Gold => 3,
+        GalaxiaResource::Diamond => 11,
+        GalaxiaResource::Amethyst => 4,
+        GalaxiaResource::FreshWater => 1,
+        GalaxiaResource::Moss => 0,
         _ => 16,
     }
 }
@@ -284,6 +288,7 @@ pub struct BallBundle {
     pub friction: Friction,
     pub restitution: Restitution,
     pub damping: Damping,
+    pub active_events: ActiveEvents,
 }
 
 impl BallBundle {
@@ -332,6 +337,7 @@ impl BallBundle {
                 linear_damping: 0.0,
                 angular_damping: 0.0,
             },
+            active_events: ActiveEvents::COLLISION_EVENTS,
         }
     }
 }
@@ -456,6 +462,133 @@ pub fn constant_velocity_system(
     }
 }
 
+pub fn hit_block_fixed_update(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut random: ResMut<Random>,
+    mut collision_events: EventReader<CollisionEvent>,
+    mut minigame_query: Query<(
+        &mut BallBreakerMinigame,
+        &GlobalTransform,
+        &RectangularArea,
+    )>,
+    ball_query: Query<&Ball>,
+    block_query: Query<&Block>,
+) {
+    let mut broken: HashSet<Entity> = HashSet::new();
+
+    for event in collision_events.read() {
+        // only care about collision start
+        let (a, b) = match event {
+            CollisionEvent::Started(a, b, _flags) => (a, b),
+            _ => continue,
+        };
+
+        // only care about collisions between balls and blocks
+        let ball_entity: Entity;
+        let block_entity: Entity;
+        let ball_resource: GalaxiaResource;
+        let minigame_entity: Entity;
+        match ball_query.get(*a) {
+            Ok(ball) => {
+                ball_entity = *a;
+                block_entity = *b;
+                ball_resource = ball.resource;
+                minigame_entity = ball.minigame;
+            }
+            Err(_) => match ball_query.get(*b) {
+                Ok(ball) => {
+                    ball_entity = *b;
+                    block_entity = *a;
+                    ball_resource = ball.resource;
+                    minigame_entity = ball.minigame;
+                }
+                Err(_) => continue,
+            },
+        };
+        let block_resource: GalaxiaResource =
+            match block_query.get(block_entity) {
+                Ok(x) => x.resource,
+                Err(_) => continue,
+            };
+
+        if broken.contains(&block_entity) || broken.contains(&ball_entity) {
+            continue;
+        }
+
+        // get minigame
+        let (mut minigame, minigame_global_transform, minigame_area) =
+            match minigame_query.get_mut(minigame_entity) {
+                Ok(x) => x,
+                Err(_) => continue,
+            };
+
+        // break stuff! and spit out resources!
+        if resource_damage(ball_resource) >= resource_toughness(block_resource)
+        {
+            commands.entity(block_entity).despawn();
+            broken.insert(block_entity);
+            commands.spawn(LooseResourceBundle::new_from_minigame(
+                &asset_server,
+                block_resource,
+                1.0,
+                minigame_global_transform,
+                minigame_area,
+            ));
+
+            // this was the last block, so reset and level up!
+            if block_query.iter().count() == 1 {
+                if minigame.level < 99 {
+                    minigame.level += 1;
+                }
+                for ball in ball_query.iter() {
+                    if ball.minigame != minigame_entity {
+                        continue;
+                    }
+                    if broken.contains(&ball_entity) {
+                        continue;
+                    }
+                    // TODO spawn in ball form, if appropriate
+                    // TODO check if ball broke here and so should spawn as pulverized, if appropriate
+                    commands.spawn(LooseResourceBundle::new_from_minigame(
+                        &asset_server,
+                        ball.resource,
+                        1.0,
+                        minigame_global_transform,
+                        minigame_area,
+                    ));
+                }
+
+                // Despawn and recreate
+                commands.entity(minigame_entity).despawn_recursive();
+                spawn(
+                    &mut commands,
+                    &asset_server,
+                    &mut random,
+                    Transform::from_translation(Vec3::new(
+                        minigame_global_transform.translation().x,
+                        minigame_global_transform.translation().y,
+                        0.0,
+                    )),
+                    &minigame,
+                );
+            }
+        }
+        if resource_damage(block_resource) >= resource_toughness(ball_resource)
+        {
+            commands.entity(ball_entity).despawn();
+            broken.insert(ball_entity);
+            commands.spawn(LooseResourceBundle::new_from_minigame(
+                &asset_server,
+                ball_resource,
+                1.0,
+                minigame_global_transform,
+                minigame_area,
+            ));
+        }
+    }
+}
+
 pub fn ingest_resource_fixed_update(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -463,6 +596,7 @@ pub fn ingest_resource_fixed_update(
     minigame_query: Query<&BallBreakerMinigame>,
     resource_query: Query<&LooseResource>,
 ) {
+    let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
         // only care about collision start
         let (a, b) = match event {
@@ -490,6 +624,11 @@ pub fn ingest_resource_fixed_update(
             },
         };
 
+        // already handled
+        if ingested.contains(&resource_entity) {
+            continue;
+        }
+
         // only certain resources can be ingested
         if !resource_is_valid(resource.resource) {
             continue;
@@ -502,6 +641,7 @@ pub fn ingest_resource_fixed_update(
 
         // remove loose resource
         commands.entity(resource_entity).despawn();
+        ingested.insert(resource_entity);
 
         // add ball to minigame
         commands.entity(minigame_entity).with_children(|parent| {

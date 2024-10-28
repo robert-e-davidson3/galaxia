@@ -58,10 +58,11 @@ fn main() {
             (
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,
+                hit_block_fixed_update,
             ),
         )
         .insert_resource(MouseState::new(1.0))
-        .insert_resource(Time::<Fixed>::from_seconds(5.0))
+        .insert_resource(Time::<Fixed>::from_hz(20.0))
         .insert_resource(CameraController {
             dead_zone_squared: 1000.0,
         })

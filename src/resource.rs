@@ -6,6 +6,68 @@ use crate::collision::*;
 
 pub const MAX_RESOURCE_DISTANCE: f32 = 10000.0;
 
+#[derive(Debug, Bundle)]
+pub struct LooseResourceBundle {
+    pub resource: LooseResource,
+    pub area: CircularArea,
+    pub sprite: SpriteBundle,
+    pub rigid_body: RigidBody,
+    pub ccd: Ccd,
+    pub collider: Collider,
+    pub collision_groups: CollisionGroups,
+    pub damping: Damping,
+    pub velocity: Velocity,
+}
+
+impl LooseResourceBundle {
+    pub fn new(
+        asset_server: &AssetServer,
+        resource: GalaxiaResource,
+        amount: f32,
+        transform: Transform,
+    ) -> Self {
+        let area = CircularArea {
+            radius: 10.0 + (amount / 1_000_000.0),
+        };
+        Self {
+            resource: LooseResource { resource, amount },
+            area,
+            sprite: SpriteBundle {
+                sprite: Sprite {
+                    custom_size: Some(area.into()),
+                    ..default()
+                },
+                texture: asset_server.load(resource_to_asset(resource)),
+                transform,
+                ..default()
+            },
+            rigid_body: RigidBody::Dynamic,
+            ccd: Ccd::enabled(),
+            collider: area.into(),
+            collision_groups: CollisionGroups::new(ETHER_GROUP, ether_filter()),
+            damping: Damping {
+                linear_damping: 1.0,
+                angular_damping: 1.0,
+            },
+            velocity: Velocity::linear(Vec2::new(70.0, -70.0)),
+        }
+    }
+
+    pub fn new_from_minigame(
+        asset_server: &AssetServer,
+        resource: GalaxiaResource,
+        amount: f32,
+        minigame_global_transform: &GlobalTransform,
+        minigame_area: &RectangularArea,
+    ) -> Self {
+        let transform = Transform::from_translation(
+            minigame_global_transform.translation()
+                + minigame_area.dimensions3() / 1.8,
+        );
+        Self::new(asset_server, resource, amount, transform)
+    }
+}
+
 #[derive(Debug, Component)]
 #[component(storage = "SparseSet")]
 pub struct LooseResource {
@@ -20,39 +82,6 @@ pub struct Stuck {
 
 #[derive(Debug, Default, Copy, Clone, Component)]
 pub struct Sticky;
-
-pub fn spawn_loose_resource(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    resource: GalaxiaResource,
-    amount: f32,
-    transform: Transform,
-) {
-    let radius = 10.0 + (amount / 1_000_000.0);
-    let area = CircularArea { radius };
-    commands.spawn((
-        LooseResource { resource, amount },
-        area,
-        SpriteBundle {
-            sprite: Sprite {
-                custom_size: Some(Vec2::new(radius * 2.0, radius * 2.0)),
-                ..default()
-            },
-            texture: asset_server.load(resource_to_asset(resource)),
-            transform,
-            ..default()
-        },
-        RigidBody::Dynamic,
-        Ccd::enabled(),
-        Collider::from(area),
-        CollisionGroups::new(ETHER_GROUP, ether_filter()),
-        Damping {
-            linear_damping: 1.0,
-            angular_damping: 1.0,
-        },
-        Velocity::linear(Vec2::new(70.0, -70.0)),
-    ));
-}
 
 pub fn despawn_distant_loose_resources(
     mut commands: Commands,
@@ -93,6 +122,7 @@ pub enum GalaxiaResource {
     Obsidian,
     Copper,
     Tin,
+    Bronze,
     Iron,
     Silver,
     Gold,
@@ -127,6 +157,7 @@ pub fn resource_to_kind(resource: GalaxiaResource) -> ResourceKind {
         GalaxiaResource::Obsidian => ResourceKind::Solid,
         GalaxiaResource::Copper => ResourceKind::Solid,
         GalaxiaResource::Tin => ResourceKind::Solid,
+        GalaxiaResource::Bronze => ResourceKind::Solid,
         GalaxiaResource::Iron => ResourceKind::Solid,
         GalaxiaResource::Silver => ResourceKind::Solid,
         GalaxiaResource::Gold => ResourceKind::Solid,
@@ -165,6 +196,7 @@ pub fn resource_to_asset(resource: GalaxiaResource) -> String {
         GalaxiaResource::Obsidian => "solid/obsidian.png".to_string(),
         GalaxiaResource::Copper => "solid/copper.png".to_string(),
         GalaxiaResource::Tin => "solid/tin.png".to_string(),
+        GalaxiaResource::Bronze => "solid/bronze.png".to_string(),
         GalaxiaResource::Iron => "solid/iron.png".to_string(),
         GalaxiaResource::Silver => "solid/silver.png".to_string(),
         GalaxiaResource::Gold => "solid/gold.png".to_string(),
@@ -200,6 +232,7 @@ pub fn resource_to_name(resource: GalaxiaResource, full: bool) -> String {
             GalaxiaResource::Obsidian => "Obsidian".to_string(),
             GalaxiaResource::Copper => "Copper".to_string(),
             GalaxiaResource::Tin => "Tin".to_string(),
+            GalaxiaResource::Bronze => "Bronze".to_string(),
             GalaxiaResource::Iron => "Iron".to_string(),
             GalaxiaResource::Silver => "Silver".to_string(),
             GalaxiaResource::Gold => "Gold".to_string(),
@@ -232,6 +265,7 @@ pub fn resource_to_name(resource: GalaxiaResource, full: bool) -> String {
             GalaxiaResource::Obsidian => "Stone".to_string(),
             GalaxiaResource::Copper => "Metal".to_string(),
             GalaxiaResource::Tin => "Metal".to_string(),
+            GalaxiaResource::Bronze => "Metal".to_string(),
             GalaxiaResource::Iron => "Metal".to_string(),
             GalaxiaResource::Silver => "Metal".to_string(),
             GalaxiaResource::Gold => "Metal".to_string(),

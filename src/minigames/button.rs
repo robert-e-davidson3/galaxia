@@ -169,8 +169,7 @@ pub fn update(
                     continue;
                 }
             };
-            spawn_loose_resource(
-                &mut commands,
+            commands.spawn(LooseResourceBundle::new(
                 &asset_server,
                 resource,
                 1.0,
@@ -178,7 +177,7 @@ pub fn update(
                     minigame_transform.translation()
                         + minigame_area.dimensions3() / 1.8,
                 ),
-            );
+            ));
         }
     }
 }

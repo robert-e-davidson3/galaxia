@@ -124,16 +124,13 @@ pub fn update(
             let (mut minigame, minigame_transform, minigame_area) =
                 tree_minigames_query.get_mut(fruit.minigame).unwrap();
             minigame.count -= 1;
-            spawn_loose_resource(
-                &mut commands,
+            commands.spawn(LooseResourceBundle::new_from_minigame(
                 &asset_server,
                 fruit.resource,
                 1.0,
-                Transform::from_translation(
-                    minigame_transform.translation()
-                        + minigame_area.dimensions3() / 1.8,
-                ),
-            );
+                minigame_transform,
+                minigame_area,
+            ));
         }
     }
 }
