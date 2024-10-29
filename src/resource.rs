@@ -39,6 +39,9 @@ impl LooseResourceBundle {
                 + ((3.0 * amount) / (4.0 * std::f32::consts::PI)).cbrt(),
         };
         if area.radius < 9.0 {
+            println!("amount: {}", amount);
+            println!("radius: {}", area.radius);
+            println!("resource: {:?}", resource);
             panic!("Resource radius too small - possible cause of NaN when scaling Ball shape?");
         }
         // must be at least 1.0 to avoid tunneling

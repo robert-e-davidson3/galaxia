@@ -624,6 +624,7 @@ pub fn ingest_resource_fixed_update(
             continue;
         }
 
+        // need enough resource to form ball
         if resource.amount < 1.0 {
             continue;
         }
