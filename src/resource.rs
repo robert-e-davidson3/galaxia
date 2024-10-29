@@ -38,6 +38,12 @@ impl LooseResourceBundle {
             radius: 9.0
                 + ((3.0 * amount) / (4.0 * std::f32::consts::PI)).cbrt(),
         };
+        if area.radius < 9.0 {
+            panic!("Resource radius too small - possible cause of NaN when scaling Ball shape?");
+        }
+        // must be at least 1.0 to avoid tunneling
+        let density =
+            1.0 + (amount / (std::f32::consts::PI * area.radius * area.radius));
         Self {
             resource: LooseResource { resource, amount },
             area,
@@ -59,7 +65,7 @@ impl LooseResourceBundle {
                 angular_damping: 1.0,
             },
             velocity,
-            collider_mass_properties: ColliderMassProperties::Mass(amount),
+            collider_mass_properties: ColliderMassProperties::Density(density),
             active_events: ActiveEvents::COLLISION_EVENTS,
         }
     }
