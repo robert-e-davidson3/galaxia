@@ -27,10 +27,6 @@ pub struct BallBreakerMinigameBundle {
     pub minigame: BallBreakerMinigame,
     pub area: RectangularArea,
     pub tag: Minigame,
-    pub aura: Collider,
-    pub sensor: Sensor,
-    pub collision_groups: CollisionGroups,
-    pub active_events: ActiveEvents,
     pub spatial: SpatialBundle,
 }
 
@@ -44,13 +40,6 @@ impl BallBreakerMinigameBundle {
             minigame,
             area,
             tag: Minigame,
-            aura: area.grow(1.0, 1.0).into(),
-            sensor: Sensor {},
-            collision_groups: CollisionGroups::new(
-                MINIGAME_AURA_GROUP,
-                minigame_aura_filter(),
-            ),
-            active_events: ActiveEvents::COLLISION_EVENTS,
             spatial: SpatialBundle {
                 transform,
                 ..default()
@@ -108,6 +97,7 @@ pub fn spawn(
                 transform: Transform::from_xyz(0.0, 0.0, -1.0),
                 ..default()
             });
+            parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), area));
             spawn_minigame_container(parent, area, NAME);
 
             for y in 3..blocks_per_column {
@@ -506,6 +496,7 @@ pub fn hit_block_fixed_update(
                 Err(_) => continue,
             },
         };
+
         let block_resource: GalaxiaResource =
             match block_query.get(block_entity) {
                 Ok(x) => x.resource,
@@ -594,6 +585,7 @@ pub fn ingest_resource_fixed_update(
     asset_server: Res<AssetServer>,
     mut collision_events: EventReader<CollisionEvent>,
     minigame_query: Query<&BallBreakerMinigame>,
+    aura_query: Query<&MinigameAura>,
     mut resource_query: Query<&mut LooseResource>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
@@ -604,8 +596,8 @@ pub fn ingest_resource_fixed_update(
             _ => continue,
         };
 
-        // only care about collisions between minigames and resources
-        let (resource_entity, minigame_entity, mut resource) =
+        // only care about collisions of resources
+        let (resource_entity, aura_entity, mut resource) =
             match resource_query.get_mut(*a) {
                 Ok(x) => (a, b, x),
                 Err(_) => match resource_query.get_mut(*b) {
@@ -629,9 +621,17 @@ pub fn ingest_resource_fixed_update(
             continue;
         }
 
-        let minigame = match minigame_query.get(*minigame_entity) {
+        // only care about collisions of resources with minigame auras
+        let aura = match aura_query.get(*aura_entity) {
             Ok(x) => x,
             Err(_) => continue,
+        };
+        // if minigame does not exist then something is wrong
+        let minigame = match minigame_query.get(aura.minigame) {
+            Ok(x) => x,
+            Err(_) => {
+                panic!("Aura without associated Minigame");
+            }
         };
 
         // deplete or remove resource
@@ -644,11 +644,11 @@ pub fn ingest_resource_fixed_update(
         ingested.insert(*resource_entity);
 
         // add ball to minigame
-        commands.entity(*minigame_entity).with_children(|parent| {
+        commands.entity(*aura_entity).with_children(|parent| {
             parent.spawn(BallBundle::new(
                 &asset_server,
                 resource.resource,
-                *minigame_entity,
+                aura.minigame,
                 minigame.blocks_per_column,
                 minigame.blocks_per_row,
             ));

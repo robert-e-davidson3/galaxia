@@ -15,6 +15,37 @@ const WALL_THICKNESS: f32 = 1.0;
 #[derive(Debug, Default, Copy, Clone, Component)]
 pub struct Minigame;
 
+#[derive(Debug, Bundle)]
+pub struct MinigameAuraBundle {
+    pub aura: MinigameAura,
+    pub collider: Collider,
+    pub sensor: Sensor,
+    pub collision_groups: CollisionGroups,
+    pub active_events: ActiveEvents,
+    pub spatial: SpatialBundle,
+}
+
+impl MinigameAuraBundle {
+    pub fn new(minigame: Entity, area: RectangularArea) -> Self {
+        Self {
+            aura: MinigameAura { minigame },
+            collider: area.grow(1.0, 1.0).into(),
+            sensor: Sensor,
+            collision_groups: CollisionGroups::new(
+                MINIGAME_AURA_GROUP,
+                minigame_aura_filter(),
+            ),
+            active_events: ActiveEvents::COLLISION_EVENTS,
+            spatial: SpatialBundle { ..default() },
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Component)]
+pub struct MinigameAura {
+    pub minigame: Entity,
+}
+
 // Draw bounds around the minigame, plus the meta buttons.
 pub fn spawn_minigame_container(
     parent: &mut ChildBuilder,

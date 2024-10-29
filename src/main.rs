@@ -57,8 +57,8 @@ fn main() {
             FixedUpdate,
             (
                 minigames::tree::fixed_update,
+                minigames::ball_breaker::hit_block_fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,
-                hit_block_fixed_update,
                 teleport_distant_loose_resources,
                 combine_loose_resources,
             ),
