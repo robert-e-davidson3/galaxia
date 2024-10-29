@@ -17,6 +17,7 @@ pub struct LooseResourceBundle {
     pub collision_groups: CollisionGroups,
     pub damping: Damping,
     pub velocity: Velocity,
+    pub collider_mass_properties: ColliderMassProperties,
 }
 
 impl LooseResourceBundle {
@@ -50,6 +51,7 @@ impl LooseResourceBundle {
                 angular_damping: 1.0,
             },
             velocity: Velocity::linear(Vec2::new(70.0, -70.0)),
+            collider_mass_properties: ColliderMassProperties::Density(amount),
         }
     }
 
@@ -95,13 +97,24 @@ pub fn despawn_distant_loose_resources(
 }
 
 pub enum ResourceKind {
+    // clicks, shapes, colors
+    // usually inert but in the right context can combine to create a new
+    // resource or effect
     Abstract,
+    // solid, liquid, and gas are physical
+    // they behave like they do IRL
     Solid,
     Liquid,
     Gas,
+    // Fire, Water, Earth, Air, and much more esoteric magical energies
+    // behavior varies wildly by type
     Mana,
+    // electricity, heat, potential and kinetic energy, sunlight, light, sound
+    // expended for an effect as soon as possible
     Energy,
-    Heat,
+    // special resource acquired when the player beats a minigame
+    // behaves like a solid resource
+    Minigame,
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -137,7 +150,7 @@ pub enum GalaxiaResource {
     // gas
     // mana
     // energy
-    // heat
+    // minigame
 }
 
 pub fn resource_to_kind(resource: GalaxiaResource) -> ResourceKind {
