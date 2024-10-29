@@ -1,8 +1,11 @@
+use std::collections::HashSet;
+
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
 use crate::collision::*;
+use crate::player::*;
 
 pub const MAX_RESOURCE_DISTANCE: f32 = 10000.0;
 
@@ -18,6 +21,7 @@ pub struct LooseResourceBundle {
     pub damping: Damping,
     pub velocity: Velocity,
     pub collider_mass_properties: ColliderMassProperties,
+    pub active_events: ActiveEvents,
 }
 
 impl LooseResourceBundle {
@@ -26,9 +30,13 @@ impl LooseResourceBundle {
         resource: GalaxiaResource,
         amount: f32,
         transform: Transform,
+        velocity: Velocity,
     ) -> Self {
+        // radius is cross-section of a cylinder with volume proportional to amount
+        // plus a constant to make it visible
         let area = CircularArea {
-            radius: 10.0 + (amount / 1_000_000.0),
+            radius: 9.0
+                + ((3.0 * amount) / (4.0 * std::f32::consts::PI)).cbrt(),
         };
         Self {
             resource: LooseResource { resource, amount },
@@ -50,8 +58,9 @@ impl LooseResourceBundle {
                 linear_damping: 1.0,
                 angular_damping: 1.0,
             },
-            velocity: Velocity::linear(Vec2::new(70.0, -70.0)),
-            collider_mass_properties: ColliderMassProperties::Density(amount),
+            velocity,
+            collider_mass_properties: ColliderMassProperties::Mass(amount),
+            active_events: ActiveEvents::COLLISION_EVENTS,
         }
     }
 
@@ -66,7 +75,13 @@ impl LooseResourceBundle {
             minigame_global_transform.translation()
                 + minigame_area.dimensions3() / 1.8,
         );
-        Self::new(asset_server, resource, amount, transform)
+        Self::new(
+            asset_server,
+            resource,
+            amount,
+            transform,
+            Velocity::linear(Vec2::new(70.0, -70.0)),
+        )
     }
 }
 
@@ -77,6 +92,23 @@ pub struct LooseResource {
     pub amount: f32,
 }
 
+impl LooseResource {
+    pub fn new(resource: GalaxiaResource, amount: f32) -> Self {
+        Self { resource, amount }
+    }
+
+    pub fn combine(&self, other: &Self) -> Option<Self> {
+        if self.resource != other.resource {
+            return None;
+        }
+        // TODO update when resources have form, so rigid solids do not combine
+        Some(Self {
+            resource: self.resource,
+            amount: self.amount + other.amount,
+        })
+    }
+}
+
 #[derive(Debug, Copy, Clone, Component)]
 pub struct Stuck {
     pub player: Entity,
@@ -84,17 +116,6 @@ pub struct Stuck {
 
 #[derive(Debug, Default, Copy, Clone, Component)]
 pub struct Sticky;
-
-pub fn despawn_distant_loose_resources(
-    mut commands: Commands,
-    query: Query<(Entity, &Transform), (With<LooseResource>, Without<Stuck>)>,
-) {
-    for (entity, transform) in query.iter() {
-        if transform.translation.length() > MAX_RESOURCE_DISTANCE {
-            commands.entity(entity).despawn();
-        }
-    }
-}
 
 pub enum ResourceKind {
     // clicks, shapes, colors
@@ -120,8 +141,8 @@ pub enum ResourceKind {
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum GalaxiaResource {
     // abstract
-    ShortLeftClick,
-    LongLeftClick,
+    ShortClick,
+    LongClick,
 
     // solid
     Apple,
@@ -156,8 +177,8 @@ pub enum GalaxiaResource {
 pub fn resource_to_kind(resource: GalaxiaResource) -> ResourceKind {
     match resource {
         // abstract
-        GalaxiaResource::ShortLeftClick => ResourceKind::Abstract,
-        GalaxiaResource::LongLeftClick => ResourceKind::Abstract,
+        GalaxiaResource::ShortClick => ResourceKind::Abstract,
+        GalaxiaResource::LongClick => ResourceKind::Abstract,
         // solid
         GalaxiaResource::Apple => ResourceKind::Solid,
         GalaxiaResource::Lemon => ResourceKind::Solid,
@@ -191,10 +212,10 @@ pub fn resource_to_kind(resource: GalaxiaResource) -> ResourceKind {
 pub fn resource_to_asset(resource: GalaxiaResource) -> String {
     match resource {
         // abstract
-        GalaxiaResource::ShortLeftClick => {
+        GalaxiaResource::ShortClick => {
             "abstract/short_left_click.png".to_string()
         }
-        GalaxiaResource::LongLeftClick => {
+        GalaxiaResource::LongClick => {
             "abstract/long_left_click.png".to_string()
         }
         // solid
@@ -231,8 +252,8 @@ pub fn resource_to_name(resource: GalaxiaResource, full: bool) -> String {
     if full {
         match resource {
             // abstract
-            GalaxiaResource::ShortLeftClick => "Short Left Click".to_string(),
-            GalaxiaResource::LongLeftClick => "Long Left Click".to_string(),
+            GalaxiaResource::ShortClick => "Short Left Click".to_string(),
+            GalaxiaResource::LongClick => "Long Left Click".to_string(),
             // solid
             GalaxiaResource::Apple => "Apple".to_string(),
             GalaxiaResource::Lemon => "Lemon".to_string(),
@@ -264,8 +285,8 @@ pub fn resource_to_name(resource: GalaxiaResource, full: bool) -> String {
     } else {
         match resource {
             // abstract
-            GalaxiaResource::ShortLeftClick => "Click".to_string(),
-            GalaxiaResource::LongLeftClick => "Click".to_string(),
+            GalaxiaResource::ShortClick => "Click".to_string(),
+            GalaxiaResource::LongClick => "Click".to_string(),
             // solid
             GalaxiaResource::Apple => "Fruit".to_string(),
             GalaxiaResource::Lemon => "Fruit".to_string(),
@@ -293,6 +314,140 @@ pub fn resource_to_name(resource: GalaxiaResource, full: bool) -> String {
             // mana
             // energy
             // heat
+        }
+    }
+}
+
+pub fn teleport_distant_loose_resources(
+    mut query: Query<&mut Transform, (With<LooseResource>, Without<Stuck>)>,
+) {
+    for mut transform in query.iter_mut() {
+        if transform.translation.length() > MAX_RESOURCE_DISTANCE {
+            transform.translation = Vec3::ZERO;
+        }
+    }
+}
+
+pub fn combine_loose_resources(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    loose_resource_query: Query<
+        (&LooseResource, &Transform, &Velocity),
+        Without<Stuck>,
+    >,
+    mut collision_events: EventReader<CollisionEvent>,
+) {
+    let mut eliminated: HashSet<Entity> = HashSet::new();
+    for collision_event in collision_events.read() {
+        match collision_event {
+            CollisionEvent::Started(entity1, entity2, _) => {
+                // already handled
+                if eliminated.contains(entity1) || eliminated.contains(entity2)
+                {
+                    continue;
+                }
+                // only loose resources handled
+                let (resource1, transform1, velocity1) =
+                    match loose_resource_query.get(*entity1) {
+                        Ok(r) => r,
+                        Err(_) => continue,
+                    };
+                let (resource2, _, velocity2) =
+                    match loose_resource_query.get(*entity2) {
+                        Ok(r) => r,
+                        Err(_) => continue,
+                    };
+
+                // combine if possible
+                let combined = match resource1.combine(&resource2) {
+                    Some(c) => c,
+                    None => continue,
+                };
+
+                // despawn both and add a new one
+                commands.entity(*entity1).despawn();
+                commands.entity(*entity2).despawn();
+                eliminated.insert(*entity1);
+                eliminated.insert(*entity2);
+                commands.spawn(LooseResourceBundle::new(
+                    &asset_server,
+                    combined.resource,
+                    combined.amount,
+                    *transform1,
+                    Velocity {
+                        linvel: velocity1.linvel + velocity2.linvel,
+                        angvel: velocity1.angvel + velocity2.angvel,
+                    },
+                ));
+            }
+            _ => {}
+        }
+    }
+}
+
+pub fn grab_resources(
+    mut commands: Commands,
+    rapier_context: Res<RapierContext>,
+    player_query: Query<(Entity, &CircularArea), (With<Player>, With<Sticky>)>,
+    mut loose_resource_query: Query<
+        (&CircularArea, &mut Velocity),
+        (With<LooseResource>, Without<Stuck>),
+    >,
+    mut collision_events: EventReader<CollisionEvent>,
+) {
+    let Ok(player) = player_query.get_single() else {
+        return;
+    };
+    let (player_entity, player_area) = player;
+
+    for collision_event in collision_events.read() {
+        match collision_event {
+            CollisionEvent::Started(entity1, entity2, _) => {
+                let other: Entity;
+                let player_is_first: bool;
+                if *entity1 == player_entity {
+                    other = *entity2;
+                    player_is_first = true;
+                } else if *entity2 == player_entity {
+                    other = *entity1;
+                    player_is_first = false;
+                } else {
+                    continue;
+                }
+
+                let Ok(resource) = loose_resource_query.get_mut(other) else {
+                    continue;
+                };
+                let (resource_area, mut resource_velocity) = resource;
+
+                let Some(contact_pair) =
+                    rapier_context.contact_pair(player_entity, other)
+                else {
+                    continue;
+                };
+                let Some(manifold) = contact_pair.manifold(0) else {
+                    continue;
+                };
+                let direction = (if player_is_first {
+                    manifold.local_n1()
+                } else {
+                    manifold.local_n2()
+                })
+                .normalize();
+                let distance = player_area.radius + resource_area.radius;
+
+                let joint = FixedJointBuilder::new()
+                    .local_anchor1(direction * distance);
+                commands
+                    .entity(other)
+                    .insert(ImpulseJoint::new(player_entity, joint))
+                    .insert(Stuck {
+                        player: player_entity,
+                    });
+                resource_velocity.linvel = Vec2::ZERO;
+                resource_velocity.angvel = 0.0;
+            }
+            _ => {}
         }
     }
 }

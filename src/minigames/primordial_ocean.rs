@@ -14,7 +14,7 @@ pub const _DESCRIPTION: &str = "Infinitely deep, the source of water and mud.";
 #[derive(Debug, Clone, Bundle)]
 pub struct PrimordialOceanMinigameBundle {
     pub minigame: PrimordialOceanMinigame,
-    pub area: CircularArea,
+    pub area: RectangularArea,
     pub tag: Minigame,
     pub aura: Collider,
     pub active_events: ActiveEvents,
@@ -28,12 +28,12 @@ impl PrimordialOceanMinigameBundle {
         radius: f32,
         transform: Transform,
     ) -> Self {
-        let area = CircularArea { radius };
+        let area = RectangularArea::new_square(radius * 2.0);
         Self {
             minigame,
             area,
             tag: Minigame,
-            aura: area.grow(1.0).into(),
+            aura: area.grow(1.0, 1.0).into(),
             active_events: ActiveEvents::COLLISION_EVENTS,
             collision_groups: CollisionGroups::new(
                 MINIGAME_AURA_GROUP,
@@ -110,7 +110,7 @@ pub fn update(
     camera_query: Query<(&Camera, &GlobalTransform)>,
     window_query: Query<&Window>,
     primordial_ocean_minigame_query: Query<
-        (&GlobalTransform, &CircularArea),
+        (&GlobalTransform, &RectangularArea),
         With<PrimordialOceanMinigame>,
     >,
     mut ocean_query: Query<(&Ocean, &GlobalTransform, &CircularArea)>,
@@ -140,14 +140,12 @@ pub fn update(
                     continue;
                 }
             };
-            commands.spawn(LooseResourceBundle::new(
+            commands.spawn(LooseResourceBundle::new_from_minigame(
                 &asset_server,
                 resource,
                 1.0,
-                Transform::from_translation(
-                    minigame_transform.translation()
-                        + minigame_area.dimensions3() / 1.8,
-                ),
+                minigame_transform,
+                minigame_area.into(),
             ));
         }
     }

@@ -2,6 +2,7 @@ mod area;
 mod collision;
 mod minigames;
 mod mouse;
+mod player;
 mod resource;
 mod toggleable;
 
@@ -12,7 +13,6 @@ use bevy::sprite::*;
 use bevy_framepace::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
-use std::collections::*;
 use std::*;
 
 use resource::*;
@@ -21,6 +21,7 @@ use area::*;
 use collision::*;
 use minigames::*;
 use mouse::*;
+use player::*;
 use random::*;
 
 fn main() {
@@ -43,7 +44,6 @@ fn main() {
                 grab_resources,
                 release_resources,
                 engage_button_update,
-                despawn_distant_loose_resources,
                 minigames::button::update,
                 minigames::tree::update,
                 minigames::ball_breaker::unselected_paddle_update,
@@ -59,6 +59,8 @@ fn main() {
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,
                 hit_block_fixed_update,
+                teleport_distant_loose_resources,
+                combine_loose_resources,
             ),
         )
         .insert_resource(MouseState::new(1.0))
@@ -302,76 +304,6 @@ pub fn release_resources(
     }
 }
 
-pub fn grab_resources(
-    mut commands: Commands,
-    rapier_context: Res<RapierContext>,
-    player_query: Query<
-        (Entity, &CircularArea, &Transform),
-        (With<Player>, With<Sticky>),
-    >,
-    mut loose_resource_query: Query<
-        (&CircularArea, &mut Velocity),
-        (With<LooseResource>, Without<Stuck>),
-    >,
-    mut collision_events: EventReader<CollisionEvent>,
-) {
-    let Ok(player) = player_query.get_single() else {
-        return;
-    };
-    let (player_entity, player_area, player_transform) = player;
-
-    for collision_event in collision_events.read() {
-        match collision_event {
-            CollisionEvent::Started(entity1, entity2, _) => {
-                let other: Entity;
-                let player_is_first: bool;
-                if *entity1 == player_entity {
-                    other = *entity2;
-                    player_is_first = true;
-                } else if *entity2 == player_entity {
-                    other = *entity1;
-                    player_is_first = false;
-                } else {
-                    continue;
-                }
-
-                let Ok(resource) = loose_resource_query.get_mut(other) else {
-                    continue;
-                };
-                let (resource_area, mut resource_velocity) = resource;
-
-                let Some(contact_pair) =
-                    rapier_context.contact_pair(player_entity, other)
-                else {
-                    continue;
-                };
-                let Some(manifold) = contact_pair.manifold(0) else {
-                    continue;
-                };
-                let direction = (if player_is_first {
-                    manifold.local_n1()
-                } else {
-                    manifold.local_n2()
-                })
-                .normalize();
-                let distance = player_area.radius + resource_area.radius;
-
-                let joint = FixedJointBuilder::new()
-                    .local_anchor1(direction * distance);
-                commands
-                    .entity(other)
-                    .insert(ImpulseJoint::new(player_entity, joint))
-                    .insert(Stuck {
-                        player: player_entity,
-                    });
-                resource_velocity.linvel = Vec2::ZERO;
-                resource_velocity.angvel = 0.0;
-            }
-            _ => {}
-        }
-    }
-}
-
 fn _collect_loose_resources(
     mut commands: Commands,
     mut player: Query<&mut Player>,
@@ -397,9 +329,4 @@ fn _collect_loose_resources(
 #[derive(Resource)]
 struct CameraController {
     pub dead_zone_squared: f32,
-}
-
-#[derive(Debug, Default, Component)]
-pub struct Player {
-    pub resources: HashMap<GalaxiaResource, f32>,
 }

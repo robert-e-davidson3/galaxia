@@ -162,21 +162,19 @@ pub fn update(
 
             let click_type = mouse_state.get_click_type(time.elapsed_seconds());
             let resource = match click_type {
-                ClickType::Short => GalaxiaResource::ShortLeftClick,
-                ClickType::Long => GalaxiaResource::LongLeftClick,
+                ClickType::Short => GalaxiaResource::ShortClick,
+                ClickType::Long => GalaxiaResource::LongClick,
                 ClickType::Invalid => {
                     println!("unexpected: invalid click type");
                     continue;
                 }
             };
-            commands.spawn(LooseResourceBundle::new(
+            commands.spawn(LooseResourceBundle::new_from_minigame(
                 &asset_server,
                 resource,
                 1.0,
-                Transform::from_translation(
-                    minigame_transform.translation()
-                        + minigame_area.dimensions3() / 1.8,
-                ),
+                minigame_transform,
+                minigame_area,
             ));
         }
     }

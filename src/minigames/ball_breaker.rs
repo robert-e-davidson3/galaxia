@@ -594,7 +594,7 @@ pub fn ingest_resource_fixed_update(
     asset_server: Res<AssetServer>,
     mut collision_events: EventReader<CollisionEvent>,
     minigame_query: Query<&BallBreakerMinigame>,
-    resource_query: Query<&LooseResource>,
+    mut resource_query: Query<&mut LooseResource>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
@@ -605,24 +605,14 @@ pub fn ingest_resource_fixed_update(
         };
 
         // only care about collisions between minigames and resources
-        let resource_entity: Entity;
-        let minigame_entity: Entity;
-        let resource: &LooseResource;
-        match resource_query.get(*a) {
-            Ok(x) => {
-                resource_entity = *a;
-                minigame_entity = *b;
-                resource = x;
-            }
-            Err(_) => match resource_query.get(*b) {
-                Ok(x) => {
-                    resource_entity = *b;
-                    minigame_entity = *a;
-                    resource = x;
-                }
-                Err(_) => continue,
-            },
-        };
+        let (resource_entity, minigame_entity, mut resource) =
+            match resource_query.get_mut(*a) {
+                Ok(x) => (a, b, x),
+                Err(_) => match resource_query.get_mut(*b) {
+                    Ok(x) => (b, a, x),
+                    Err(_) => continue,
+                },
+            };
 
         // already handled
         if ingested.contains(&resource_entity) {
@@ -634,21 +624,30 @@ pub fn ingest_resource_fixed_update(
             continue;
         }
 
-        let minigame = match minigame_query.get(minigame_entity) {
+        if resource.amount < 1.0 {
+            continue;
+        }
+
+        let minigame = match minigame_query.get(*minigame_entity) {
             Ok(x) => x,
             Err(_) => continue,
         };
 
-        // remove loose resource
-        commands.entity(resource_entity).despawn_recursive();
-        ingested.insert(resource_entity);
+        // deplete or remove resource
+        if resource.amount > 1.0 {
+            resource.amount -= 1.0;
+            // TODO add velocity away from minigame
+        } else {
+            commands.entity(*resource_entity).despawn_recursive();
+        }
+        ingested.insert(*resource_entity);
 
         // add ball to minigame
-        commands.entity(minigame_entity).with_children(|parent| {
+        commands.entity(*minigame_entity).with_children(|parent| {
             parent.spawn(BallBundle::new(
                 &asset_server,
                 resource.resource,
-                minigame_entity,
+                *minigame_entity,
                 minigame.blocks_per_column,
                 minigame.blocks_per_row,
             ));
