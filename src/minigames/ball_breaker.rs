@@ -626,12 +626,10 @@ pub fn ingest_resource_fixed_update(
             Ok(x) => x,
             Err(_) => continue,
         };
-        // if minigame does not exist then something is wrong
+        // only applies to ball breaker minigame
         let minigame = match minigame_query.get(aura.minigame) {
             Ok(x) => x,
-            Err(_) => {
-                panic!("Aura without associated Minigame");
-            }
+            Err(_) => continue,
         };
 
         // deplete or remove resource

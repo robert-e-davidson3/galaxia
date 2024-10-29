@@ -15,7 +15,6 @@ pub struct LooseResourceBundle {
     pub area: CircularArea,
     pub sprite: SpriteBundle,
     pub rigid_body: RigidBody,
-    pub ccd: Ccd,
     pub collider: Collider,
     pub collision_groups: CollisionGroups,
     pub damping: Damping,
@@ -60,7 +59,6 @@ impl LooseResourceBundle {
                 ..default()
             },
             rigid_body: RigidBody::Dynamic,
-            ccd: Ccd::enabled(),
             collider: area.into(),
             collision_groups: CollisionGroups::new(ETHER_GROUP, ether_filter()),
             damping: Damping {

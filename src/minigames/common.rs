@@ -58,6 +58,14 @@ pub fn spawn_minigame_container(
         width: area.width,
         height: META_HEIGHT,
     };
+    // Prevents player and resources from directly entering the minigame.
+    // Necessary because resource speed can allow tunneling.
+    parent.spawn((
+        Collider::from(area),
+        CollisionGroups::new(ETHER_GROUP, ether_filter()),
+        SpatialBundle { ..default() },
+    ));
+    // Spawn the rest
     parent
         .spawn(SpatialBundle {
             transform: Transform::from_xyz(

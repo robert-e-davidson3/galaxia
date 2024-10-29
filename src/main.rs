@@ -93,7 +93,7 @@ fn setup_board(
 ) {
     minigames::button::spawn(
         &mut commands,
-        Transform::from_xyz(0.0, 0.0, 0.0),
+        Transform::from_xyz(400.0, 400.0, 0.0),
         &minigames::button::ButtonMinigame { ..default() },
     );
     minigames::tree::spawn(
