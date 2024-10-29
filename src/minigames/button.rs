@@ -20,9 +20,6 @@ pub struct ButtonMinigameBundle {
     pub minigame: ButtonMinigame,
     pub area: RectangularArea,
     pub tag: Minigame,
-    pub aura: Collider,
-    pub active_events: ActiveEvents,
-    pub collision_groups: CollisionGroups,
     pub spatial: SpatialBundle,
 }
 
@@ -32,12 +29,6 @@ impl ButtonMinigameBundle {
             minigame,
             area: AREA,
             tag: Minigame,
-            aura: AREA.grow(1.0, 1.0).into(),
-            active_events: ActiveEvents::COLLISION_EVENTS,
-            collision_groups: CollisionGroups::new(
-                MINIGAME_AURA_GROUP,
-                minigame_aura_filter(),
-            ),
             spatial: SpatialBundle {
                 transform,
                 ..default()
@@ -59,6 +50,7 @@ pub fn spawn(
     commands
         .spawn(ButtonMinigameBundle::new(frozen.clone(), transform))
         .with_children(|parent| {
+            parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), AREA));
             spawn_minigame_container(parent, AREA, NAME);
             spawn_background(parent);
             let text = spawn_text(parent, frozen.count);

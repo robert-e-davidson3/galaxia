@@ -16,9 +16,6 @@ pub struct PrimordialOceanMinigameBundle {
     pub minigame: PrimordialOceanMinigame,
     pub area: RectangularArea,
     pub tag: Minigame,
-    pub aura: Collider,
-    pub active_events: ActiveEvents,
-    pub collision_groups: CollisionGroups,
     pub spatial: SpatialBundle,
 }
 
@@ -33,12 +30,6 @@ impl PrimordialOceanMinigameBundle {
             minigame,
             area,
             tag: Minigame,
-            aura: area.grow(1.0, 1.0).into(),
-            active_events: ActiveEvents::COLLISION_EVENTS,
-            collision_groups: CollisionGroups::new(
-                MINIGAME_AURA_GROUP,
-                minigame_aura_filter(),
-            ),
             spatial: SpatialBundle {
                 transform,
                 ..default()
@@ -64,6 +55,7 @@ pub fn spawn(
     frozen: &PrimordialOceanMinigame,
 ) {
     let radius = frozen.size;
+    let area = RectangularArea::new_square(radius * 2.0);
     commands
         .spawn(PrimordialOceanMinigameBundle::new(
             frozen.clone(),
@@ -71,11 +63,8 @@ pub fn spawn(
             transform,
         ))
         .with_children(|parent| {
-            spawn_minigame_container(
-                parent,
-                RectangularArea::new_square(radius * 2.0),
-                NAME,
-            );
+            parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), area));
+            spawn_minigame_container(parent, area, NAME);
             spawn_ocean(parent, radius);
         });
 }

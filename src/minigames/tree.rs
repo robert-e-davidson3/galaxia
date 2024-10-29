@@ -19,9 +19,6 @@ pub struct TreeMinigameBundle {
     pub minigame: TreeMinigame,
     pub area: RectangularArea,
     pub tag: Minigame,
-    pub aura: Collider,
-    pub collision_groups: CollisionGroups,
-    pub active_events: ActiveEvents,
     pub sprite: SpriteBundle,
 }
 
@@ -31,12 +28,6 @@ impl TreeMinigameBundle {
             minigame,
             area: AREA,
             tag: Minigame,
-            aura: AREA.grow(1.0, 1.0).into(),
-            collision_groups: CollisionGroups::new(
-                MINIGAME_AURA_GROUP,
-                minigame_aura_filter(),
-            ),
-            active_events: ActiveEvents::COLLISION_EVENTS,
             sprite,
         }
     }
@@ -83,6 +74,7 @@ pub fn spawn(
             },
         ))
         .with_children(|parent| {
+            parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), AREA));
             spawn_minigame_container(parent, AREA, NAME);
         });
 }
