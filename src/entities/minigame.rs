@@ -2,10 +2,7 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use crate::area::*;
-use crate::collision::*;
-use crate::mouse::*;
-use crate::toggleable::*;
+use crate::libs::*;
 
 const META_HEIGHT: f32 = 25.0;
 const BUTTON_WIDTH: f32 = 25.0;

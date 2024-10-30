@@ -5,9 +5,8 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use crate::area::*;
-use crate::collision::*;
-use crate::resource::*;
+use crate::entities::*;
+use crate::libs::*;
 
 #[derive(Bundle)]
 pub struct PlayerBundle {

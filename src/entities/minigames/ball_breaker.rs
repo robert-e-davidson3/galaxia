@@ -3,13 +3,8 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use crate::area::*;
-use crate::collision::*;
-use crate::constant_velocity::*;
-use crate::minigames::common::*;
-use crate::mouse::*;
-use crate::random::*;
-use crate::resource::*;
+use crate::entities::*;
+use crate::libs::*;
 
 // Grid of blocks or empty spaces. The bottom has a paddle that can move left
 // and right. The player inserts a ball which bounces off of or breaks the

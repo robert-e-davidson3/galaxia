@@ -1,10 +1,8 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
-use crate::area::*;
-use crate::minigames::common::*;
-use crate::mouse::*;
-use crate::resource::*;
+use crate::entities::*;
+use crate::libs::*;
 
 pub const NAME: &str = "Primordial Ocean";
 pub const _DESCRIPTION: &str = "Infinitely deep, the source of water and mud.";

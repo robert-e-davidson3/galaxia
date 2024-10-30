@@ -1,10 +1,9 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
-use crate::area::*;
-use crate::minigames::common::*;
-use crate::mouse::*;
-use crate::resource::*;
+use crate::entities::resource::GalaxiaResource;
+use crate::entities::*;
+use crate::libs::*;
 
 pub const NAME: &str = "Button";
 pub const _DESCRIPTION: &str = "Click the button, get clicks!";

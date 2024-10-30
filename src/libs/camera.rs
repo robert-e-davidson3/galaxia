@@ -1,6 +1,8 @@
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 
+use crate::entities::*;
+
 #[derive(Resource)]
 pub struct CameraController {
     pub dead_zone_squared: f32,
@@ -19,23 +21,16 @@ const MAX_ZOOM: f32 = 3.0;
 pub fn update_camera(
     camera_controller: ResMut<CameraController>,
     time: Res<Time>,
-    engaged: Res<crate::minigames::Engaged>,
+    engaged: Res<Engaged>,
     mut evr_scroll: EventReader<MouseWheel>,
     mut camera_query: Query<
         (&mut Transform, &mut OrthographicProjection),
-        (With<Camera2d>, Without<crate::player::Player>),
+        (With<Camera2d>, Without<player::Player>),
     >,
-    player_query: Query<
-        &Transform,
-        (With<crate::player::Player>, Without<Camera2d>),
-    >,
+    player_query: Query<&Transform, (With<player::Player>, Without<Camera2d>)>,
     minigame_query: Query<
         &Transform,
-        (
-            With<crate::minigames::Minigame>,
-            Without<crate::player::Player>,
-            Without<Camera2d>,
-        ),
+        (With<Minigame>, Without<player::Player>, Without<Camera2d>),
     >,
 ) {
     let Ok(camera) = camera_query.get_single_mut() else {

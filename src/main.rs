@@ -1,19 +1,14 @@
-mod area;
-mod camera;
-mod collision;
-mod constant_velocity;
-mod minigames;
-mod mouse;
-mod player;
-mod random;
-mod resource;
-mod toggleable;
+mod entities;
+mod libs;
 
 use bevy::app::AppExit;
 use bevy::prelude::*;
-use bevy_framepace::*;
+use bevy_framepace::{FramepacePlugin, FramepaceSettings};
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
+
+use entities::*;
+use libs::*;
 
 fn main() {
     App::new()
@@ -24,20 +19,17 @@ fn main() {
             // RapierDebugRenderPlugin::default(),
             FramepacePlugin {},
         ))
-        .add_systems(
-            Startup,
-            (setup_board, player::setup_player, camera::setup_camera),
-        )
+        .add_systems(Startup, (setup_board, setup_player, setup_camera))
         .add_systems(
             Update,
             (
                 exit_system,
-                camera::update_camera,
-                player::player_move,
-                constant_velocity::constant_velocity_system,
-                resource::grab_resources,
-                resource::release_resources,
-                minigames::common::engage_button_update,
+                update_camera,
+                player_move,
+                constant_velocity_system,
+                grab_resources,
+                release_resources,
+                engage_button_update,
                 minigames::button::update,
                 minigames::tree::update,
                 minigames::ball_breaker::unselected_paddle_update,
@@ -79,7 +71,7 @@ fn main() {
             ..default()
         })
         .insert_resource(random::Random::new(42))
-        .insert_resource(minigames::Engaged { game: None })
+        .insert_resource(entities::minigame::Engaged { game: None })
         .run();
 }
 
@@ -88,28 +80,30 @@ fn setup_board(
     asset_server: Res<AssetServer>,
     mut random: ResMut<random::Random>,
 ) {
-    minigames::button::spawn(
+    entities::minigames::button::spawn(
         &mut commands,
         Transform::from_xyz(400.0, 400.0, 0.0),
-        &minigames::button::ButtonMinigame { ..default() },
+        &entities::minigames::button::ButtonMinigame { ..default() },
     );
-    minigames::tree::spawn(
+    entities::minigames::tree::spawn(
         &mut commands,
         &asset_server,
         Transform::from_xyz(400.0, 0.0, 0.0),
-        &minigames::tree::TreeMinigame { ..default() },
+        &entities::minigames::tree::TreeMinigame { ..default() },
     );
-    minigames::ball_breaker::spawn(
+    entities::minigames::ball_breaker::spawn(
         &mut commands,
         &asset_server,
         &mut random,
         Transform::from_xyz(-400.0, -400.0, 0.0),
-        &minigames::ball_breaker::BallBreakerMinigame { ..default() },
+        &entities::minigames::ball_breaker::BallBreakerMinigame { ..default() },
     );
-    minigames::primordial_ocean::spawn(
+    entities::minigames::primordial_ocean::spawn(
         &mut commands,
         Transform::from_xyz(0.0, 400.0, 0.0),
-        &minigames::primordial_ocean::PrimordialOceanMinigame { ..default() },
+        &entities::minigames::primordial_ocean::PrimordialOceanMinigame {
+            ..default()
+        },
     );
 }
 

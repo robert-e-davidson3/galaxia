@@ -3,9 +3,8 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use crate::area::*;
-use crate::collision::*;
-use crate::player::*;
+use crate::entities::*;
+use crate::libs::*;
 
 pub const MAX_RESOURCE_DISTANCE: f32 = 10000.0;
 

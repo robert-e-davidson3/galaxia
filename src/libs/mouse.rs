@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::area::*;
+use crate::libs::*;
 
 #[derive(Resource, Default)]
 pub struct MouseState {
