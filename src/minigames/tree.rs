@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::area::*;
-use crate::common::*;
+use crate::minigames::common::*;
 use crate::mouse::*;
 use crate::resource::*;
 

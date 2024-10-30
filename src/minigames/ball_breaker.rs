@@ -5,8 +5,8 @@ use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
 use crate::collision::*;
-use crate::common::*;
 use crate::constant_velocity::*;
+use crate::minigames::common::*;
 use crate::mouse::*;
 use crate::random::*;
 use crate::resource::*;

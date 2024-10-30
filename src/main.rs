@@ -17,13 +17,6 @@ use bevy_rapier2d::prelude::*;
 
 use std::*;
 
-use constant_velocity::*;
-use minigames::*;
-use mouse::*;
-use player::*;
-use random::*;
-use resource::*;
-
 fn main() {
     App::new()
         .add_plugins((
@@ -33,23 +26,23 @@ fn main() {
             // RapierDebugRenderPlugin::default(),
             FramepacePlugin {},
         ))
-        .add_systems(Startup, (setup_board, setup_player, setup_camera))
+        .add_systems(Startup, (setup_board, player::setup_player, setup_camera))
         .add_systems(
             Update,
             (
                 keyboard_input,
                 update_camera,
-                player_move,
-                constant_velocity_system,
-                grab_resources,
-                release_resources,
+                player::player_move,
+                constant_velocity::constant_velocity_system,
+                resource::grab_resources,
+                resource::release_resources,
                 minigames::common::engage_button_update,
                 minigames::button::update,
                 minigames::tree::update,
                 minigames::ball_breaker::unselected_paddle_update,
                 minigames::primordial_ocean::update,
-                update_mouse_state,
-                follow_mouse_update,
+                mouse::update_mouse_state,
+                mouse::follow_mouse_update,
             )
                 .chain(),
         )
@@ -59,11 +52,11 @@ fn main() {
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::hit_block_fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,
-                teleport_distant_loose_resources,
-                combine_loose_resources,
+                resource::teleport_distant_loose_resources,
+                resource::combine_loose_resources,
             ),
         )
-        .insert_resource(MouseState::new(1.0))
+        .insert_resource(mouse::MouseState::new(1.0))
         .insert_resource(Time::<Fixed>::from_hz(20.0))
         .insert_resource(CameraController {
             dead_zone_squared: 1000.0,
@@ -84,15 +77,15 @@ fn main() {
             // limiter: Limiter::from_framerate(10.0),
             ..default()
         })
-        .insert_resource(Random::new(42))
-        .insert_resource(Engaged { game: None })
+        .insert_resource(random::Random::new(42))
+        .insert_resource(minigames::Engaged { game: None })
         .run();
 }
 
 fn setup_board(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut random: ResMut<Random>,
+    mut random: ResMut<random::Random>,
 ) {
     minigames::button::spawn(
         &mut commands,
@@ -132,16 +125,20 @@ const MAX_ZOOM: f32 = 3.0;
 fn update_camera(
     camera_controller: ResMut<CameraController>,
     time: Res<Time>,
-    engaged: Res<Engaged>,
+    engaged: Res<minigames::Engaged>,
     mut evr_scroll: EventReader<MouseWheel>,
     mut camera_query: Query<
         (&mut Transform, &mut OrthographicProjection),
-        (With<Camera2d>, Without<Player>),
+        (With<Camera2d>, Without<player::Player>),
     >,
-    player_query: Query<&Transform, (With<Player>, Without<Camera2d>)>,
+    player_query: Query<&Transform, (With<player::Player>, Without<Camera2d>)>,
     minigame_query: Query<
         &Transform,
-        (With<Minigame>, Without<Player>, Without<Camera2d>),
+        (
+            With<minigames::Minigame>,
+            Without<player::Player>,
+            Without<Camera2d>,
+        ),
     >,
 ) {
     let Ok(camera) = camera_query.get_single_mut() else {
