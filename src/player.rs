@@ -1,46 +1,68 @@
-use std::collections::HashMap;
 use std::*;
 
 use bevy::ecs::prelude::*;
 use bevy::prelude::*;
 use bevy::sprite::*;
+use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
 use crate::collision::*;
 use crate::resource::*;
 
-#[derive(Debug, Default, Component)]
-pub struct Player {
-    pub resources: HashMap<GalaxiaResource, f32>,
+#[derive(Bundle)]
+pub struct PlayerBundle {
+    pub player: Player,
+    pub area: CircularArea,
+    pub shape: ShapeBundle,
+    pub fill: Fill,
+    pub stroke: Stroke,
+    pub collider: Collider,
+    pub rigid_body: RigidBody,
+    pub active_events: ActiveEvents,
+    pub collision_groups: CollisionGroups,
+    pub external_impulse: ExternalImpulse,
+    pub damping: Damping,
+    pub velocity: Velocity,
 }
 
-pub fn setup_player(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    let area = CircularArea { radius: 25.0 };
-    commands.spawn((
-        Player { ..default() },
-        MaterialMesh2dBundle {
-            mesh: meshes.add(Circle::from(area)).into(),
-            material: materials.add(Color::srgb(0.625, 0.94, 0.91)),
-            transform: Transform::from_xyz(-200.0, -400.0, 1.0),
-            ..default()
-        },
-        area,
-        Collider::from(area),
-        RigidBody::Dynamic,
-        ActiveEvents::COLLISION_EVENTS,
-        CollisionGroups::new(PLAYER_GROUP, player_filter()),
-        ExternalImpulse::default(),
-        Damping {
-            linear_damping: 4.0,
-            angular_damping: 4.0,
-        },
-        Velocity::default(),
-    ));
+impl PlayerBundle {
+    pub fn new() -> Self {
+        let area = CircularArea { radius: 25.0 };
+        Self {
+            player: Player,
+            area,
+            shape: ShapeBundle {
+                path: GeometryBuilder::build_as(&shapes::Circle {
+                    radius: area.radius,
+                    ..default()
+                }),
+                ..default()
+            },
+            fill: Fill::color(Color::srgb(0.625, 0.94, 0.91)),
+            stroke: Stroke::new(Color::BLACK, 1.0),
+            collider: area.into(),
+            rigid_body: RigidBody::Dynamic,
+            active_events: ActiveEvents::COLLISION_EVENTS,
+            collision_groups: CollisionGroups::new(
+                PLAYER_GROUP,
+                player_filter(),
+            ),
+            external_impulse: default(),
+            damping: Damping {
+                linear_damping: 4.0,
+                angular_damping: 4.0,
+            },
+            velocity: default(),
+        }
+    }
+}
+
+#[derive(Debug, Component)]
+pub struct Player;
+
+pub fn setup_player(mut commands: Commands) {
+    commands.spawn(PlayerBundle::new());
 }
 
 pub fn player_move(
@@ -93,20 +115,5 @@ pub fn player_move(
         if torque != 0.0 {
             external_impulse.torque_impulse = torque * 200000.0;
         }
-    }
-}
-
-pub fn release_resources(
-    mut commands: Commands,
-    loose_resource_query: Query<(Entity, &Stuck), With<LooseResource>>,
-    player_query: Query<Entity, (With<Player>, Without<Sticky>)>,
-) {
-    for (stuck_entity, stuck) in loose_resource_query.iter() {
-        let player_entity = stuck.player;
-        if !player_query.contains(player_entity) {
-            continue;
-        }
-        commands.entity(stuck_entity).remove::<ImpulseJoint>();
-        commands.entity(stuck_entity).remove::<Stuck>();
     }
 }

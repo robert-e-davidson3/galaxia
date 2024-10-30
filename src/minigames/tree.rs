@@ -148,32 +148,39 @@ pub fn fixed_update(
         }
         minigame.last_fruit_time = elapsed_seconds;
         minigame.count += 1;
-        spawn_unpicked_fruit(
-            &mut commands,
-            &asset_server,
-            Transform::from_xyz(0.0, 0.0, 0.0),
-            entity,
-            minigame.fruit,
-        );
+        commands.entity(entity).with_children(|parent| {
+            parent.spawn(UnpickedFruitBundle::new(
+                &asset_server,
+                entity,
+                minigame.fruit,
+                Transform::from_xyz(0.0, 0.0, 0.0),
+            ));
+        });
     }
 }
 
-fn spawn_unpicked_fruit(
-    commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
-    transform: Transform,
-    parent: Entity,
-    fruit: GalaxiaResource,
-) {
-    let area = CircularArea { radius: 8.0 };
-    commands
-        .spawn((
-            UnpickedFruit {
+#[derive(Bundle)]
+pub struct UnpickedFruitBundle {
+    pub unpicked_fruit: UnpickedFruit,
+    pub area: CircularArea,
+    pub sprite: SpriteBundle,
+}
+
+impl UnpickedFruitBundle {
+    pub fn new(
+        asset_server: &AssetServer,
+        minigame: Entity,
+        fruit: GalaxiaResource,
+        transform: Transform,
+    ) -> Self {
+        let area = CircularArea { radius: 8.0 };
+        Self {
+            unpicked_fruit: UnpickedFruit {
                 resource: fruit,
-                minigame: parent,
+                minigame,
             },
             area,
-            SpriteBundle {
+            sprite: SpriteBundle {
                 texture: asset_server.load(resource_to_asset(fruit)),
                 // adjust by Z only
                 transform: Transform::from_xyz(
@@ -183,8 +190,8 @@ fn spawn_unpicked_fruit(
                 ),
                 ..default()
             },
-        ))
-        .set_parent(parent);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Component)]

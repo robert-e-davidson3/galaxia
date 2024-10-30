@@ -458,3 +458,18 @@ pub fn grab_resources(
         }
     }
 }
+
+pub fn release_resources(
+    mut commands: Commands,
+    loose_resource_query: Query<(Entity, &Stuck), With<LooseResource>>,
+    player_query: Query<Entity, (With<Player>, Without<Sticky>)>,
+) {
+    for (stuck_entity, stuck) in loose_resource_query.iter() {
+        let player_entity = stuck.player;
+        if !player_query.contains(player_entity) {
+            continue;
+        }
+        commands.entity(stuck_entity).remove::<ImpulseJoint>();
+        commands.entity(stuck_entity).remove::<Stuck>();
+    }
+}

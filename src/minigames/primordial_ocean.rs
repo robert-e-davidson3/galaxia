@@ -65,29 +65,39 @@ pub fn spawn(
         .with_children(|parent| {
             parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), area));
             spawn_minigame_container(parent, area, NAME);
-            spawn_ocean(parent, radius);
+            parent.spawn(OceanBundle::new(parent.parent_entity(), radius));
         });
+}
+
+#[derive(Bundle)]
+pub struct OceanBundle {
+    pub ocean: Ocean,
+    pub area: CircularArea,
+    pub shape: ShapeBundle,
+    pub fill: Fill,
+}
+
+impl OceanBundle {
+    pub fn new(minigame: Entity, radius: f32) -> Self {
+        let area = CircularArea::new(radius);
+        Self {
+            ocean: Ocean { minigame },
+            area,
+            shape: ShapeBundle {
+                path: GeometryBuilder::build_as(&shapes::Circle {
+                    radius,
+                    ..default()
+                }),
+                ..default()
+            },
+            fill: Fill::color(Color::srgb(0.0, 0.25, 1.0)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Component)]
 pub struct Ocean {
     pub minigame: Entity,
-}
-
-fn spawn_ocean(parent: &mut ChildBuilder, radius: f32) {
-    let minigame = parent.parent_entity();
-    parent.spawn((
-        ShapeBundle {
-            path: GeometryBuilder::build_as(&shapes::Circle {
-                radius,
-                ..default()
-            }),
-            ..default()
-        },
-        Fill::color(Color::srgb(0.0, 0.25, 1.0)),
-        Ocean { minigame },
-        CircularArea { radius },
-    ));
 }
 
 pub fn update(
