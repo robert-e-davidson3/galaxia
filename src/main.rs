@@ -1,5 +1,6 @@
 mod area;
 mod collision;
+mod constant_velocity;
 mod minigames;
 mod mouse;
 mod player;
@@ -13,8 +14,10 @@ use bevy::prelude::*;
 use bevy_framepace::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
+
 use std::*;
 
+use constant_velocity::*;
 use minigames::*;
 use mouse::*;
 use player::*;
@@ -40,7 +43,7 @@ fn main() {
                 constant_velocity_system,
                 grab_resources,
                 release_resources,
-                engage_button_update,
+                minigames::common::engage_button_update,
                 minigames::button::update,
                 minigames::tree::update,
                 minigames::ball_breaker::unselected_paddle_update,

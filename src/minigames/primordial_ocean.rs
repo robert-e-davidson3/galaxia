@@ -1,9 +1,7 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
-use bevy_rapier2d::prelude::*;
 
 use crate::area::*;
-use crate::collision::*;
 use crate::common::*;
 use crate::mouse::*;
 use crate::resource::*;

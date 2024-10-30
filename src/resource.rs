@@ -36,7 +36,7 @@ impl LooseResourceBundle {
         let density =
             1.0 + (amount / (std::f32::consts::PI * area.radius * area.radius));
         Self {
-            resource: LooseResource { resource, amount },
+            resource: LooseResource::new(resource, amount),
             area,
             sprite: SpriteBundle {
                 sprite: Sprite {

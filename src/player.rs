@@ -2,7 +2,6 @@ use std::*;
 
 use bevy::ecs::prelude::*;
 use bevy::prelude::*;
-use bevy::sprite::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
