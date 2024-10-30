@@ -527,6 +527,10 @@ pub fn hit_block_fixed_update(
                 minigame_area,
             ));
 
+            // TODO move leveling up to another phase because it throws tons of
+            //      warnings here by trying to despawn what's already been
+            //      despawned yet despawn_recursive is needed anyway
+
             // this was the last block, so reset and level up!
             if block_query.iter().count() == 1 {
                 if minigame.level < 99 {
@@ -584,9 +588,9 @@ pub fn ingest_resource_fixed_update(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut collision_events: EventReader<CollisionEvent>,
-    minigame_query: Query<&BallBreakerMinigame>,
+    minigame_query: Query<(&BallBreakerMinigame, &Transform)>,
     aura_query: Query<&MinigameAura>,
-    mut resource_query: Query<&mut LooseResource>,
+    resource_query: Query<(&LooseResource, &Transform)>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
@@ -597,11 +601,11 @@ pub fn ingest_resource_fixed_update(
         };
 
         // only care about collisions of resources
-        let (resource_entity, aura_entity, mut resource) =
-            match resource_query.get_mut(*a) {
-                Ok(x) => (a, b, x),
-                Err(_) => match resource_query.get_mut(*b) {
-                    Ok(x) => (b, a, x),
+        let (resource_entity, aura_entity, resource, resource_transform) =
+            match resource_query.get(*a) {
+                Ok(x) => (a, b, x.0, x.1),
+                Err(_) => match resource_query.get(*b) {
+                    Ok(x) => (b, a, x.0, x.1),
                     Err(_) => continue,
                 },
             };
@@ -627,19 +631,29 @@ pub fn ingest_resource_fixed_update(
             Err(_) => continue,
         };
         // only applies to ball breaker minigame
-        let minigame = match minigame_query.get(aura.minigame) {
-            Ok(x) => x,
-            Err(_) => continue,
-        };
+        let (minigame, minigame_transform) =
+            match minigame_query.get(aura.minigame) {
+                Ok(x) => x,
+                Err(_) => continue,
+            };
 
         // deplete or remove resource
-        if resource.amount > 1.0 {
-            resource.amount -= 1.0;
-            // TODO add velocity away from minigame
-        } else {
-            commands.entity(*resource_entity).despawn_recursive();
-        }
+        commands.entity(*resource_entity).despawn_recursive();
         ingested.insert(*resource_entity);
+
+        let amount = resource.amount - 1.0;
+        if amount > 0.0 {
+            let velocity = (resource_transform.translation
+                - minigame_transform.translation)
+                .truncate();
+            commands.spawn(LooseResourceBundle::new(
+                &asset_server,
+                resource.resource,
+                amount,
+                *resource_transform,
+                Velocity::linear(velocity.normalize() * 70.0),
+            ));
+        }
 
         // add ball to minigame
         commands.entity(*aura_entity).with_children(|parent| {

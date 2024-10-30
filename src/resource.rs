@@ -31,18 +31,7 @@ impl LooseResourceBundle {
         transform: Transform,
         velocity: Velocity,
     ) -> Self {
-        // radius is cross-section of a cylinder with volume proportional to amount
-        // plus a constant to make it visible
-        let area = CircularArea {
-            radius: 9.0
-                + ((3.0 * amount) / (4.0 * std::f32::consts::PI)).cbrt(),
-        };
-        if area.radius < 9.0 {
-            println!("amount: {}", amount);
-            println!("radius: {}", area.radius);
-            println!("resource: {:?}", resource);
-            panic!("Resource radius too small - possible cause of NaN when scaling Ball shape?");
-        }
+        let area = Self::calculate_area(amount);
         // must be at least 1.0 to avoid tunneling
         let density =
             1.0 + (amount / (std::f32::consts::PI * area.radius * area.radius));
@@ -89,6 +78,20 @@ impl LooseResourceBundle {
             transform,
             Velocity::linear(Vec2::new(70.0, -70.0)),
         )
+    }
+
+    pub fn calculate_area(amount: f32) -> CircularArea {
+        // Radius is cross-section of a cylinder with volume proportional to amount
+        // plus a constant to make it visible.
+        // Also <1.0 is much smaller than 1.0 which is much smaller than >1.0.
+        let radius = if amount < 1.0 {
+            4.0
+        } else if amount == 1.0 {
+            8.0
+        } else {
+            9.0 + ((3.0 * amount) / (4.0 * std::f32::consts::PI)).cbrt()
+        };
+        CircularArea { radius }
     }
 }
 
@@ -150,6 +153,7 @@ pub enum GalaxiaResource {
     // abstract
     ShortClick,
     LongClick,
+    XP, // experience points
 
     // solid
     Apple,
@@ -186,6 +190,7 @@ pub fn resource_to_kind(resource: GalaxiaResource) -> ResourceKind {
         // abstract
         GalaxiaResource::ShortClick => ResourceKind::Abstract,
         GalaxiaResource::LongClick => ResourceKind::Abstract,
+        GalaxiaResource::XP => ResourceKind::Abstract,
         // solid
         GalaxiaResource::Apple => ResourceKind::Solid,
         GalaxiaResource::Lemon => ResourceKind::Solid,
@@ -225,6 +230,7 @@ pub fn resource_to_asset(resource: GalaxiaResource) -> String {
         GalaxiaResource::LongClick => {
             "abstract/long_left_click.png".to_string()
         }
+        GalaxiaResource::XP => "abstract/xp.png".to_string(),
         // solid
         GalaxiaResource::Apple => "solid/apple.png".to_string(),
         GalaxiaResource::Lemon => "solid/lemon.png".to_string(),
@@ -261,6 +267,7 @@ pub fn resource_to_name(resource: GalaxiaResource, full: bool) -> String {
             // abstract
             GalaxiaResource::ShortClick => "Short Left Click".to_string(),
             GalaxiaResource::LongClick => "Long Left Click".to_string(),
+            GalaxiaResource::XP => "Experience Points".to_string(),
             // solid
             GalaxiaResource::Apple => "Apple".to_string(),
             GalaxiaResource::Lemon => "Lemon".to_string(),
@@ -294,6 +301,7 @@ pub fn resource_to_name(resource: GalaxiaResource, full: bool) -> String {
             // abstract
             GalaxiaResource::ShortClick => "Click".to_string(),
             GalaxiaResource::LongClick => "Click".to_string(),
+            GalaxiaResource::XP => "Point".to_string(),
             // solid
             GalaxiaResource::Apple => "Fruit".to_string(),
             GalaxiaResource::Lemon => "Fruit".to_string(),
