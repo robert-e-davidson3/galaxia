@@ -82,29 +82,35 @@ fn setup_board(
 ) {
     entities::minigames::button::spawn(
         &mut commands,
-        Transform::from_xyz(400.0, 400.0, 0.0),
+        Transform::from_xyz(0.0, 400.0, 0.0),
         &entities::minigames::button::ButtonMinigame { ..default() },
-    );
-    entities::minigames::tree::spawn(
-        &mut commands,
-        &asset_server,
-        Transform::from_xyz(400.0, 0.0, 0.0),
-        &entities::minigames::tree::TreeMinigame { ..default() },
-    );
-    entities::minigames::ball_breaker::spawn(
-        &mut commands,
-        &asset_server,
-        &mut random,
-        Transform::from_xyz(-400.0, -400.0, 0.0),
-        &entities::minigames::ball_breaker::BallBreakerMinigame { ..default() },
     );
     entities::minigames::primordial_ocean::spawn(
         &mut commands,
-        Transform::from_xyz(0.0, 400.0, 0.0),
+        Transform::from_xyz(400.0, -300.0, 0.0),
         &entities::minigames::primordial_ocean::PrimordialOceanMinigame {
             ..default()
         },
     );
+    entities::minigames::draw::spawn(
+        &mut commands,
+        Transform::from_xyz(-400.0, -300.0, 0.0),
+        &entities::minigames::draw::DrawMinigame { ..default() },
+    );
+
+    // entities::minigames::tree::spawn(
+    //     &mut commands,
+    //     &asset_server,
+    //     Transform::from_xyz(400.0, 0.0, 0.0),
+    //     &entities::minigames::tree::TreeMinigame { ..default() },
+    // );
+    // entities::minigames::ball_breaker::spawn(
+    //     &mut commands,
+    //     &asset_server,
+    //     &mut random,
+    //     Transform::from_xyz(-400.0, -400.0, 0.0),
+    //     &entities::minigames::ball_breaker::BallBreakerMinigame { ..default() },
+    // );
 }
 
 fn exit_system(

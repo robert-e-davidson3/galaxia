@@ -4,6 +4,7 @@ pub mod collision;
 pub mod constant_velocity;
 pub mod mouse;
 pub mod random;
+pub mod ready;
 pub mod toggleable;
 
 pub use area::*;
@@ -12,4 +13,5 @@ pub use collision::*;
 pub use constant_velocity::*;
 pub use mouse::*;
 pub use random::*;
+pub use ready::*;
 pub use toggleable::*;

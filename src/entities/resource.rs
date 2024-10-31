@@ -154,6 +154,14 @@ pub enum GalaxiaResource {
     LongClick,
     XP, // experience points
 
+    // RuneInclusiveSelf,
+    // RuneConnector,
+    // RuneExclusiveSelf,
+    // RuneShelter,
+    // RuneInclusiveOther,
+    // RuneTODO,
+    // RuneExclusiveOther,
+
     // solid
     Apple,
     Lemon,
