@@ -158,7 +158,7 @@ pub fn update(
                     continue;
                 }
             };
-            commands.spawn(LooseResourceBundle::new_from_minigame(
+            commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
                 resource,
                 1.0,

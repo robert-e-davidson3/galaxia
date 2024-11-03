@@ -120,6 +120,7 @@ impl DrawMinigame {
 // Each rune is a 2D grid of pixels, where each pixel can be on or off.
 // For a Rune, only connected pixels are considered.
 // Orientation also matters - a rune cannot be rotated or flipped.
+#[repr(u8)]
 pub enum Rune {
     // 1x1 pixels
     // magically, refers to the inclusive self
@@ -444,7 +445,7 @@ pub fn fixed_update(
             let (mut minigame, minigame_transform, minigame_area) =
                 draw_minigame_query.get_mut(entity).unwrap();
             minigame.clear();
-            commands.spawn(LooseResourceBundle::new_from_minigame(
+            commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
                 GalaxiaResource::Diamond, // TODO rune
                 1.0,

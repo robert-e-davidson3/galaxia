@@ -49,7 +49,7 @@ pub struct BallBreakerMinigame {
     pub blocks_per_row: u32,
     pub blocks_per_column: u32,
     pub level: u64,
-    pub _balls: Vec<(GalaxiaResource, f32, f32)>, // for (de)serialization
+    pub _balls: Vec<(Item, f32, f32)>, // (item,x,y) - for (de)serialization
 }
 
 pub fn spawn(
@@ -128,7 +128,7 @@ pub struct BlockBundle {
 impl BlockBundle {
     pub fn new(
         asset_server: &AssetServer,
-        resource: GalaxiaResource,
+        material: PhysicalItemMaterial,
         blocks_per_column: u32,
         blocks_per_row: u32,
         x: u32,
@@ -143,9 +143,19 @@ impl BlockBundle {
         let y = BLOCK_SIZE
             * ((y as f32) - (blocks_per_column as f32 / 2.0) + 1.0 / 2.0);
         Self {
-            block: Block { resource },
+            block: Block { resource: material },
             sprite: SpriteBundle {
-                texture: asset_server.load(resource_to_asset(resource)),
+                texture: asset_server.load(Item {
+                    item_type: ItemType::Physical,
+                    item_data: ItemData {
+                        physical: PhysicalItem {
+                            form: PhysicalItemForm::Object,
+                            material,
+                        },
+                    },
+                    amount: 1.0,
+                }),
+                // texture: asset_server.load(resource_to_asset(material)),
                 transform: Transform::from_xyz(x, y, 0.0),
                 sprite: Sprite {
                     custom_size: Some(Vec2::new(BLOCK_SIZE, BLOCK_SIZE)),
@@ -498,7 +508,7 @@ pub fn hit_block_fixed_update(
         {
             commands.entity(block_entity).despawn();
             broken.insert(block_entity);
-            commands.spawn(LooseResourceBundle::new_from_minigame(
+            commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
                 block_resource,
                 1.0,
@@ -524,7 +534,7 @@ pub fn hit_block_fixed_update(
                     }
                     // TODO spawn in ball form, if appropriate
                     // TODO check if ball broke here and so should spawn as pulverized, if appropriate
-                    commands.spawn(LooseResourceBundle::new_from_minigame(
+                    commands.spawn(ItemBundle::new_from_minigame(
                         &asset_server,
                         ball.resource,
                         1.0,
@@ -552,7 +562,7 @@ pub fn hit_block_fixed_update(
         {
             commands.entity(ball_entity).despawn();
             broken.insert(ball_entity);
-            commands.spawn(LooseResourceBundle::new_from_minigame(
+            commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
                 ball_resource,
                 1.0,
@@ -569,7 +579,7 @@ pub fn ingest_resource_fixed_update(
     mut collision_events: EventReader<CollisionEvent>,
     minigame_query: Query<(&BallBreakerMinigame, &Transform)>,
     aura_query: Query<&MinigameAura>,
-    resource_query: Query<(&LooseResource, &Transform)>,
+    resource_query: Query<(&Item, &Transform)>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
@@ -625,7 +635,7 @@ pub fn ingest_resource_fixed_update(
             let velocity = (resource_transform.translation
                 - minigame_transform.translation)
                 .truncate();
-            commands.spawn(LooseResourceBundle::new(
+            commands.spawn(ItemBundle::new(
                 &asset_server,
                 resource.resource,
                 amount,

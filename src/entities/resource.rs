@@ -1,16 +1,18 @@
 use std::collections::HashSet;
+use std::mem::size_of;
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
+use int_enum::IntEnum;
 
 use crate::entities::*;
 use crate::libs::*;
 
-pub const MAX_RESOURCE_DISTANCE: f32 = 10000.0;
+pub const MAX_ITEM_DISTANCE: f32 = 10000.0;
 
 #[derive(Debug, Bundle)]
-pub struct LooseResourceBundle {
-    pub resource: LooseResource,
+pub struct ItemBundle {
+    pub item: Item,
     pub area: CircularArea,
     pub sprite: SpriteBundle,
     pub rigid_body: RigidBody,
@@ -22,27 +24,27 @@ pub struct LooseResourceBundle {
     pub active_events: ActiveEvents,
 }
 
-impl LooseResourceBundle {
+impl ItemBundle {
     pub fn new(
         asset_server: &AssetServer,
-        resource: GalaxiaResource,
-        amount: f32,
+        item: Item,
         transform: Transform,
         velocity: Velocity,
     ) -> Self {
+        let amount = item.amount;
         let area = Self::calculate_area(amount);
         // must be at least 1.0 to avoid tunneling
         let density =
             1.0 + (amount / (std::f32::consts::PI * area.radius * area.radius));
         Self {
-            resource: LooseResource::new(resource, amount),
+            item,
             area,
             sprite: SpriteBundle {
                 sprite: Sprite {
                     custom_size: Some(area.into()),
                     ..default()
                 },
-                texture: asset_server.load(resource_to_asset(resource)),
+                texture: asset_server.load(item.asset()),
                 transform,
                 ..default()
             },
@@ -61,8 +63,7 @@ impl LooseResourceBundle {
 
     pub fn new_from_minigame(
         asset_server: &AssetServer,
-        resource: GalaxiaResource,
-        amount: f32,
+        item: Item,
         minigame_global_transform: &GlobalTransform,
         minigame_area: &RectangularArea,
     ) -> Self {
@@ -72,8 +73,7 @@ impl LooseResourceBundle {
         );
         Self::new(
             asset_server,
-            resource,
-            amount,
+            item,
             transform,
             Velocity::linear(Vec2::new(70.0, -70.0)),
         )
@@ -94,48 +94,66 @@ impl LooseResourceBundle {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Clone, Copy, Component)]
 #[component(storage = "SparseSet")]
-pub struct LooseResource {
-    pub resource: GalaxiaResource,
+#[repr(C, align(8))]
+pub struct Item {
+    pub item_type: ItemType,
+    pub item_data: ItemData,
     pub amount: f32,
 }
 
-impl LooseResource {
-    pub fn new(resource: GalaxiaResource, amount: f32) -> Self {
-        Self { resource, amount }
+impl Item {
+    pub fn new(item_type: ItemType, item_data: ItemData, amount: f32) -> Self {
+        Self {
+            item_type,
+            item_data,
+            amount,
+        }
     }
 
     pub fn combine(&self, other: &Self) -> Option<Self> {
-        if self.resource != other.resource {
+        if self.item_type != other.item_type {
             return None;
         }
-        // TODO update when resources have form, so rigid solids do not combine
+        // TODO handle item combinations correctly
         Some(Self {
-            resource: self.resource,
+            item_type: self.item_type,
+            item_data: self.item_data,
             amount: self.amount + other.amount,
         })
     }
+
+    pub fn name(&self) -> String {
+        self.identifier().name
+    }
+
+    pub fn asset(&self) -> String {
+        self.identifier().asset()
+    }
+
+    fn identifier(&self) -> ItemIdentifier {
+        unsafe {
+            match self.item_type {
+                ItemType::Abstract => self.item_data.r#abstract.identifier(),
+                ItemType::Physical => self.item_data.physical.identifier(),
+                ItemType::Mana => self.item_data.mana.identifier(),
+                ItemType::Energy => self.item_data.energy.identifier(),
+                ItemType::Minigame => self.item_data.minigame.identifier(),
+            }
+        }
+    }
 }
 
-#[derive(Debug, Copy, Clone, Component)]
-pub struct Stuck {
-    pub player: Entity,
-}
-
-#[derive(Debug, Default, Copy, Clone, Component)]
-pub struct Sticky;
-
-pub enum ResourceKind {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum ItemType {
     // clicks, shapes, colors
     // usually inert but in the right context can combine to create a new
     // resource or effect
     Abstract,
-    // solid, liquid, and gas are physical
-    // they behave like they do IRL
-    Solid,
-    Liquid,
-    Gas,
+    // behave kinda like they do in real life
+    Physical,
     // Fire, Water, Earth, Air, and much more esoteric magical energies
     // behavior varies wildly by type
     Mana,
@@ -143,26 +161,209 @@ pub enum ResourceKind {
     // expended for an effect as soon as possible
     Energy,
     // special resource acquired when the player beats a minigame
-    // behaves like a solid resource
+    // behaves like a physical solid resource
     Minigame,
 }
 
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
-pub enum GalaxiaResource {
-    // abstract
-    ShortClick,
-    LongClick,
-    XP, // experience points
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub union ItemData {
+    pub r#abstract: AbstractItem,
+    pub physical: PhysicalItem,
+    pub mana: ManaItem,
+    pub energy: EnergyItem,
+    pub minigame: MinigameItem,
+}
 
-    // RuneInclusiveSelf,
-    // RuneConnector,
-    // RuneExclusiveSelf,
-    // RuneShelter,
-    // RuneInclusiveOther,
-    // RuneTODO,
-    // RuneExclusiveOther,
+impl std::fmt::Debug for ItemData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ItemData{{...}}")
+    }
+}
 
-    // solid
+pub struct ItemIdentifier {
+    pub class: String, // ex: "physical"
+    pub kind: String,  // ex: "powder"
+    pub name: String,  // ex: "marble"
+}
+
+impl ItemIdentifier {
+    pub fn name(&self) -> String {
+        if self.name.is_empty() {
+            self.kind.clone()
+        } else {
+            format!("{} {}", self.name, self.kind)
+        }
+    }
+
+    pub fn full_name(&self) -> String {
+        self.name() + " " + &self.class
+    }
+
+    pub fn asset(&self) -> String {
+        if self.name.is_empty() {
+            format!("{}/{}.png", self.class, self.kind)
+        } else {
+            format!("{}/{}/{}.png", self.class, self.kind, self.name)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct AbstractItem {
+    pub kind: AbstractItemKind,
+    pub variant: u8,
+    _padding: [u8; 14],
+}
+
+impl AbstractItem {
+    pub fn identifier(&self) -> ItemIdentifier {
+        let kind: &str;
+        let name: &str;
+        match self.kind {
+            AbstractItemKind::Click => {
+                kind = "Click";
+                match self.variant {
+                    0 => name = "Short",
+                    1 => name = "Long",
+                    _ => panic!(
+                        "Invalid abstract item variant {} for click",
+                        self.variant
+                    ),
+                }
+            }
+            AbstractItemKind::XP => {
+                kind = "XP";
+                name = "";
+            }
+            AbstractItemKind::Rune => {
+                kind = "rune";
+                match Rune::try_from(self.variant) {
+                    Ok(Rune::InclusiveSelf) => name = "Inclusive Self",
+                    Ok(Rune::Connector) => name = "Connector",
+                    Ok(Rune::ExclusiveSelf) => name = "Exclusive Self",
+                    Ok(Rune::Shelter) => name = "Shelter",
+                    Ok(Rune::InclusiveOther) => name = "Inclusive Other",
+                    Ok(Rune::ExclusiveOther) => name = "Exclusive Other",
+                    Err(_) => panic!(
+                        "Invalid abstract item variant {} for rune",
+                        self.variant
+                    ),
+                }
+            }
+        }
+        ItemIdentifier {
+            class: "abstract".to_string(),
+            kind: kind.to_string(),
+            name: name.to_string(),
+        }
+    }
+}
+
+// A Rune is a magical symbol that can be drawn in a Draw minigame.
+// Each rune is a 2D grid of pixels, where each pixel can be on or off.
+// For a Rune, only connected pixels are considered.
+// Orientation also matters - a rune cannot be rotated or flipped.
+#[repr(u8)]
+#[derive(Debug, PartialEq, IntEnum)]
+pub enum Rune {
+    // 1x1 pixels
+    // magically, refers to the inclusive self
+    InclusiveSelf = 0,
+    // 2x1
+    // magically, acts as connector
+    Connector = 1,
+    // 2x2
+    // magically, refers to the EXCLUSIVE self
+    ExclusiveSelf = 2,
+    // 3x2, missing middle bottom
+    // magically, refers to shelter or protection
+    Shelter = 3,
+    // 3x3, missing middle
+    // magically, refers to the inclusive other (not-self)
+    InclusiveOther = 4,
+    // 4x3 TODO
+    // 4x4, missing middle
+    // magically, refers to the EXCLUSIVE other (not-self)
+    ExclusiveOther = 5,
+    // TODO: add more runes - at least 100 in total
+    //       each expansion of space should require a new rune
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum AbstractItemKind {
+    Click,
+    XP,
+    Rune,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct PhysicalItem {
+    pub form: PhysicalItemForm,
+    pub material: PhysicalItemMaterial,
+    _padding: [u8; 0],
+}
+
+impl PhysicalItem {
+    pub fn identifier(&self) -> ItemIdentifier {
+        let kind: &str;
+        let name: &str;
+        match self.form {
+            PhysicalItemForm::Object => kind = "Object",
+            PhysicalItemForm::Lump => kind = "Lump",
+            PhysicalItemForm::Powder => kind = "Powder",
+            PhysicalItemForm::Goo => kind = "Goo",
+            PhysicalItemForm::Liquid => kind = "Liquid",
+            PhysicalItemForm::Gas => kind = "Gas",
+        }
+        match self.material {
+            PhysicalItemMaterial::Apple => name = "Apple",
+            PhysicalItemMaterial::Lemon => name = "Lemon",
+            PhysicalItemMaterial::Lime => name = "Lime",
+            PhysicalItemMaterial::Mud => name = "Mud",
+            PhysicalItemMaterial::Dirt => name = "Dirt",
+            PhysicalItemMaterial::Sandstone => name = "Sandstone",
+            PhysicalItemMaterial::Granite => name = "Granite",
+            PhysicalItemMaterial::Marble => name = "Marble",
+            PhysicalItemMaterial::Obsidian => name = "Obsidian",
+            PhysicalItemMaterial::Copper => name = "Copper",
+            PhysicalItemMaterial::Tin => name = "Tin",
+            PhysicalItemMaterial::Bronze => name = "Bronze",
+            PhysicalItemMaterial::Iron => name = "Iron",
+            PhysicalItemMaterial::Silver => name = "Silver",
+            PhysicalItemMaterial::Gold => name = "Gold",
+            PhysicalItemMaterial::Diamond => name = "Diamond",
+            PhysicalItemMaterial::Amethyst => name = "Amethyst",
+            PhysicalItemMaterial::Moss => name = "Moss",
+            PhysicalItemMaterial::Unobtainium => name = "Unobtainium",
+            PhysicalItemMaterial::SaltWater => name = "Salt Water",
+            PhysicalItemMaterial::FreshWater => name = "Fresh Water",
+        }
+        ItemIdentifier {
+            class: "physical".to_string(),
+            kind: kind.to_string(),
+            name: name.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum PhysicalItemForm {
+    Object,
+    Lump,
+    Powder,
+    Goo,
+    Liquid,
+    Gas,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u64)]
+pub enum PhysicalItemMaterial {
     Apple,
     Lemon,
     Lime,
@@ -182,169 +383,113 @@ pub enum GalaxiaResource {
     Amethyst,
     Moss,
     Unobtainium,
-
-    // liquid
     SaltWater,
     FreshWater,
-    // gas
-    // mana
-    // energy
-    // minigame
 }
 
-pub fn resource_to_kind(resource: GalaxiaResource) -> ResourceKind {
-    match resource {
-        // abstract
-        GalaxiaResource::ShortClick => ResourceKind::Abstract,
-        GalaxiaResource::LongClick => ResourceKind::Abstract,
-        GalaxiaResource::XP => ResourceKind::Abstract,
-        // solid
-        GalaxiaResource::Apple => ResourceKind::Solid,
-        GalaxiaResource::Lemon => ResourceKind::Solid,
-        GalaxiaResource::Lime => ResourceKind::Solid,
-        GalaxiaResource::Mud => ResourceKind::Solid,
-        GalaxiaResource::Dirt => ResourceKind::Solid,
-        GalaxiaResource::Sandstone => ResourceKind::Solid,
-        GalaxiaResource::Granite => ResourceKind::Solid,
-        GalaxiaResource::Marble => ResourceKind::Solid,
-        GalaxiaResource::Obsidian => ResourceKind::Solid,
-        GalaxiaResource::Copper => ResourceKind::Solid,
-        GalaxiaResource::Tin => ResourceKind::Solid,
-        GalaxiaResource::Bronze => ResourceKind::Solid,
-        GalaxiaResource::Iron => ResourceKind::Solid,
-        GalaxiaResource::Silver => ResourceKind::Solid,
-        GalaxiaResource::Gold => ResourceKind::Solid,
-        GalaxiaResource::Diamond => ResourceKind::Solid,
-        GalaxiaResource::Amethyst => ResourceKind::Solid,
-        GalaxiaResource::Moss => ResourceKind::Solid,
-        GalaxiaResource::Unobtainium => ResourceKind::Solid,
-        // liquid
-        GalaxiaResource::SaltWater => ResourceKind::Liquid,
-        GalaxiaResource::FreshWater => ResourceKind::Liquid,
-        // gas
-        // mana
-        // energy
-        // heat
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ManaItem {
+    pub kind: ManaResourceKind,
+    pub subkind: u8,
+    pub intent: ManaIntent,
+    _padding: [u8; 13],
+}
+
+impl ManaItem {
+    pub fn identifier(&self) -> ItemIdentifier {
+        panic!("ManaItem::identifier not implemented");
     }
 }
 
-pub fn resource_to_asset(resource: GalaxiaResource) -> String {
-    match resource {
-        // abstract
-        GalaxiaResource::ShortClick => {
-            "abstract/short_left_click.png".to_string()
-        }
-        GalaxiaResource::LongClick => {
-            "abstract/long_left_click.png".to_string()
-        }
-        GalaxiaResource::XP => "abstract/xp.png".to_string(),
-        // solid
-        GalaxiaResource::Apple => "solid/apple.png".to_string(),
-        GalaxiaResource::Lemon => "solid/lemon.png".to_string(),
-        GalaxiaResource::Lime => "solid/lime.png".to_string(),
-        GalaxiaResource::Mud => "solid/mud.png".to_string(),
-        GalaxiaResource::Dirt => "solid/dirt.png".to_string(),
-        GalaxiaResource::Sandstone => "solid/sandstone.png".to_string(),
-        GalaxiaResource::Granite => "solid/granite.png".to_string(),
-        GalaxiaResource::Marble => "solid/marble.png".to_string(),
-        GalaxiaResource::Obsidian => "solid/obsidian.png".to_string(),
-        GalaxiaResource::Copper => "solid/copper.png".to_string(),
-        GalaxiaResource::Tin => "solid/tin.png".to_string(),
-        GalaxiaResource::Bronze => "solid/bronze.png".to_string(),
-        GalaxiaResource::Iron => "solid/iron.png".to_string(),
-        GalaxiaResource::Silver => "solid/silver.png".to_string(),
-        GalaxiaResource::Gold => "solid/gold.png".to_string(),
-        GalaxiaResource::Diamond => "solid/diamond.png".to_string(),
-        GalaxiaResource::Amethyst => "solid/amethyst.png".to_string(),
-        GalaxiaResource::Moss => "solid/moss.png".to_string(),
-        GalaxiaResource::Unobtainium => "solid/unobtainium.png".to_string(),
-        // liquid
-        GalaxiaResource::SaltWater => "liquid/salt_water.png".to_string(),
-        GalaxiaResource::FreshWater => "liquid/fresh_water.png".to_string(),
-        // gas
-        // mana
-        // energy
-        // heat
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum ManaResourceKind {
+    Fire,
+    Water,
+    Earth,
+    Air,
+    Light,
+    Dark,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum ManaIntent {
+    Attack,
+    Defense,
+    Support,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct EnergyItem {
+    pub kind: EnergyResourceKind,
+    _padding: [u8; 15],
+}
+
+impl EnergyItem {
+    pub fn identifier(&self) -> ItemIdentifier {
+        panic!("EnergyItem::identifier not implemented");
     }
 }
 
-pub fn resource_to_name(resource: GalaxiaResource, full: bool) -> String {
-    if full {
-        match resource {
-            // abstract
-            GalaxiaResource::ShortClick => "Short Left Click".to_string(),
-            GalaxiaResource::LongClick => "Long Left Click".to_string(),
-            GalaxiaResource::XP => "Experience Points".to_string(),
-            // solid
-            GalaxiaResource::Apple => "Apple".to_string(),
-            GalaxiaResource::Lemon => "Lemon".to_string(),
-            GalaxiaResource::Lime => "Lime".to_string(),
-            GalaxiaResource::Mud => "Mud".to_string(),
-            GalaxiaResource::Dirt => "Dirt".to_string(),
-            GalaxiaResource::Sandstone => "Sandstone".to_string(),
-            GalaxiaResource::Granite => "Granite".to_string(),
-            GalaxiaResource::Marble => "Marble".to_string(),
-            GalaxiaResource::Obsidian => "Obsidian".to_string(),
-            GalaxiaResource::Copper => "Copper".to_string(),
-            GalaxiaResource::Tin => "Tin".to_string(),
-            GalaxiaResource::Bronze => "Bronze".to_string(),
-            GalaxiaResource::Iron => "Iron".to_string(),
-            GalaxiaResource::Silver => "Silver".to_string(),
-            GalaxiaResource::Gold => "Gold".to_string(),
-            GalaxiaResource::Diamond => "Diamond".to_string(),
-            GalaxiaResource::Amethyst => "Amethyst".to_string(),
-            GalaxiaResource::Moss => "Moss".to_string(),
-            GalaxiaResource::Unobtainium => "Unobtainium".to_string(),
-            // liquid
-            GalaxiaResource::SaltWater => "Salt Water".to_string(),
-            GalaxiaResource::FreshWater => "Fresh Water".to_string(),
-            // gas
-            // mana
-            // energy
-            // heat
-        }
-    } else {
-        match resource {
-            // abstract
-            GalaxiaResource::ShortClick => "Click".to_string(),
-            GalaxiaResource::LongClick => "Click".to_string(),
-            GalaxiaResource::XP => "Point".to_string(),
-            // solid
-            GalaxiaResource::Apple => "Fruit".to_string(),
-            GalaxiaResource::Lemon => "Fruit".to_string(),
-            GalaxiaResource::Lime => "Fruit".to_string(),
-            GalaxiaResource::Mud => "Dirt".to_string(),
-            GalaxiaResource::Dirt => "Dirt".to_string(),
-            GalaxiaResource::Sandstone => "Stone".to_string(),
-            GalaxiaResource::Granite => "Stone".to_string(),
-            GalaxiaResource::Marble => "Stone".to_string(),
-            GalaxiaResource::Obsidian => "Stone".to_string(),
-            GalaxiaResource::Copper => "Metal".to_string(),
-            GalaxiaResource::Tin => "Metal".to_string(),
-            GalaxiaResource::Bronze => "Metal".to_string(),
-            GalaxiaResource::Iron => "Metal".to_string(),
-            GalaxiaResource::Silver => "Metal".to_string(),
-            GalaxiaResource::Gold => "Metal".to_string(),
-            GalaxiaResource::Diamond => "Gem".to_string(),
-            GalaxiaResource::Amethyst => "Gem".to_string(),
-            GalaxiaResource::Moss => "Plant".to_string(),
-            GalaxiaResource::Unobtainium => "Metal".to_string(),
-            // liquid
-            GalaxiaResource::SaltWater => "Water".to_string(),
-            GalaxiaResource::FreshWater => "Water".to_string(),
-            // gas
-            // mana
-            // energy
-            // heat
-        }
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum EnergyResourceKind {
+    Kinetic,
+    Potential,
+    Thermal,
+    Electric,
+    Magnetic,
+    Radiant,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MinigameItem {
+    pub kind: MinigameResourceKind,
+    pub variant: u32,
+    _padding: [u8; 6],
+}
+
+impl MinigameItem {
+    pub fn identifier(&self) -> ItemIdentifier {
+        panic!("MinigameItem::identifier not implemented");
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum MinigameResourceKind {
+    Button,
+    PrimordialOcean,
+    Draw,
+    BlockBreaker,
+    Tree,
+}
+
+// Compile-time size verification
+const GALAXIA_RESOURCE_SIZE: usize = 16;
+const _: [(); size_of::<AbstractItem>()] = [(); GALAXIA_RESOURCE_SIZE];
+const _: [(); size_of::<PhysicalItem>()] = [(); GALAXIA_RESOURCE_SIZE];
+const _: [(); size_of::<ManaItem>()] = [(); GALAXIA_RESOURCE_SIZE];
+const _: [(); size_of::<EnergyItem>()] = [(); GALAXIA_RESOURCE_SIZE];
+const _: [(); size_of::<MinigameItem>()] = [(); GALAXIA_RESOURCE_SIZE];
+
+#[derive(Debug, Copy, Clone, Component)]
+pub struct Stuck {
+    pub player: Entity,
+}
+
+#[derive(Debug, Default, Copy, Clone, Component)]
+pub struct Sticky;
 
 pub fn teleport_distant_loose_resources(
-    mut query: Query<&mut Transform, (With<LooseResource>, Without<Stuck>)>,
+    mut query: Query<&mut Transform, (With<Item>, Without<Stuck>)>,
 ) {
     for mut transform in query.iter_mut() {
-        if transform.translation.length() > MAX_RESOURCE_DISTANCE {
+        if transform.translation.length() > MAX_ITEM_DISTANCE {
             transform.translation = Vec3::ZERO;
         }
     }
@@ -353,10 +498,7 @@ pub fn teleport_distant_loose_resources(
 pub fn combine_loose_resources(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    loose_resource_query: Query<
-        (&LooseResource, &Transform, &Velocity),
-        Without<Stuck>,
-    >,
+    loose_resource_query: Query<(&Item, &Transform, &Velocity), Without<Stuck>>,
     mut collision_events: EventReader<CollisionEvent>,
 ) {
     let mut eliminated: HashSet<Entity> = HashSet::new();
@@ -391,10 +533,9 @@ pub fn combine_loose_resources(
                 commands.entity(*entity2).despawn();
                 eliminated.insert(*entity1);
                 eliminated.insert(*entity2);
-                commands.spawn(LooseResourceBundle::new(
+                commands.spawn(ItemBundle::new(
                     &asset_server,
-                    combined.resource,
-                    combined.amount,
+                    combined,
                     *transform1,
                     Velocity {
                         linvel: velocity1.linvel + velocity2.linvel,
@@ -413,7 +554,7 @@ pub fn grab_resources(
     player_query: Query<(Entity, &CircularArea), (With<Player>, With<Sticky>)>,
     mut loose_resource_query: Query<
         (&CircularArea, &mut Velocity),
-        (With<LooseResource>, Without<Stuck>),
+        (With<Item>, Without<Stuck>),
     >,
     mut collision_events: EventReader<CollisionEvent>,
 ) {
@@ -476,7 +617,7 @@ pub fn grab_resources(
 
 pub fn release_resources(
     mut commands: Commands,
-    loose_resource_query: Query<(Entity, &Stuck), With<LooseResource>>,
+    loose_resource_query: Query<(Entity, &Stuck), With<Item>>,
     player_query: Query<Entity, (With<Player>, Without<Sticky>)>,
 ) {
     for (stuck_entity, stuck) in loose_resource_query.iter() {

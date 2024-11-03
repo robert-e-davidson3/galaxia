@@ -112,7 +112,7 @@ pub fn update(
             let (mut minigame, minigame_transform, minigame_area) =
                 tree_minigames_query.get_mut(fruit.minigame).unwrap();
             minigame.count -= 1;
-            commands.spawn(LooseResourceBundle::new_from_minigame(
+            commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
                 fruit.resource,
                 1.0,
