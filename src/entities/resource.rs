@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use int_enum::IntEnum;
+use imageproc::geometric_transformations::{Projection, Interpolation, warp};
 
 use crate::entities::*;
 use crate::libs::*;
@@ -760,8 +761,9 @@ pub fn scale_texture(
     vertical: f32,
 ) -> Handle<Image> {
     let original = images.get(base).unwrap();
-    let mut altered = original.clone();
-    altered.size().width = (altered.size.width as f32 * horizontal) as u32;
+    let projection = Projection::scale(horizontal, vertical);
+    let altered = warp(original, projection, Interpolation::Bicubic);
+    images.add(altered.into())
     // texture.size.width = (texture.size.width as f32 * scale) as u32;
     // texture.size.height = (texture.size.height as f32 * scale) as u32;
     // texture
