@@ -83,6 +83,7 @@ fn main() {
 fn setup_board(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
     mut random: ResMut<random::Random>,
 ) {
     entities::minigames::button::spawn(
@@ -115,6 +116,19 @@ fn setup_board(
         Transform::from_xyz(400.0, 400.0, 0.0),
         &entities::minigames::ball_breaker::BallBreakerMinigame { ..default() },
     );
+
+    let item = AbstractItem {
+        kind: AbstractItemKind::XP,
+        variant: 0,
+    };
+    let image = item.draw();
+    let texture = images.add(image);
+
+    commands.spawn(SpriteBundle {
+        texture,
+        transform: Transform::from_xyz(0.0, 0.0, 0.0),
+        ..default()
+    });
 }
 
 fn setup_assets(

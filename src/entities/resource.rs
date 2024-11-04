@@ -1,9 +1,11 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
+use bevy::render::render_asset::RenderAssetUsages;
+use bevy::render::render_resource::*;
 use bevy_rapier2d::prelude::*;
 use int_enum::IntEnum;
-use imageproc::geometric_transformations::{Projection, Interpolation, warp};
+use wyrand::WyRand;
 
 use crate::entities::*;
 use crate::libs::*;
@@ -36,7 +38,6 @@ impl ItemBundle {
         // must be at least 1.0 to avoid tunneling
         let density =
             1.0 + (amount / (std::f32::consts::PI * area.radius * area.radius));
-        let texture = asset_server.load(item.asset());
         Self {
             item,
             area,
@@ -163,10 +164,6 @@ impl Item {
 
     pub fn asset(&self) -> String {
         self.identifier().asset()
-    }
-
-    pub fn texture(&self, asset_server: &AssetServer) -> Handle<Image> {
-        self.identifier().texture(asset_server)
     }
 
     pub fn as_abstract(&self) -> Option<AbstractItem> {
@@ -301,20 +298,39 @@ pub struct AbstractItem {
 }
 
 impl AbstractItem {
-    pub fn texture(&self, asset_server: &AssetServer) -> Handle<Image> {
-        let base = asset_server.load(self.identifier().asset());
-        match self.kind {
-            AbstractItemKind::Click => match self.variant {
-                0 => base,
-                1 => scale_texture(&base, 0.5, 1.0),
-                _ => panic!(
-                    "Invalid abstract item variant {} for click",
-                    self.variant
-                ),
-            },
-            AbstractItemKind::XP => base,
-            AbstractItemKind::Rune => base,
+    pub fn draw(&self) -> Image {
+        let size: usize = 10;
+        let mut data: Vec<u8> = Vec::with_capacity(size * size * 4);
+        let mut rng = WyRand::new(0);
+        for y in 0..size {
+            for x in 0..size {
+                let r: u8 = y as u8;
+                let g: u8 = x as u8;
+                let b: u8 = (y * x) as u8;
+                let a: u8 = 255;
+                data.push(r);
+                data.push(g);
+                data.push(b);
+                data.push(a);
+            }
         }
+        // for _ in 0..(size * size) {
+        //     data.push(rng.rand() as u8); // R
+        //     data.push(0); // G
+        //     data.push(0); // B
+        //     data.push(255); // A
+        // }
+        Image::new(
+            Extent3d {
+                width: size as u32,
+                height: size as u32,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            data,
+            TextureFormat::Rgba8Unorm,
+            RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
+        )
     }
 
     pub fn identifier(&self) -> ItemIdentifier {
@@ -752,19 +768,4 @@ pub fn stencil_circle(
     }
 
     images.add(new_image)
-}
-
-pub fn scale_texture(
-    images: &mut ResMut<Assets<Image>>,
-    base: &Handle<Image>,
-    horizontal: f32,
-    vertical: f32,
-) -> Handle<Image> {
-    let original = images.get(base).unwrap();
-    let projection = Projection::scale(horizontal, vertical);
-    let altered = warp(original, projection, Interpolation::Bicubic);
-    images.add(altered.into())
-    // texture.size.width = (texture.size.width as f32 * scale) as u32;
-    // texture.size.height = (texture.size.height as f32 * scale) as u32;
-    // texture
 }
