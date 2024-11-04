@@ -31,7 +31,7 @@ impl TreeMinigameBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct TreeMinigame {
-    pub fruit: GalaxiaResource,
+    pub fruit: PhysicalItemMaterial,
     pub count: u32,
     pub _lushness: f32,
     pub last_fruit_time: f32,
@@ -40,7 +40,7 @@ pub struct TreeMinigame {
 impl Default for TreeMinigame {
     fn default() -> Self {
         Self {
-            fruit: GalaxiaResource::Apple,
+            fruit: PhysicalItemMaterial::Apple,
             count: 0,
             _lushness: 1.0,
             last_fruit_time: 0.0,
@@ -114,8 +114,11 @@ pub fn update(
             minigame.count -= 1;
             commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
-                fruit.resource,
-                1.0,
+                Item::new_physical(
+                    PhysicalItemForm::Object,
+                    fruit.material,
+                    1.0,
+                ),
                 minigame_transform,
                 minigame_area,
             ));
@@ -166,18 +169,21 @@ impl UnpickedFruitBundle {
     pub fn new(
         asset_server: &AssetServer,
         minigame: Entity,
-        fruit: GalaxiaResource,
+        fruit: PhysicalItemMaterial,
         transform: Transform,
     ) -> Self {
         let area = CircularArea { radius: 8.0 };
         Self {
             unpicked_fruit: UnpickedFruit {
-                resource: fruit,
+                material: fruit,
                 minigame,
             },
             area,
             sprite: SpriteBundle {
-                texture: asset_server.load(resource_to_asset(fruit)),
+                texture: asset_server.load(
+                    Item::new_physical(PhysicalItemForm::Object, fruit, 1.0)
+                        .asset(),
+                ),
                 // adjust by Z only
                 transform: Transform::from_xyz(
                     transform.translation.x,
@@ -192,6 +198,6 @@ impl UnpickedFruitBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct UnpickedFruit {
-    pub resource: GalaxiaResource,
+    pub material: PhysicalItemMaterial,
     pub minigame: Entity,
 }

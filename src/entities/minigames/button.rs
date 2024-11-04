@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
-use crate::entities::resource::GalaxiaResource;
 use crate::entities::*;
 use crate::libs::*;
 
@@ -150,9 +149,9 @@ pub fn update(
             text.sections[0].value = format!("Clicks: {}", minigame.count);
 
             let click_type = mouse_state.get_click_type(time.elapsed_seconds());
-            let resource = match click_type {
-                ClickType::Short => GalaxiaResource::ShortClick,
-                ClickType::Long => GalaxiaResource::LongClick,
+            let variant = match click_type {
+                ClickType::Short => 0,
+                ClickType::Long => 1,
                 ClickType::Invalid => {
                     println!("unexpected: invalid click type");
                     continue;
@@ -160,8 +159,7 @@ pub fn update(
             };
             commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
-                resource,
-                1.0,
+                Item::new_abstract(AbstractItemKind::Click, variant, 1.0),
                 minigame_transform,
                 minigame_area,
             ));

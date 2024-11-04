@@ -127,9 +127,9 @@ pub fn update(
                 primordial_ocean_minigame_query.get(ocean.minigame).unwrap();
 
             let click_type = mouse_state.get_click_type(time.elapsed_seconds());
-            let resource = match click_type {
-                ClickType::Short => GalaxiaResource::SaltWater,
-                ClickType::Long => GalaxiaResource::Mud,
+            let material = match click_type {
+                ClickType::Short => PhysicalItemMaterial::SaltWater,
+                ClickType::Long => PhysicalItemMaterial::Mud,
                 ClickType::Invalid => {
                     println!("unexpected: invalid click type");
                     continue;
@@ -137,8 +137,7 @@ pub fn update(
             };
             commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
-                resource,
-                1.0,
+                Item::new_physical(PhysicalItemForm::Liquid, material, 1.0),
                 minigame_transform,
                 minigame_area.into(),
             ));

@@ -447,8 +447,7 @@ pub fn fixed_update(
             minigame.clear();
             commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
-                GalaxiaResource::Diamond, // TODO rune
-                1.0,
+                Item::new_abstract(AbstractItemKind::Rune, 0, 1.0),
                 minigame_transform,
                 minigame_area,
             ));

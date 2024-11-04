@@ -52,6 +52,108 @@ pub struct BallBreakerMinigame {
     pub _balls: Vec<(Item, f32, f32)>, // (item,x,y) - for (de)serialization
 }
 
+impl BallBreakerMinigame {
+    pub fn item_is_valid(item: &Item) -> bool {
+        let physical = match item.as_physical() {
+            Some(data) => data,
+            None => return false,
+        };
+
+        match physical.material {
+            PhysicalItemMaterial::Mud
+            | PhysicalItemMaterial::Dirt
+            | PhysicalItemMaterial::Sandstone
+            | PhysicalItemMaterial::Granite
+            | PhysicalItemMaterial::Marble
+            | PhysicalItemMaterial::Obsidian
+            | PhysicalItemMaterial::Copper
+            | PhysicalItemMaterial::Tin
+            | PhysicalItemMaterial::Iron
+            | PhysicalItemMaterial::Silver
+            | PhysicalItemMaterial::Gold
+            | PhysicalItemMaterial::Diamond
+            | PhysicalItemMaterial::Amethyst
+            | PhysicalItemMaterial::FreshWater
+            | PhysicalItemMaterial::Moss => true,
+            _ => false,
+        }
+    }
+
+    pub fn random_material(
+        level: u64,
+        random: &mut Random,
+    ) -> PhysicalItemMaterial {
+        let r: u64;
+        if level == 0 {
+            r = 0;
+        } else {
+            r = 1 + random.next() % level;
+        }
+
+        match r {
+            0 => PhysicalItemMaterial::Mud,
+            1 => PhysicalItemMaterial::Dirt,
+            2 => PhysicalItemMaterial::Sandstone,
+            3 => PhysicalItemMaterial::Granite,
+            4 => PhysicalItemMaterial::Marble,
+            5 => PhysicalItemMaterial::Obsidian,
+            6 => PhysicalItemMaterial::Copper,
+            7 => PhysicalItemMaterial::Tin,
+            8 => PhysicalItemMaterial::Iron,
+            9 => PhysicalItemMaterial::Silver,
+            10 => PhysicalItemMaterial::Gold,
+            11 => PhysicalItemMaterial::Diamond,
+            12 => PhysicalItemMaterial::Amethyst,
+            13 => PhysicalItemMaterial::FreshWater,
+            14 => PhysicalItemMaterial::Moss,
+            _ => PhysicalItemMaterial::Unobtainium,
+        }
+    }
+
+    pub fn material_toughness(resource: PhysicalItemMaterial) -> u32 {
+        match resource {
+            PhysicalItemMaterial::Mud => 1,
+            PhysicalItemMaterial::Dirt => 2,
+            PhysicalItemMaterial::Sandstone => 3,
+            PhysicalItemMaterial::Granite => 4,
+            PhysicalItemMaterial::Marble => 4,
+            PhysicalItemMaterial::Obsidian => 2,
+            PhysicalItemMaterial::Copper => 4,
+            PhysicalItemMaterial::Tin => 4,
+            PhysicalItemMaterial::Iron => 8,
+            PhysicalItemMaterial::Silver => 4,
+            PhysicalItemMaterial::Gold => 3,
+            PhysicalItemMaterial::Diamond => 6,
+            PhysicalItemMaterial::Amethyst => 6,
+            PhysicalItemMaterial::FreshWater => 0,
+            PhysicalItemMaterial::Moss => 1,
+            _ => 16,
+        }
+    }
+
+    pub fn material_damage(resource: PhysicalItemMaterial) -> u32 {
+        match resource {
+            PhysicalItemMaterial::Mud => 2,
+            PhysicalItemMaterial::Dirt => 3,
+            PhysicalItemMaterial::Sandstone => 4,
+            PhysicalItemMaterial::Granite => 4,
+            PhysicalItemMaterial::Marble => 4,
+            PhysicalItemMaterial::Obsidian => 6,
+            PhysicalItemMaterial::Copper => 7,
+            PhysicalItemMaterial::Tin => 7,
+            PhysicalItemMaterial::Bronze => 8, // must be forged from copper and tin
+            PhysicalItemMaterial::Iron => 10,
+            PhysicalItemMaterial::Silver => 4,
+            PhysicalItemMaterial::Gold => 3,
+            PhysicalItemMaterial::Diamond => 11,
+            PhysicalItemMaterial::Amethyst => 4,
+            PhysicalItemMaterial::FreshWater => 1,
+            PhysicalItemMaterial::Moss => 0,
+            _ => 16,
+        }
+    }
+}
+
 pub fn spawn(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -100,7 +202,10 @@ pub fn spawn(
                 for x in 0..blocks_per_row {
                     parent.spawn(BlockBundle::new(
                         asset_server,
-                        random_resource(level, &mut random),
+                        BallBreakerMinigame::random_material(
+                            level,
+                            &mut random,
+                        ),
                         blocks_per_column,
                         blocks_per_row,
                         x,
@@ -143,19 +248,12 @@ impl BlockBundle {
         let y = BLOCK_SIZE
             * ((y as f32) - (blocks_per_column as f32 / 2.0) + 1.0 / 2.0);
         Self {
-            block: Block { resource: material },
+            block: Block { material },
             sprite: SpriteBundle {
-                texture: asset_server.load(Item {
-                    item_type: ItemType::Physical,
-                    item_data: ItemData {
-                        physical: PhysicalItem {
-                            form: PhysicalItemForm::Object,
-                            material,
-                        },
-                    },
-                    amount: 1.0,
-                }),
-                // texture: asset_server.load(resource_to_asset(material)),
+                texture: asset_server.load(
+                    Item::new_physical(PhysicalItemForm::Block, material, 1.0)
+                        .asset(),
+                ),
                 transform: Transform::from_xyz(x, y, 0.0),
                 sprite: Sprite {
                     custom_size: Some(Vec2::new(BLOCK_SIZE, BLOCK_SIZE)),
@@ -175,99 +273,7 @@ impl BlockBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct Block {
-    pub resource: GalaxiaResource,
-}
-
-pub fn resource_is_valid(resource: GalaxiaResource) -> bool {
-    match resource {
-        GalaxiaResource::Mud
-        | GalaxiaResource::Dirt
-        | GalaxiaResource::Sandstone
-        | GalaxiaResource::Granite
-        | GalaxiaResource::Marble
-        | GalaxiaResource::Obsidian
-        | GalaxiaResource::Copper
-        | GalaxiaResource::Tin
-        | GalaxiaResource::Iron
-        | GalaxiaResource::Silver
-        | GalaxiaResource::Gold
-        | GalaxiaResource::Diamond
-        | GalaxiaResource::Amethyst
-        | GalaxiaResource::FreshWater
-        | GalaxiaResource::Moss => true,
-        _ => false,
-    }
-}
-
-pub fn random_resource(level: u64, random: &mut Random) -> GalaxiaResource {
-    let r: u64;
-    if level == 0 {
-        r = 0;
-    } else {
-        r = 1 + random.next() % level;
-    }
-
-    match r {
-        0 => GalaxiaResource::Mud,
-        1 => GalaxiaResource::Dirt,
-        2 => GalaxiaResource::Sandstone,
-        3 => GalaxiaResource::Granite,
-        4 => GalaxiaResource::Marble,
-        5 => GalaxiaResource::Obsidian,
-        6 => GalaxiaResource::Copper,
-        7 => GalaxiaResource::Tin,
-        8 => GalaxiaResource::Iron,
-        9 => GalaxiaResource::Silver,
-        10 => GalaxiaResource::Gold,
-        11 => GalaxiaResource::Diamond,
-        12 => GalaxiaResource::Amethyst,
-        13 => GalaxiaResource::FreshWater,
-        14 => GalaxiaResource::Moss,
-        _ => GalaxiaResource::Unobtainium,
-    }
-}
-
-pub fn resource_toughness(resource: GalaxiaResource) -> u32 {
-    match resource {
-        GalaxiaResource::Mud => 1,
-        GalaxiaResource::Dirt => 2,
-        GalaxiaResource::Sandstone => 3,
-        GalaxiaResource::Granite => 4,
-        GalaxiaResource::Marble => 4,
-        GalaxiaResource::Obsidian => 2,
-        GalaxiaResource::Copper => 4,
-        GalaxiaResource::Tin => 4,
-        GalaxiaResource::Iron => 8,
-        GalaxiaResource::Silver => 4,
-        GalaxiaResource::Gold => 3,
-        GalaxiaResource::Diamond => 6,
-        GalaxiaResource::Amethyst => 6,
-        GalaxiaResource::FreshWater => 0,
-        GalaxiaResource::Moss => 1,
-        _ => 16,
-    }
-}
-
-pub fn resource_damage(resource: GalaxiaResource) -> u32 {
-    match resource {
-        GalaxiaResource::Mud => 2,
-        GalaxiaResource::Dirt => 3,
-        GalaxiaResource::Sandstone => 4,
-        GalaxiaResource::Granite => 4,
-        GalaxiaResource::Marble => 4,
-        GalaxiaResource::Obsidian => 6,
-        GalaxiaResource::Copper => 7,
-        GalaxiaResource::Tin => 7,
-        GalaxiaResource::Bronze => 8, // must be forged from copper and tin
-        GalaxiaResource::Iron => 10,
-        GalaxiaResource::Silver => 4,
-        GalaxiaResource::Gold => 3,
-        GalaxiaResource::Diamond => 11,
-        GalaxiaResource::Amethyst => 4,
-        GalaxiaResource::FreshWater => 1,
-        GalaxiaResource::Moss => 0,
-        _ => 16,
-    }
+    pub material: PhysicalItemMaterial,
 }
 
 #[derive(Debug, Clone, Bundle)]
@@ -290,7 +296,8 @@ pub struct BallBundle {
 impl BallBundle {
     pub fn new(
         asset_server: &AssetServer,
-        resource: GalaxiaResource,
+        images: &mut ResMut<Assets<Image>>,
+        material: PhysicalItemMaterial,
         minigame: Entity,
         blocks_per_column: u32,
         blocks_per_row: u32,
@@ -300,10 +307,15 @@ impl BallBundle {
         let area = CircularArea {
             radius: BLOCK_SIZE / 2.0,
         };
+        let image: Handle<Image> = asset_server.load(
+            Item::new_physical(PhysicalItemForm::Ball, material, 1.0).asset(),
+        );
+        // let image: Handle<Image> = asset_server.load("physical/Block/Mud.png");
+        // let image: Handle<Image> = asset_server.load("block_breaker/ball.png");
         Self {
-            ball: Ball { resource, minigame },
+            ball: Ball { material, minigame },
             sprite: SpriteBundle {
-                texture: asset_server.load("block_breaker/ball.png"),
+                texture: stencil_circle(images, &image),
                 transform: Transform::from_xyz(x, y, 0.0),
                 sprite: Sprite {
                     custom_size: Some(area.into()),
@@ -340,7 +352,7 @@ impl BallBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct Ball {
-    pub resource: GalaxiaResource,
+    pub material: PhysicalItemMaterial,
     pub minigame: Entity,
 }
 
@@ -466,29 +478,29 @@ pub fn hit_block_fixed_update(
         // only care about collisions between balls and blocks
         let ball_entity: Entity;
         let block_entity: Entity;
-        let ball_resource: GalaxiaResource;
+        let ball_material: PhysicalItemMaterial;
         let minigame_entity: Entity;
         match ball_query.get(*a) {
             Ok(ball) => {
                 ball_entity = *a;
                 block_entity = *b;
-                ball_resource = ball.resource;
+                ball_material = ball.material;
                 minigame_entity = ball.minigame;
             }
             Err(_) => match ball_query.get(*b) {
                 Ok(ball) => {
                     ball_entity = *b;
                     block_entity = *a;
-                    ball_resource = ball.resource;
+                    ball_material = ball.material;
                     minigame_entity = ball.minigame;
                 }
                 Err(_) => continue,
             },
         };
 
-        let block_resource: GalaxiaResource =
+        let block_material: PhysicalItemMaterial =
             match block_query.get(block_entity) {
-                Ok(x) => x.resource,
+                Ok(x) => x.material,
                 Err(_) => continue,
             };
 
@@ -504,14 +516,18 @@ pub fn hit_block_fixed_update(
             };
 
         // break stuff! and spit out resources!
-        if resource_damage(ball_resource) >= resource_toughness(block_resource)
+        if BallBreakerMinigame::material_damage(ball_material)
+            >= BallBreakerMinigame::material_toughness(block_material)
         {
             commands.entity(block_entity).despawn();
             broken.insert(block_entity);
             commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
-                block_resource,
-                1.0,
+                Item::new_physical(
+                    PhysicalItemForm::Powder,
+                    block_material,
+                    1.0,
+                ),
                 minigame_global_transform,
                 minigame_area,
             ));
@@ -536,8 +552,11 @@ pub fn hit_block_fixed_update(
                     // TODO check if ball broke here and so should spawn as pulverized, if appropriate
                     commands.spawn(ItemBundle::new_from_minigame(
                         &asset_server,
-                        ball.resource,
-                        1.0,
+                        Item::new_physical(
+                            PhysicalItemForm::Ball,
+                            ball.material,
+                            1.0,
+                        ),
                         minigame_global_transform,
                         minigame_area,
                     ));
@@ -558,14 +577,18 @@ pub fn hit_block_fixed_update(
                 );
             }
         }
-        if resource_damage(block_resource) >= resource_toughness(ball_resource)
+        if BallBreakerMinigame::material_damage(block_material)
+            >= BallBreakerMinigame::material_toughness(ball_material)
         {
             commands.entity(ball_entity).despawn();
             broken.insert(ball_entity);
             commands.spawn(ItemBundle::new_from_minigame(
                 &asset_server,
-                ball_resource,
-                1.0,
+                Item::new_physical(
+                    PhysicalItemForm::Powder,
+                    ball_material,
+                    1.0,
+                ),
                 minigame_global_transform,
                 minigame_area,
             ));
@@ -576,10 +599,11 @@ pub fn hit_block_fixed_update(
 pub fn ingest_resource_fixed_update(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
     mut collision_events: EventReader<CollisionEvent>,
     minigame_query: Query<(&BallBreakerMinigame, &Transform)>,
     aura_query: Query<&MinigameAura>,
-    resource_query: Query<(&Item, &Transform)>,
+    item_query: Query<(&Item, &Transform)>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
@@ -590,27 +614,27 @@ pub fn ingest_resource_fixed_update(
         };
 
         // only care about collisions of resources
-        let (resource_entity, aura_entity, resource, resource_transform) =
-            match resource_query.get(*a) {
+        let (item_entity, aura_entity, item, item_transform) =
+            match item_query.get(*a) {
                 Ok(x) => (a, b, x.0, x.1),
-                Err(_) => match resource_query.get(*b) {
+                Err(_) => match item_query.get(*b) {
                     Ok(x) => (b, a, x.0, x.1),
                     Err(_) => continue,
                 },
             };
 
         // already handled
-        if ingested.contains(&resource_entity) {
+        if ingested.contains(&item_entity) {
             continue;
         }
 
         // only certain resources can be ingested
-        if !resource_is_valid(resource.resource) {
+        if !BallBreakerMinigame::item_is_valid(item) {
             continue;
         }
 
         // need enough resource to form ball
-        if resource.amount < 1.0 {
+        if item.amount < 1.0 {
             continue;
         }
 
@@ -627,28 +651,31 @@ pub fn ingest_resource_fixed_update(
             };
 
         // deplete or remove resource
-        commands.entity(*resource_entity).despawn_recursive();
-        ingested.insert(*resource_entity);
+        commands.entity(*item_entity).despawn_recursive();
+        ingested.insert(*item_entity);
 
-        let amount = resource.amount - 1.0;
+        let amount = item.amount - 1.0;
         if amount > 0.0 {
-            let velocity = (resource_transform.translation
+            let mut new_item = item.clone();
+            new_item.amount = amount;
+            let velocity = (item_transform.translation
                 - minigame_transform.translation)
                 .truncate();
             commands.spawn(ItemBundle::new(
                 &asset_server,
-                resource.resource,
-                amount,
-                *resource_transform,
+                new_item,
+                *item_transform,
                 Velocity::linear(velocity.normalize() * 70.0),
             ));
         }
 
         // add ball to minigame
         commands.entity(*aura_entity).with_children(|parent| {
+            let material = item.as_physical().unwrap().material;
             parent.spawn(BallBundle::new(
                 &asset_server,
-                resource.resource,
+                &mut images,
+                material,
                 aura.minigame,
                 minigame.blocks_per_column,
                 minigame.blocks_per_row,

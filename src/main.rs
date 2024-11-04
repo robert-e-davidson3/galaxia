@@ -2,6 +2,7 @@ mod entities;
 mod libs;
 
 use bevy::app::AppExit;
+use bevy::asset::LoadedFolder;
 use bevy::prelude::*;
 use bevy_framepace::{FramepacePlugin, FramepaceSettings};
 use bevy_prototype_lyon::prelude::*;
@@ -19,7 +20,10 @@ fn main() {
             // RapierDebugRenderPlugin::default(),
             FramepacePlugin {},
         ))
-        .add_systems(Startup, (setup_board, setup_player, setup_camera))
+        .add_systems(
+            Startup,
+            (setup_board, setup_player, setup_camera, setup_assets),
+        )
         .add_systems(
             Update,
             (
@@ -72,6 +76,7 @@ fn main() {
         })
         .insert_resource(random::Random::new(42))
         .insert_resource(entities::minigame::Engaged { game: None })
+        .init_resource::<AlwaysLoadedAssets>()
         .run();
 }
 
@@ -97,20 +102,31 @@ fn setup_board(
         Transform::from_xyz(-400.0, -300.0, 0.0),
         &entities::minigames::draw::DrawMinigame { ..default() },
     );
-
     // entities::minigames::tree::spawn(
     //     &mut commands,
     //     &asset_server,
     //     Transform::from_xyz(400.0, 0.0, 0.0),
     //     &entities::minigames::tree::TreeMinigame { ..default() },
     // );
-    // entities::minigames::ball_breaker::spawn(
-    //     &mut commands,
-    //     &asset_server,
-    //     &mut random,
-    //     Transform::from_xyz(-400.0, -400.0, 0.0),
-    //     &entities::minigames::ball_breaker::BallBreakerMinigame { ..default() },
-    // );
+    entities::minigames::ball_breaker::spawn(
+        &mut commands,
+        &asset_server,
+        &mut random,
+        Transform::from_xyz(400.0, 400.0, 0.0),
+        &entities::minigames::ball_breaker::BallBreakerMinigame { ..default() },
+    );
+}
+
+fn setup_assets(
+    asset_server: Res<AssetServer>,
+    mut always_loaded_assets: ResMut<AlwaysLoadedAssets>,
+) {
+    let folders = ["abstract", "physical"];
+    for folder in folders.iter() {
+        always_loaded_assets
+            .folders
+            .push(asset_server.load_folder(*folder));
+    }
 }
 
 fn exit_system(
@@ -124,4 +140,9 @@ fn exit_system(
     if keys.just_pressed(KeyCode::Escape) {
         app_exit_events.send(AppExit::Success);
     }
+}
+
+#[derive(Resource, Default, Clone, Debug)]
+pub struct AlwaysLoadedAssets {
+    pub folders: Vec<Handle<LoadedFolder>>,
 }
