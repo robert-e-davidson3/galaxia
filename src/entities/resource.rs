@@ -298,39 +298,19 @@ pub struct AbstractItem {
 }
 
 impl AbstractItem {
-    pub fn draw(&self) -> Image {
-        let size: usize = 10;
-        let mut data: Vec<u8> = Vec::with_capacity(size * size * 4);
-        let mut rng = WyRand::new(0);
-        for y in 0..size {
-            for x in 0..size {
-                let r: u8 = y as u8;
-                let g: u8 = x as u8;
-                let b: u8 = (y * x) as u8;
-                let a: u8 = 255;
-                data.push(r);
-                data.push(g);
-                data.push(b);
-                data.push(a);
+    pub fn object(&self) -> String {
+        "assets/objects/abstract/".to_string()
+            + match self.kind {
+                AbstractItemKind::Click => {
+                    match self.variant {
+                        0 => "click_short".to_string(),
+                        1 => "click_long".to_string(),
+                        _ => panic!("Invalid abstract item variant {} for click", self.variant),
+                    }
+                }
+}
+                _ => panic!("Material {:?} not implemented", self),
             }
-        }
-        // for _ in 0..(size * size) {
-        //     data.push(rng.rand() as u8); // R
-        //     data.push(0); // G
-        //     data.push(0); // B
-        //     data.push(255); // A
-        // }
-        Image::new(
-            Extent3d {
-                width: size as u32,
-                height: size as u32,
-                depth_or_array_layers: 1,
-            },
-            TextureDimension::D2,
-            data,
-            TextureFormat::Rgba8Unorm,
-            RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
-        )
     }
 
     pub fn identifier(&self) -> ItemIdentifier {
@@ -422,6 +402,20 @@ pub struct PhysicalItem {
 }
 
 impl PhysicalItem {
+    pub fn draw(&self, rand: &mut WyRand, size: u32) -> Image {
+        match self.form {
+            PhysicalItemForm::Object => load_image(self.material.object()),
+            PhysicalItemForm::Block => {
+                self.material.palette().draw_block(rand, size)
+            }
+            PhysicalItemForm::Ball => {
+                self.material.palette().draw_ball(rand, size)
+            }
+
+            _ => panic!("Not implemented"),
+        }
+    }
+
     pub fn identifier(&self) -> ItemIdentifier {
         let noun: &str;
         let adjective: &str;
@@ -504,6 +498,29 @@ pub enum PhysicalItemMaterial {
     Unobtainium,
     SaltWater,
     FreshWater,
+}
+
+impl PhysicalItemMaterial {
+    pub fn object(&self) -> String {
+        "assets/objects/physical/".to_string()
+            + match self {
+                PhysicalItemMaterial::Apple => "apple",
+                _ => panic!("Material {:?} not implemented", self),
+            }
+    }
+
+    pub fn palette(&self) -> image_gen::ColorPalette {
+        match self {
+            PhysicalItemMaterial::Mud => Self::mud_palette(),
+            _ => panic!("Material {:?} not implemented", self),
+        }
+    }
+
+    fn mud_palette() -> image_gen::ColorPalette {
+        let mut palette = image_gen::ColorPalette::new();
+        palette.add_color(image_gen::Colorant::new_loose(240, 100, 10, 10, 1));
+        palette
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
