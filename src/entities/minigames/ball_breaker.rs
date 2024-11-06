@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
+use wyrand::WyRand;
 
 use crate::entities::*;
 use crate::libs::*;
@@ -295,8 +296,8 @@ pub struct BallBundle {
 
 impl BallBundle {
     pub fn new(
-        asset_server: &AssetServer,
         images: &mut ResMut<Assets<Image>>,
+        generated_image_assets: &mut image_gen::GeneratedImageAssets,
         material: PhysicalItemMaterial,
         minigame: Entity,
         blocks_per_column: u32,
@@ -307,15 +308,21 @@ impl BallBundle {
         let area = CircularArea {
             radius: BLOCK_SIZE / 2.0,
         };
-        let image: Handle<Image> = asset_server.load(
-            Item::new_physical(PhysicalItemForm::Ball, material, 1.0).asset(),
-        );
-        // let image: Handle<Image> = asset_server.load("physical/Block/Mud.png");
-        // let image: Handle<Image> = asset_server.load("block_breaker/ball.png");
+        let item = Item::new_physical(PhysicalItemForm::Ball, material, 1.0);
+        let texture: Handle<Image> =
+            match generated_image_assets.get(&item.uid()) {
+                Some(image) => image,
+                None => {
+                    let image = item.draw(&mut WyRand::new(SEED));
+                    let handle = images.add(image.clone());
+                    generated_image_assets.insert(item.uid(), &handle);
+                    handle
+                }
+            };
         Self {
             ball: Ball { material, minigame },
             sprite: SpriteBundle {
-                texture: stencil_circle(images, &image),
+                texture,
                 transform: Transform::from_xyz(x, y, 0.0),
                 sprite: Sprite {
                     custom_size: Some(area.into()),
@@ -603,7 +610,6 @@ pub fn hit_block_fixed_update(
 
 pub fn ingest_resource_fixed_update(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut collision_events: EventReader<CollisionEvent>,
@@ -680,8 +686,8 @@ pub fn ingest_resource_fixed_update(
         commands.entity(*aura_entity).with_children(|parent| {
             let material = item.as_physical().unwrap().material;
             parent.spawn(BallBundle::new(
-                &asset_server,
                 &mut images,
+                &mut generated_image_assets,
                 material,
                 aura.minigame,
                 minigame.blocks_per_column,

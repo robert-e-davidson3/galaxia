@@ -151,12 +151,33 @@ impl Item {
         if self.item_type != other.item_type {
             return None;
         }
-        // TODO handle item combinations correctly
-        Some(Self {
-            item_type: self.item_type,
-            item_data: self.item_data,
-            amount: self.amount + other.amount,
-        })
+        unsafe {
+            match match self.item_type {
+                ItemType::Abstract => self
+                    .item_data
+                    .r#abstract
+                    .combines(&other.item_data.r#abstract),
+                ItemType::Physical => {
+                    self.item_data.physical.combines(&other.item_data.physical)
+                }
+                ItemType::Mana => {
+                    self.item_data.mana.combines(&other.item_data.mana)
+                }
+                ItemType::Energy => {
+                    self.item_data.energy.combines(&other.item_data.energy)
+                }
+                ItemType::Minigame => {
+                    self.item_data.minigame.combines(&other.item_data.minigame)
+                }
+            } {
+                true => Some(Self {
+                    item_type: self.item_type,
+                    item_data: self.item_data,
+                    amount: self.amount + other.amount,
+                }),
+                false => None,
+            }
+        }
     }
 
     pub fn name(&self) -> String {
@@ -241,22 +262,13 @@ impl Item {
     }
 
     pub fn draw(&self, rand: &mut WyRand) -> Image {
-        let size = self.size() as u32;
         unsafe {
             match self.item_type {
-                ItemType::Abstract => {
-                    self.item_data.r#abstract.draw(size as u32, rand)
-                }
-                ItemType::Physical => {
-                    self.item_data.physical.draw(size as u32, rand)
-                }
-                ItemType::Mana => self.item_data.mana.draw(size as u32, rand),
-                ItemType::Energy => {
-                    self.item_data.energy.draw(size as u32, rand)
-                }
-                ItemType::Minigame => {
-                    self.item_data.minigame.draw(size as u32, rand)
-                }
+                ItemType::Abstract => self.item_data.r#abstract.draw(rand),
+                ItemType::Physical => self.item_data.physical.draw(rand),
+                ItemType::Mana => self.item_data.mana.draw(rand),
+                ItemType::Energy => self.item_data.energy.draw(rand),
+                ItemType::Minigame => self.item_data.minigame.draw(rand),
             }
         }
     }
@@ -347,7 +359,11 @@ pub struct AbstractItem {
 }
 
 impl AbstractItem {
-    pub fn draw(&self, _size: u32, _rand: &mut WyRand) -> Image {
+    pub fn combines(&self, other: &AbstractItem) -> bool {
+        self.kind == other.kind && self.variant == other.variant
+    }
+
+    pub fn draw(&self, _rand: &mut WyRand) -> Image {
         let path = "assets/abstract/".to_string() + self.object() + ".png";
         load_image(&path)
     }
@@ -439,7 +455,7 @@ pub enum Rune {
     //       each expansion of space should require a new rune
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
 pub enum AbstractItemKind {
     Click,
@@ -454,17 +470,50 @@ pub struct PhysicalItem {
     pub material: PhysicalItemMaterial,
 }
 
+const ITEM_SIZE: u32 = 256; // pixels
+
 impl PhysicalItem {
-    pub fn draw(&self, size: u32, rand: &mut WyRand) -> Image {
+    pub fn combines(&self, other: &PhysicalItem) -> bool {
+        if self.material != other.material {
+            return false;
+        }
+        if self.material.is_goo() {
+            return true;
+        }
+        return match self.form {
+            PhysicalItemForm::Gas => true,
+            PhysicalItemForm::Liquid => true,
+            PhysicalItemForm::Powder => true,
+            _ => false,
+        };
+    }
+
+    pub fn draw(&self, rand: &mut WyRand) -> Image {
         match self.form {
+            PhysicalItemForm::Gas => self
+                .material
+                .palette()
+                .adjust_alpha_looseness(128)
+                .draw_ball(rand, ITEM_SIZE),
+            PhysicalItemForm::Liquid => self
+                .material
+                .palette()
+                .adjust_alpha_looseness(32)
+                .draw_ball(rand, ITEM_SIZE),
+            PhysicalItemForm::Powder => {
+                self.material.palette().draw_powder(rand, ITEM_SIZE)
+            }
             PhysicalItemForm::Object => {
                 load_image(&self.material.object().to_string())
             }
+            PhysicalItemForm::Lump => {
+                self.material.palette().draw_lump(rand, ITEM_SIZE)
+            }
             PhysicalItemForm::Block => {
-                self.material.palette().draw_block(rand, size)
+                self.material.palette().draw_block(rand, ITEM_SIZE)
             }
             PhysicalItemForm::Ball => {
-                self.material.palette().draw_ball(rand, size)
+                self.material.palette().draw_ball(rand, ITEM_SIZE)
             }
 
             _ => panic!("physical form not implemented: {:?}", self.form),
@@ -477,7 +526,6 @@ impl PhysicalItem {
         match self.form {
             PhysicalItemForm::Gas => noun = "Gas",
             PhysicalItemForm::Liquid => noun = "Liquid",
-            PhysicalItemForm::Goo => noun = "Goo",
             PhysicalItemForm::Powder => noun = "Powder",
             PhysicalItemForm::Object => noun = "Object",
             PhysicalItemForm::Lump => noun = "Lump",
@@ -520,7 +568,6 @@ impl PhysicalItem {
 pub enum PhysicalItemForm {
     Gas,
     Liquid,
-    Goo,
     Powder,
     // solids
     Object, // generic solid
@@ -529,7 +576,7 @@ pub enum PhysicalItemForm {
     Ball,
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u64)]
 pub enum PhysicalItemMaterial {
     Apple,
@@ -556,6 +603,13 @@ pub enum PhysicalItemMaterial {
 }
 
 impl PhysicalItemMaterial {
+    pub fn is_goo(&self) -> bool {
+        match self {
+            PhysicalItemMaterial::Mud => true,
+            _ => false,
+        }
+    }
+
     pub fn object(&self) -> &str {
         match self {
             PhysicalItemMaterial::Apple => "apple",
@@ -579,35 +633,40 @@ impl PhysicalItemMaterial {
         // palette.add_color(image_gen::Colorant::new_tight(100, 40, 200, 1));
         // palette.add_color(image_gen::Colorant::new_loose(16, 16, 4, 0, 1));
         // palette.add_color(image_gen::Colorant::new_loose(61, 32, 0, 0, 1));
-        palette.add_color(image_gen::Colorant::new_loose(87, 39, 12, 10, 1));
+        palette.add_colorant(image_gen::Colorant::new_loose(87, 39, 12, 10, 1));
         palette
     }
 
     fn dirt_palette() -> image_gen::ColorPalette {
         let mut palette = image_gen::ColorPalette::new();
-        palette.add_color(image_gen::Colorant::new_loose(70, 60, 40, 10, 1));
+        palette.add_colorant(image_gen::Colorant::new_loose(70, 60, 40, 10, 1));
         palette
     }
 
     fn sandstone_palette() -> image_gen::ColorPalette {
         let mut palette = image_gen::ColorPalette::new();
-        palette.add_color(image_gen::Colorant::new_loose(255, 174, 76, 15, 2));
-        palette.add_color(image_gen::Colorant::new_loose(220, 114, 41, 15, 3));
+        palette
+            .add_colorant(image_gen::Colorant::new_loose(255, 174, 76, 15, 2));
+        palette
+            .add_colorant(image_gen::Colorant::new_loose(220, 114, 41, 15, 3));
         palette
     }
 
     fn salt_water_palette() -> image_gen::ColorPalette {
         let mut palette = image_gen::ColorPalette::new();
-        palette.add_color(image_gen::Colorant::new_loose(0, 21, 125, 2, 5));
-        palette.add_color(image_gen::Colorant::new_loose(52, 71, 180, 2, 10));
-        palette.add_color(image_gen::Colorant::new_loose(152, 162, 200, 4, 2));
+        palette.add_colorant(image_gen::Colorant::new_loose(0, 21, 125, 2, 5));
+        palette
+            .add_colorant(image_gen::Colorant::new_loose(52, 71, 180, 2, 10));
+        palette
+            .add_colorant(image_gen::Colorant::new_loose(152, 162, 200, 4, 2));
         palette
     }
 
     fn fresh_water_palette() -> image_gen::ColorPalette {
         let mut palette = image_gen::ColorPalette::new();
-        palette.add_color(image_gen::Colorant::new_loose(0, 21, 125, 2, 5));
-        palette.add_color(image_gen::Colorant::new_loose(52, 71, 180, 2, 10));
+        palette.add_colorant(image_gen::Colorant::new_loose(0, 21, 125, 2, 5));
+        palette
+            .add_colorant(image_gen::Colorant::new_loose(52, 71, 180, 2, 10));
         palette
     }
 }
@@ -621,7 +680,11 @@ pub struct ManaItem {
 }
 
 impl ManaItem {
-    pub fn draw(&self, _size: u32, _rand: &mut WyRand) -> Image {
+    pub fn combines(&self, other: &ManaItem) -> bool {
+        self.kind == other.kind && self.subkind == other.subkind
+    }
+
+    pub fn draw(&self, _rand: &mut WyRand) -> Image {
         panic!("ManaItem::draw not implemented");
     }
 
@@ -630,7 +693,7 @@ impl ManaItem {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
 pub enum ManaResourceKind {
     Fire,
@@ -656,7 +719,11 @@ pub struct EnergyItem {
 }
 
 impl EnergyItem {
-    pub fn draw(&self, _size: u32, _rand: &mut WyRand) -> Image {
+    pub fn combines(&self, other: &EnergyItem) -> bool {
+        self.kind == other.kind
+    }
+
+    pub fn draw(&self, _rand: &mut WyRand) -> Image {
         panic!("EnergyItem::draw not implemented");
     }
 
@@ -665,7 +732,7 @@ impl EnergyItem {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
 pub enum EnergyResourceKind {
     Kinetic,
@@ -684,7 +751,11 @@ pub struct MinigameItem {
 }
 
 impl MinigameItem {
-    pub fn draw(&self, _size: u32, _rand: &mut WyRand) -> Image {
+    pub fn combines(&self, other: &MinigameItem) -> bool {
+        self.kind == other.kind && self.variant == other.variant
+    }
+
+    pub fn draw(&self, _rand: &mut WyRand) -> Image {
         panic!("MinigameItem::draw not implemented");
     }
 
@@ -693,7 +764,7 @@ impl MinigameItem {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
 pub enum MinigameResourceKind {
     Button,
@@ -857,36 +928,4 @@ pub fn release_resources(
         commands.entity(stuck_entity).remove::<ImpulseJoint>();
         commands.entity(stuck_entity).remove::<Stuck>();
     }
-}
-
-pub fn stencil_circle(
-    images: &mut ResMut<Assets<Image>>,
-    image_handle: &Handle<Image>,
-) -> Handle<Image> {
-    let original = images.get(image_handle).unwrap();
-    let mut new_image = original.clone();
-
-    let width = new_image.width() as f32;
-    let height = new_image.height() as f32;
-    let center_x = width / 2.0;
-    let center_y = height / 2.0;
-    let radius = width.min(height) / 2.0;
-    let square_radius = radius * radius;
-
-    // Iterate through pixels
-    for y in 0..new_image.height() {
-        for x in 0..new_image.width() {
-            let dx = x as f32 - center_x;
-            let dy = y as f32 - center_y;
-            let square_distance = dx * dx + dy * dy;
-
-            if square_distance > square_radius {
-                // Outside circle - make transparent
-                let pixel_index = (y * new_image.width() + x) as usize * 4;
-                new_image.data[pixel_index + 3] = 0; // Set alpha to 0
-            }
-        }
-    }
-
-    images.add(new_image)
 }

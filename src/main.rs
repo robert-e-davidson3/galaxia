@@ -7,6 +7,7 @@ use bevy::prelude::*;
 use bevy_framepace::{FramepacePlugin, FramepaceSettings};
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
+use wyrand::WyRand;
 
 use entities::*;
 use libs::*;
