@@ -1,8 +1,6 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
-use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::render_resource::*;
 use bevy_rapier2d::prelude::*;
 use int_enum::IntEnum;
 use wyrand::WyRand;
@@ -11,6 +9,7 @@ use crate::entities::*;
 use crate::libs::*;
 
 pub const MAX_ITEM_DISTANCE: f32 = 10000.0;
+pub const SEED: u64 = 91;
 
 #[derive(Debug, Bundle)]
 pub struct ItemBundle {
@@ -28,16 +27,26 @@ pub struct ItemBundle {
 
 impl ItemBundle {
     pub fn new(
-        asset_server: &AssetServer,
+        images: &mut ResMut<Assets<Image>>,
+        generated_image_assets: &mut ResMut<image_gen::GeneratedImageAssets>,
         item: Item,
         transform: Transform,
         velocity: Velocity,
     ) -> Self {
-        let amount = item.amount;
-        let area = Self::calculate_area(amount);
-        // must be at least 1.0 to avoid tunneling
-        let density =
-            1.0 + (amount / (std::f32::consts::PI * area.radius * area.radius));
+        let area = CircularArea {
+            radius: item.size(),
+        };
+        let density = item.density();
+        let texture: Handle<Image> =
+            match generated_image_assets.get(&item.uid()) {
+                Some(image) => image,
+                None => {
+                    let image = item.draw(&mut WyRand::new(SEED));
+                    let handle = images.add(image.clone());
+                    generated_image_assets.insert(item.uid(), &handle);
+                    handle
+                }
+            };
         Self {
             item,
             area,
@@ -46,7 +55,7 @@ impl ItemBundle {
                     custom_size: Some(area.into()),
                     ..default()
                 },
-                texture: asset_server.load(item.asset()),
+                texture,
                 transform,
                 ..default()
             },
@@ -64,7 +73,8 @@ impl ItemBundle {
     }
 
     pub fn new_from_minigame(
-        asset_server: &AssetServer,
+        images: &mut ResMut<Assets<Image>>,
+        generated_image_assets: &mut ResMut<image_gen::GeneratedImageAssets>,
         item: Item,
         minigame_global_transform: &GlobalTransform,
         minigame_area: &RectangularArea,
@@ -74,25 +84,12 @@ impl ItemBundle {
                 + minigame_area.dimensions3() / 1.8,
         );
         Self::new(
-            asset_server,
+            images,
+            generated_image_assets,
             item,
             transform,
             Velocity::linear(Vec2::new(70.0, -70.0)),
         )
-    }
-
-    pub fn calculate_area(amount: f32) -> CircularArea {
-        // Radius is cross-section of a cylinder with volume proportional to amount
-        // plus a constant to make it visible.
-        // Also <1.0 is much smaller than 1.0 which is much smaller than >1.0.
-        let radius = if amount < 1.0 {
-            4.0
-        } else if amount == 1.0 {
-            8.0
-        } else {
-            9.0 + ((3.0 * amount) / (4.0 * std::f32::consts::PI)).cbrt()
-        };
-        CircularArea { radius }
     }
 }
 
@@ -112,6 +109,10 @@ impl Item {
             item_data,
             amount,
         }
+    }
+
+    pub fn uid(&self) -> String {
+        self.identifier().uid()
     }
 
     pub fn new_one(item_type: ItemType, item_data: ItemData) -> Self {
@@ -216,6 +217,50 @@ impl Item {
         }
     }
 
+    // Radius is cross-section of a cylinder with volume proportional to amount
+    // plus a constant to make it visible.
+    // Also <1.0 is much smaller than 1.0 which is much smaller than >1.0.
+    pub fn size(&self) -> f32 {
+        if self.amount < 1.0 {
+            4.0
+        } else if self.amount == 1.0 {
+            8.0
+        } else {
+            9.0 + ((3.0 * self.amount) / (4.0 * std::f32::consts::PI)).cbrt()
+        }
+    }
+
+    pub fn density(&self) -> f32 {
+        let size = self.size();
+        let density = self.amount / (std::f32::consts::PI * size * size);
+        if density < 1.0 {
+            1.0 // minimum to avoid tunneling
+        } else {
+            density
+        }
+    }
+
+    pub fn draw(&self, rand: &mut WyRand) -> Image {
+        let size = self.size() as u32;
+        unsafe {
+            match self.item_type {
+                ItemType::Abstract => {
+                    self.item_data.r#abstract.draw(size as u32, rand)
+                }
+                ItemType::Physical => {
+                    self.item_data.physical.draw(size as u32, rand)
+                }
+                ItemType::Mana => self.item_data.mana.draw(size as u32, rand),
+                ItemType::Energy => {
+                    self.item_data.energy.draw(size as u32, rand)
+                }
+                ItemType::Minigame => {
+                    self.item_data.minigame.draw(size as u32, rand)
+                }
+            }
+        }
+    }
+
     fn identifier(&self) -> ItemIdentifier {
         unsafe {
             match self.item_type {
@@ -280,6 +325,10 @@ impl ItemIdentifier {
         }
     }
 
+    pub fn uid(&self) -> String {
+        format!("{}/{}/{}", self.domain, self.noun, self.adjective)
+    }
+
     // Returns the asset path for the texture/material of the item.
     pub fn asset(&self) -> String {
         let filename = match self.domain.as_str() {
@@ -290,7 +339,7 @@ impl ItemIdentifier {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(C)]
 pub struct AbstractItem {
     pub kind: AbstractItemKind,
@@ -298,19 +347,23 @@ pub struct AbstractItem {
 }
 
 impl AbstractItem {
-    pub fn object(&self) -> String {
-        "assets/objects/abstract/".to_string()
-            + match self.kind {
-                AbstractItemKind::Click => {
-                    match self.variant {
-                        0 => "click_short".to_string(),
-                        1 => "click_long".to_string(),
-                        _ => panic!("Invalid abstract item variant {} for click", self.variant),
-                    }
-                }
-}
-                _ => panic!("Material {:?} not implemented", self),
-            }
+    pub fn draw(&self, _size: u32, _rand: &mut WyRand) -> Image {
+        let path = "assets/abstract/".to_string() + self.object() + ".png";
+        load_image(&path)
+    }
+
+    pub fn object(&self) -> &str {
+        match self.kind {
+            AbstractItemKind::Click => match self.variant {
+                0 => "ShortClick",
+                1 => "LongClick",
+                _ => panic!(
+                    "Invalid abstract item variant {} for click",
+                    self.variant
+                ),
+            },
+            _ => panic!("Material {:?} not implemented", self),
+        }
     }
 
     pub fn identifier(&self) -> ItemIdentifier {
@@ -386,7 +439,7 @@ pub enum Rune {
     //       each expansion of space should require a new rune
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(u8)]
 pub enum AbstractItemKind {
     Click,
@@ -394,7 +447,7 @@ pub enum AbstractItemKind {
     Rune,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(C)]
 pub struct PhysicalItem {
     pub form: PhysicalItemForm,
@@ -402,9 +455,11 @@ pub struct PhysicalItem {
 }
 
 impl PhysicalItem {
-    pub fn draw(&self, rand: &mut WyRand, size: u32) -> Image {
+    pub fn draw(&self, size: u32, rand: &mut WyRand) -> Image {
         match self.form {
-            PhysicalItemForm::Object => load_image(self.material.object()),
+            PhysicalItemForm::Object => {
+                load_image(&self.material.object().to_string())
+            }
             PhysicalItemForm::Block => {
                 self.material.palette().draw_block(rand, size)
             }
@@ -412,7 +467,7 @@ impl PhysicalItem {
                 self.material.palette().draw_ball(rand, size)
             }
 
-            _ => panic!("Not implemented"),
+            _ => panic!("physical form not implemented: {:?}", self.form),
         }
     }
 
@@ -460,7 +515,7 @@ impl PhysicalItem {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(u8)]
 pub enum PhysicalItemForm {
     Gas,
@@ -474,7 +529,7 @@ pub enum PhysicalItemForm {
     Ball,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(u64)]
 pub enum PhysicalItemMaterial {
     Apple,
@@ -501,29 +556,63 @@ pub enum PhysicalItemMaterial {
 }
 
 impl PhysicalItemMaterial {
-    pub fn object(&self) -> String {
-        "assets/objects/physical/".to_string()
-            + match self {
-                PhysicalItemMaterial::Apple => "apple",
-                _ => panic!("Material {:?} not implemented", self),
-            }
+    pub fn object(&self) -> &str {
+        match self {
+            PhysicalItemMaterial::Apple => "apple",
+            _ => panic!("object not implemented for {:?}", self),
+        }
     }
 
     pub fn palette(&self) -> image_gen::ColorPalette {
         match self {
             PhysicalItemMaterial::Mud => Self::mud_palette(),
-            _ => panic!("Material {:?} not implemented", self),
+            PhysicalItemMaterial::Dirt => Self::dirt_palette(),
+            PhysicalItemMaterial::Sandstone => Self::sandstone_palette(),
+            PhysicalItemMaterial::SaltWater => Self::salt_water_palette(),
+            PhysicalItemMaterial::FreshWater => Self::fresh_water_palette(),
+            _ => panic!("palette not implemented for {:?}", self),
         }
     }
 
     fn mud_palette() -> image_gen::ColorPalette {
         let mut palette = image_gen::ColorPalette::new();
-        palette.add_color(image_gen::Colorant::new_loose(240, 100, 10, 10, 1));
+        // palette.add_color(image_gen::Colorant::new_tight(100, 40, 200, 1));
+        // palette.add_color(image_gen::Colorant::new_loose(16, 16, 4, 0, 1));
+        // palette.add_color(image_gen::Colorant::new_loose(61, 32, 0, 0, 1));
+        palette.add_color(image_gen::Colorant::new_loose(87, 39, 12, 10, 1));
+        palette
+    }
+
+    fn dirt_palette() -> image_gen::ColorPalette {
+        let mut palette = image_gen::ColorPalette::new();
+        palette.add_color(image_gen::Colorant::new_loose(70, 60, 40, 10, 1));
+        palette
+    }
+
+    fn sandstone_palette() -> image_gen::ColorPalette {
+        let mut palette = image_gen::ColorPalette::new();
+        palette.add_color(image_gen::Colorant::new_loose(255, 174, 76, 15, 2));
+        palette.add_color(image_gen::Colorant::new_loose(220, 114, 41, 15, 3));
+        palette
+    }
+
+    fn salt_water_palette() -> image_gen::ColorPalette {
+        let mut palette = image_gen::ColorPalette::new();
+        palette.add_color(image_gen::Colorant::new_loose(0, 21, 125, 2, 5));
+        palette.add_color(image_gen::Colorant::new_loose(52, 71, 180, 2, 10));
+        palette.add_color(image_gen::Colorant::new_loose(152, 162, 200, 4, 2));
+        palette
+    }
+
+    fn fresh_water_palette() -> image_gen::ColorPalette {
+        let mut palette = image_gen::ColorPalette::new();
+        palette.add_color(image_gen::Colorant::new_loose(0, 21, 125, 2, 5));
+        palette.add_color(image_gen::Colorant::new_loose(52, 71, 180, 2, 10));
         palette
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(C)]
 pub struct ManaItem {
     pub kind: ManaResourceKind,
@@ -532,12 +621,16 @@ pub struct ManaItem {
 }
 
 impl ManaItem {
+    pub fn draw(&self, _size: u32, _rand: &mut WyRand) -> Image {
+        panic!("ManaItem::draw not implemented");
+    }
+
     pub fn identifier(&self) -> ItemIdentifier {
         panic!("ManaItem::identifier not implemented");
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(u8)]
 pub enum ManaResourceKind {
     Fire,
@@ -548,7 +641,7 @@ pub enum ManaResourceKind {
     Dark,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(u8)]
 pub enum ManaIntent {
     Attack,
@@ -556,19 +649,23 @@ pub enum ManaIntent {
     Support,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(C)]
 pub struct EnergyItem {
     pub kind: EnergyResourceKind,
 }
 
 impl EnergyItem {
+    pub fn draw(&self, _size: u32, _rand: &mut WyRand) -> Image {
+        panic!("EnergyItem::draw not implemented");
+    }
+
     pub fn identifier(&self) -> ItemIdentifier {
         panic!("EnergyItem::identifier not implemented");
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(u8)]
 pub enum EnergyResourceKind {
     Kinetic,
@@ -579,7 +676,7 @@ pub enum EnergyResourceKind {
     Radiant,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(C)]
 pub struct MinigameItem {
     pub kind: MinigameResourceKind,
@@ -587,12 +684,16 @@ pub struct MinigameItem {
 }
 
 impl MinigameItem {
+    pub fn draw(&self, _size: u32, _rand: &mut WyRand) -> Image {
+        panic!("MinigameItem::draw not implemented");
+    }
+
     pub fn identifier(&self) -> ItemIdentifier {
         panic!("MinigameItem::identifier not implemented");
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 #[repr(u8)]
 pub enum MinigameResourceKind {
     Button,
@@ -622,7 +723,9 @@ pub fn teleport_distant_loose_resources(
 
 pub fn combine_loose_resources(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
+    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
+
     loose_resource_query: Query<(&Item, &Transform, &Velocity), Without<Stuck>>,
     mut collision_events: EventReader<CollisionEvent>,
 ) {
@@ -659,7 +762,8 @@ pub fn combine_loose_resources(
                 eliminated.insert(*entity1);
                 eliminated.insert(*entity2);
                 commands.spawn(ItemBundle::new(
-                    &asset_server,
+                    &mut images,
+                    &mut generated_image_assets,
                     combined,
                     *transform1,
                     Velocity {

@@ -429,7 +429,8 @@ const RUNE_TRIGGER_SECONDS: f32 = 2.0;
 
 pub fn fixed_update(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
+    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     time: Res<Time>,
     mut draw_minigame_query: Query<(
         &mut DrawMinigame,
@@ -446,7 +447,8 @@ pub fn fixed_update(
                 draw_minigame_query.get_mut(entity).unwrap();
             minigame.clear();
             commands.spawn(ItemBundle::new_from_minigame(
-                &asset_server,
+                &mut images,
+                &mut generated_image_assets,
                 Item::new_abstract(AbstractItemKind::Rune, 0, 1.0),
                 minigame_transform,
                 minigame_area,

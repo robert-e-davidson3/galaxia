@@ -456,6 +456,8 @@ pub fn unselected_paddle_update(
 pub fn hit_block_fixed_update(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
+    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut random: ResMut<Random>,
     mut collision_events: EventReader<CollisionEvent>,
     mut minigame_query: Query<(
@@ -522,7 +524,8 @@ pub fn hit_block_fixed_update(
             commands.entity(block_entity).despawn();
             broken.insert(block_entity);
             commands.spawn(ItemBundle::new_from_minigame(
-                &asset_server,
+                &mut images,
+                &mut generated_image_assets,
                 Item::new_physical(
                     PhysicalItemForm::Powder,
                     block_material,
@@ -551,7 +554,8 @@ pub fn hit_block_fixed_update(
                     // TODO spawn in ball form, if appropriate
                     // TODO check if ball broke here and so should spawn as pulverized, if appropriate
                     commands.spawn(ItemBundle::new_from_minigame(
-                        &asset_server,
+                        &mut images,
+                        &mut generated_image_assets,
                         Item::new_physical(
                             PhysicalItemForm::Ball,
                             ball.material,
@@ -583,7 +587,8 @@ pub fn hit_block_fixed_update(
             commands.entity(ball_entity).despawn();
             broken.insert(ball_entity);
             commands.spawn(ItemBundle::new_from_minigame(
-                &asset_server,
+                &mut images,
+                &mut generated_image_assets,
                 Item::new_physical(
                     PhysicalItemForm::Powder,
                     ball_material,
@@ -600,6 +605,7 @@ pub fn ingest_resource_fixed_update(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut images: ResMut<Assets<Image>>,
+    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut collision_events: EventReader<CollisionEvent>,
     minigame_query: Query<(&BallBreakerMinigame, &Transform)>,
     aura_query: Query<&MinigameAura>,
@@ -662,7 +668,8 @@ pub fn ingest_resource_fixed_update(
                 - minigame_transform.translation)
                 .truncate();
             commands.spawn(ItemBundle::new(
-                &asset_server,
+                &mut images,
+                &mut generated_image_assets,
                 new_item,
                 *item_transform,
                 Velocity::linear(velocity.normalize() * 70.0),

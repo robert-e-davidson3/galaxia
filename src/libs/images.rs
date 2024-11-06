@@ -5,20 +5,16 @@ use bevy::render::render_resource::{
 };
 use image::ImageReader;
 
-pub fn load_image(path: String) -> Image {
+pub fn load_image(path: &String) -> Image {
     let img = ImageReader::open(path)
         .unwrap()
         .decode()
         .unwrap()
         .into_rgba8();
-
-    let width = img.width();
-    let height = img.height();
-
     Image::new(
         Extent3d {
-            width,
-            height,
+            width: img.width(),
+            height: img.height(),
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
@@ -29,12 +25,33 @@ pub fn load_image(path: String) -> Image {
 }
 
 pub mod image_gen {
+    use std::collections::HashMap;
+
+    use bevy::asset::{AssetServer, Handle};
+    use bevy::ecs::prelude::Resource;
     use bevy::prelude::Image;
     use bevy::render::render_asset::RenderAssetUsages;
     use bevy::render::render_resource::{
         Extent3d, TextureDimension, TextureFormat,
     };
     use wyrand::WyRand;
+
+    // For images that have already been generated.
+    #[derive(Default, Resource)]
+    pub struct GeneratedImageAssets(pub HashMap<String, Handle<Image>>);
+
+    impl GeneratedImageAssets {
+        pub fn insert(&mut self, uid: String, image: &Handle<Image>) {
+            self.0.insert(uid, image.clone());
+        }
+
+        pub fn get(&self, uid: &String) -> Option<Handle<Image>> {
+            match self.0.get(uid) {
+                Some(handle) => Some(handle.clone()),
+                None => None,
+            }
+        }
+    }
 
     pub struct ColorPalette {
         pub colorants: Vec<Colorant>,
@@ -69,6 +86,7 @@ pub mod image_gen {
             self.pick(rand).pick(rand)
         }
 
+        // simply draw a pixel for each coordinate
         pub fn draw_block(&self, rand: &mut WyRand, size: u32) -> Image {
             let mut colors = Colors::new(size, size);
             for _ in 0..(size * size) {
@@ -77,23 +95,21 @@ pub mod image_gen {
             colors.to_image()
         }
 
+        // draw a non-transparent pixel for each coordinate within a radius
+        // draw a fully transparent pixel for each coordinate outside the radius
         pub fn draw_ball(&self, rand: &mut WyRand, radius: u32) -> Image {
             let size = radius * 2;
-            let mut colors = Colors::new(size, size);
             let radius2 = radius * radius;
-            let mut x = 0;
-            let mut y = 0;
-            while y < radius {
-                let x2 = x * x;
-                let y2 = y * y;
-                let distance2 = x2 + y2;
-                if distance2 < radius2 {
-                    colors.add_color(self.pick_color(rand));
-                } else {
-                    x += 1;
-                    y = 0;
+            let mut colors = Colors::new(size, size);
+            for x in 0..size {
+                for y in 0..size {
+                    let distance2 = x * x + y * y;
+                    if distance2 < radius2 {
+                        colors.add_color(self.pick_color(rand));
+                    } else {
+                        colors.add_color(Color::new_clear());
+                    }
                 }
-                y += 1;
             }
             colors.to_image()
         }
@@ -134,18 +150,12 @@ pub mod image_gen {
             }
         }
 
-        pub fn new_tight(
-            red: u8,
-            green: u8,
-            blue: u8,
-            alpha: u8,
-            weight: u8,
-        ) -> Colorant {
+        pub fn new_tight(red: u8, green: u8, blue: u8, weight: u8) -> Colorant {
             Colorant {
                 red,
                 green,
                 blue,
-                alpha,
+                alpha: 255,
                 weight,
                 looseness: 0,
                 alpha_looseness: 0,
@@ -170,38 +180,43 @@ pub mod image_gen {
             }
         }
 
-        pub fn new_random(weight: u8) -> Colorant {
-            Colorant {
-                red: 0,
-                green: 0,
-                blue: 0,
-                alpha: 255,
-                weight,
-                looseness: 255,
-                alpha_looseness: 0,
-            }
-        }
-
         pub fn pick(&self, rand: &mut WyRand) -> Color {
             let red: u8;
             let green: u8;
             let blue: u8;
-            let alpha: u8;
             if self.looseness == 0 {
                 red = self.red;
                 green = self.green;
                 blue = self.blue;
             } else {
-                red = (rand.rand() % (self.looseness as u64 + 1)) as u8;
-                green = (rand.rand() % (self.looseness as u64 + 1)) as u8;
-                blue = (rand.rand() % (self.looseness as u64 + 1)) as u8;
+                red = Self::random_of_color(self.red, rand, self.looseness);
+                green = Self::random_of_color(self.green, rand, self.looseness);
+                blue = Self::random_of_color(self.blue, rand, self.looseness);
             }
+            let alpha: u8;
             if self.alpha_looseness == 0 {
                 alpha = self.alpha;
             } else {
                 alpha = (rand.rand() % (self.alpha_looseness as u64 + 1)) as u8;
             }
             Color::new(red, green, blue, alpha)
+        }
+
+        fn random_of_color(base: u8, rand: &mut WyRand, looseness: u8) -> u8 {
+            let r = rand.rand() % (looseness as u64 + 1);
+            if r < looseness as u64 / 2 {
+                if r > base as u64 {
+                    0
+                } else {
+                    base - r as u8
+                }
+            } else {
+                if r + base as u64 > 255 {
+                    255
+                } else {
+                    base + r as u8
+                }
+            }
         }
     }
 
@@ -219,6 +234,15 @@ pub mod image_gen {
                 green,
                 blue,
                 alpha,
+            }
+        }
+
+        pub fn new_clear() -> Color {
+            Color {
+                red: 0,
+                green: 0,
+                blue: 0,
+                alpha: 0,
             }
         }
     }
@@ -260,7 +284,8 @@ pub mod image_gen {
                 },
                 TextureDimension::D2,
                 self.bytes.clone(),
-                TextureFormat::Rgba8Unorm,
+                // TextureFormat::Rgba8Unorm,
+                TextureFormat::Rgba8UnormSrgb,
                 RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
             )
         }

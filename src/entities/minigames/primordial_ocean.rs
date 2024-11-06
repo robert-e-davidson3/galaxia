@@ -98,7 +98,8 @@ pub struct Ocean {
 
 pub fn update(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
+    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     mouse_state: Res<MouseState>,
     time: Res<Time>,
@@ -127,17 +128,22 @@ pub fn update(
                 primordial_ocean_minigame_query.get(ocean.minigame).unwrap();
 
             let click_type = mouse_state.get_click_type(time.elapsed_seconds());
-            let material = match click_type {
-                ClickType::Short => PhysicalItemMaterial::SaltWater,
-                ClickType::Long => PhysicalItemMaterial::Mud,
+            let (form, material) = match click_type {
+                ClickType::Short => {
+                    (PhysicalItemForm::Liquid, PhysicalItemMaterial::SaltWater)
+                }
+                ClickType::Long => {
+                    (PhysicalItemForm::Block, PhysicalItemMaterial::Mud)
+                }
                 ClickType::Invalid => {
                     println!("unexpected: invalid click type");
                     continue;
                 }
             };
             commands.spawn(ItemBundle::new_from_minigame(
-                &asset_server,
-                Item::new_physical(PhysicalItemForm::Liquid, material, 1.0),
+                &mut images,
+                &mut generated_image_assets,
+                Item::new_physical(form, material, 1.0),
                 minigame_transform,
                 minigame_area.into(),
             ));

@@ -78,7 +78,8 @@ pub fn spawn(
 // When a fruit is clicked, replace it with a fruit resource.
 pub fn update(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
+    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     clickable_query: Query<(
         Entity,
         &UnpickedFruit,
@@ -113,7 +114,8 @@ pub fn update(
                 tree_minigames_query.get_mut(fruit.minigame).unwrap();
             minigame.count -= 1;
             commands.spawn(ItemBundle::new_from_minigame(
-                &asset_server,
+                &mut images,
+                &mut generated_image_assets,
                 Item::new_physical(
                     PhysicalItemForm::Object,
                     fruit.material,

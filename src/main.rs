@@ -20,10 +20,7 @@ fn main() {
             // RapierDebugRenderPlugin::default(),
             FramepacePlugin {},
         ))
-        .add_systems(
-            Startup,
-            (setup_board, setup_player, setup_camera, setup_assets),
-        )
+        .add_systems(Startup, (setup_board, setup_player, setup_camera))
         .add_systems(
             Update,
             (
@@ -76,14 +73,13 @@ fn main() {
         })
         .insert_resource(random::Random::new(42))
         .insert_resource(entities::minigame::Engaged { game: None })
-        .init_resource::<AlwaysLoadedAssets>()
+        .init_resource::<image_gen::GeneratedImageAssets>()
         .run();
 }
 
 fn setup_board(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut images: ResMut<Assets<Image>>,
     mut random: ResMut<random::Random>,
 ) {
     entities::minigames::button::spawn(
@@ -116,31 +112,6 @@ fn setup_board(
         Transform::from_xyz(400.0, 400.0, 0.0),
         &entities::minigames::ball_breaker::BallBreakerMinigame { ..default() },
     );
-
-    let item = AbstractItem {
-        kind: AbstractItemKind::XP,
-        variant: 0,
-    };
-    let image = item.draw();
-    let texture = images.add(image);
-
-    commands.spawn(SpriteBundle {
-        texture,
-        transform: Transform::from_xyz(0.0, 0.0, 0.0),
-        ..default()
-    });
-}
-
-fn setup_assets(
-    asset_server: Res<AssetServer>,
-    mut always_loaded_assets: ResMut<AlwaysLoadedAssets>,
-) {
-    let folders = ["abstract", "physical"];
-    for folder in folders.iter() {
-        always_loaded_assets
-            .folders
-            .push(asset_server.load_folder(*folder));
-    }
 }
 
 fn exit_system(
@@ -154,9 +125,4 @@ fn exit_system(
     if keys.just_pressed(KeyCode::Escape) {
         app_exit_events.send(AppExit::Success);
     }
-}
-
-#[derive(Resource, Default, Clone, Debug)]
-pub struct AlwaysLoadedAssets {
-    pub folders: Vec<Handle<LoadedFolder>>,
 }
