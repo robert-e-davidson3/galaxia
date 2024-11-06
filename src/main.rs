@@ -7,7 +7,6 @@ use bevy::prelude::*;
 use bevy_framepace::{FramepacePlugin, FramepaceSettings};
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
-use wyrand::WyRand;
 
 use entities::*;
 use libs::*;
@@ -33,6 +32,7 @@ fn main() {
                 release_resources,
                 engage_button_update,
                 minigames::button::update,
+                minigames::draw::pixel_update,
                 minigames::tree::update,
                 minigames::ball_breaker::unselected_paddle_update,
                 minigames::primordial_ocean::update,
@@ -44,6 +44,7 @@ fn main() {
         .add_systems(
             FixedUpdate,
             (
+                minigames::draw::fixed_update,
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::hit_block_fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,
@@ -98,7 +99,7 @@ fn setup_board(
     entities::minigames::draw::spawn(
         &mut commands,
         Transform::from_xyz(-400.0, -300.0, 0.0),
-        &entities::minigames::draw::DrawMinigame { ..default() },
+        &entities::minigames::draw::DrawMinigame::new(0),
     );
     // entities::minigames::tree::spawn(
     //     &mut commands,

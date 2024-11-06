@@ -27,7 +27,7 @@ pub fn load_image(path: &String) -> Image {
 pub mod image_gen {
     use std::collections::HashMap;
 
-    use bevy::asset::{AssetServer, Handle};
+    use bevy::asset::Handle;
     use bevy::ecs::prelude::Resource;
     use bevy::prelude::Image;
     use bevy::render::render_asset::RenderAssetUsages;
@@ -35,6 +35,8 @@ pub mod image_gen {
         Extent3d, TextureDimension, TextureFormat,
     };
     use wyrand::WyRand;
+
+    use crate::resource::rune;
 
     // For images that have already been generated.
     #[derive(Default, Resource)]
@@ -440,5 +442,53 @@ pub mod image_gen {
                 RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
             )
         }
+    }
+
+    pub const RUNE_SIZE: usize = 50;
+
+    pub fn draw_rune(r: rune::Rune) -> Image {
+        let bits: Vec<Vec<bool>> = rune::rune_to_pixels(&r);
+
+        // Calculate dimensions and offset for centering
+        let pattern_height = bits.len();
+        let pattern_width = bits[0].len();
+
+        let y_offset = (RUNE_SIZE - pattern_height) / 2;
+        let x_offset = (RUNE_SIZE - pattern_width) / 2;
+
+        // Create data vector with correct capacity (50x50 pixels, 4 bytes per pixel)
+        let mut data = Vec::with_capacity((RUNE_SIZE * RUNE_SIZE * 4) as usize);
+
+        // Fill the image data
+        for y in 0..RUNE_SIZE {
+            for x in 0..RUNE_SIZE {
+                // Check if current pixel is within the pattern bounds
+                let is_pattern_pixel = (y >= y_offset
+                    && y < y_offset + pattern_height)
+                    && (x >= x_offset && x < x_offset + pattern_width);
+
+                // If within bounds and pattern is true, draw black pixel
+                // Otherwise draw transparent pixel
+                if is_pattern_pixel && bits[y - y_offset][x - x_offset] {
+                    // Black pixel (R=0, G=0, B=0, A=255)
+                    data.extend_from_slice(&[0, 0, 0, 255]);
+                } else {
+                    // Transparent pixel (R=0, G=0, B=0, A=0)
+                    data.extend_from_slice(&[0, 0, 0, 0]);
+                }
+            }
+        }
+
+        Image::new(
+            Extent3d {
+                width: RUNE_SIZE as u32,
+                height: RUNE_SIZE as u32,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            data,
+            TextureFormat::Rgba8Unorm,
+            RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
+        )
     }
 }

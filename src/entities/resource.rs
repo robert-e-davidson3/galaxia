@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
-use int_enum::IntEnum;
 use wyrand::WyRand;
 
 use crate::entities::*;
@@ -378,6 +377,20 @@ impl AbstractItem {
                     self.variant
                 ),
             },
+            AbstractItemKind::Rune => {
+                match rune::Rune::try_from(self.variant) {
+                    Ok(rune::Rune::InclusiveSelf) => "RuneInclusiveSelf",
+                    Ok(rune::Rune::Connector) => "RuneConnector",
+                    Ok(rune::Rune::ExclusiveSelf) => "Exclusive Self",
+                    Ok(rune::Rune::Shelter) => "Shelter",
+                    Ok(rune::Rune::InclusiveOther) => "Inclusive Other",
+                    Ok(rune::Rune::ExclusiveOther) => "Exclusive Other",
+                    Err(_) => panic!(
+                        "Invalid abstract item variant {} for rune",
+                        self.variant
+                    ),
+                }
+            }
             _ => panic!("Material {:?} not implemented", self),
         }
     }
@@ -403,13 +416,21 @@ impl AbstractItem {
             }
             AbstractItemKind::Rune => {
                 noun = "rune";
-                match Rune::try_from(self.variant) {
-                    Ok(Rune::InclusiveSelf) => adjective = "Inclusive Self",
-                    Ok(Rune::Connector) => adjective = "Connector",
-                    Ok(Rune::ExclusiveSelf) => adjective = "Exclusive Self",
-                    Ok(Rune::Shelter) => adjective = "Shelter",
-                    Ok(Rune::InclusiveOther) => adjective = "Inclusive Other",
-                    Ok(Rune::ExclusiveOther) => adjective = "Exclusive Other",
+                match rune::Rune::try_from(self.variant) {
+                    Ok(rune::Rune::InclusiveSelf) => {
+                        adjective = "Inclusive Self"
+                    }
+                    Ok(rune::Rune::Connector) => adjective = "Connector",
+                    Ok(rune::Rune::ExclusiveSelf) => {
+                        adjective = "Exclusive Self"
+                    }
+                    Ok(rune::Rune::Shelter) => adjective = "Shelter",
+                    Ok(rune::Rune::InclusiveOther) => {
+                        adjective = "Inclusive Other"
+                    }
+                    Ok(rune::Rune::ExclusiveOther) => {
+                        adjective = "Exclusive Other"
+                    }
                     Err(_) => panic!(
                         "Invalid abstract item variant {} for rune",
                         self.variant
@@ -425,34 +446,201 @@ impl AbstractItem {
     }
 }
 
-// A Rune is a magical symbol that can be drawn in a Draw minigame.
-// Each rune is a 2D grid of pixels, where each pixel can be on or off.
-// For a Rune, only connected pixels are considered.
-// Orientation also matters - a rune cannot be rotated or flipped.
-#[repr(u8)]
-#[derive(Debug, PartialEq, IntEnum)]
-pub enum Rune {
-    // 1x1 pixels
-    // magically, refers to the inclusive self
-    InclusiveSelf = 0,
-    // 2x1
-    // magically, acts as connector
-    Connector = 1,
-    // 2x2
-    // magically, refers to the EXCLUSIVE self
-    ExclusiveSelf = 2,
-    // 3x2, missing middle bottom
-    // magically, refers to shelter or protection
-    Shelter = 3,
-    // 3x3, missing middle
-    // magically, refers to the inclusive other (not-self)
-    InclusiveOther = 4,
-    // 4x3 TODO
-    // 4x4, missing middle
-    // magically, refers to the EXCLUSIVE other (not-self)
-    ExclusiveOther = 5,
-    // TODO: add more runes - at least 100 in total
-    //       each expansion of space should require a new rune
+pub mod rune {
+    use int_enum::IntEnum;
+
+    // A Rune is a magical symbol that can be drawn in a Draw minigame.
+    // Each rune is a 2D grid of pixels, where each pixel can be on or off.
+    // For a Rune, only connected pixels are considered.
+    // Orientation also matters - a rune cannot be rotated or flipped.
+    #[repr(u8)]
+    #[derive(Debug, PartialEq, IntEnum)]
+    pub enum Rune {
+        // 1x1 pixels
+        // magically, refers to the inclusive self
+        InclusiveSelf = 0,
+        // 2x1
+        // magically, acts as connector
+        Connector = 1,
+        // 2x2
+        // magically, refers to the EXCLUSIVE self
+        ExclusiveSelf = 2,
+        // 3x2, missing middle bottom
+        // magically, refers to shelter or protection
+        Shelter = 3,
+        // 3x3, missing middle
+        // magically, refers to the inclusive other (not-self)
+        InclusiveOther = 4,
+        // 4x3 TODO
+        // 4x4, missing middle
+        // magically, refers to the EXCLUSIVE other (not-self)
+        ExclusiveOther = 5,
+        // TODO: add more runes - at least 100 in total
+        //       each expansion of space should require a new rune
+    }
+
+    pub mod pattern {
+        pub const INCLUSIVE_SELF: [[bool; 1]; 1] = [[true]];
+        pub const CONNECTOR: [[bool; 2]; 1] = [[true, true]];
+        pub const EXCLUSIVE_SELF: [[bool; 2]; 2] = [[true, true], [true, true]];
+        pub const SHELTER: [[bool; 3]; 2] =
+            [[true, true, true], [true, false, true]];
+        pub const INCLUSIVE_OTHER: [[bool; 3]; 3] =
+            [[true, true, true], [true, false, true], [true, true, true]];
+        pub const EXCLUSIVE_OTHER: [[bool; 4]; 4] = [
+            [true, true, true, true],
+            [true, false, false, true],
+            [true, false, false, true],
+            [true, true, true, true],
+        ];
+    }
+
+    fn pattern_to_pixels<const W: usize, const H: usize>(
+        pattern: &[[bool; W]; H],
+    ) -> Vec<Vec<bool>> {
+        pattern.iter().map(|row| row.to_vec()).collect()
+    }
+
+    pub fn rune_to_pixels(rune: &Rune) -> Vec<Vec<bool>> {
+        match rune {
+            Rune::InclusiveSelf => pattern_to_pixels(&pattern::INCLUSIVE_SELF),
+            Rune::Connector => pattern_to_pixels(&pattern::CONNECTOR),
+            Rune::ExclusiveSelf => pattern_to_pixels(&pattern::EXCLUSIVE_SELF),
+            Rune::Shelter => pattern_to_pixels(&pattern::SHELTER),
+            Rune::InclusiveOther => {
+                pattern_to_pixels(&pattern::INCLUSIVE_OTHER)
+            }
+            Rune::ExclusiveOther => {
+                pattern_to_pixels(&pattern::EXCLUSIVE_OTHER)
+            }
+        }
+    }
+
+    pub fn pixels_to_rune(pixels: Vec<Vec<bool>>) -> Option<Rune> {
+        let pixels = strip_empty_rows(strip_empty_columns(pixels));
+        if pixels.is_empty() {
+            return None;
+        }
+        let width = pixels[0].len();
+        let height = pixels.len();
+        if width == 1 && height == 1 {
+            return (pattern_to_pixels(&pattern::INCLUSIVE_SELF) == pixels)
+                .then_some(Rune::InclusiveSelf);
+        }
+        if width == 2 && height == 1 {
+            return (pattern_to_pixels(&pattern::CONNECTOR) == pixels)
+                .then_some(Rune::Connector);
+        }
+        if width == 2 && height == 2 {
+            return (pattern_to_pixels(&pattern::EXCLUSIVE_SELF) == pixels)
+                .then_some(Rune::ExclusiveSelf);
+        }
+        if width == 3 && height == 2 {
+            return (pattern_to_pixels(&pattern::SHELTER) == pixels)
+                .then_some(Rune::Shelter);
+        }
+        if width == 3 && height == 3 {
+            return (pattern_to_pixels(&pattern::INCLUSIVE_OTHER) == pixels)
+                .then_some(Rune::InclusiveOther);
+        }
+        // TODO 4x3
+        if width == 4 && height == 4 {
+            return (pattern_to_pixels(&pattern::EXCLUSIVE_OTHER) == pixels)
+                .then_some(Rune::ExclusiveOther);
+        }
+
+        None
+    }
+
+    pub fn strip_empty_rows(pixels: Vec<Vec<bool>>) -> Vec<Vec<bool>> {
+        if pixels.is_empty() {
+            return pixels;
+        }
+
+        let mut first_row = 0;
+        let mut last_row = pixels.len();
+
+        // Find first non-empty row
+        while first_row < last_row && pixels[first_row].iter().all(|&p| !p) {
+            first_row += 1;
+        }
+
+        // Find last non-empty row
+        while last_row > first_row && pixels[last_row - 1].iter().all(|&p| !p) {
+            last_row -= 1;
+        }
+
+        pixels[first_row..last_row].to_vec()
+    }
+
+    pub fn strip_empty_columns(pixels: Vec<Vec<bool>>) -> Vec<Vec<bool>> {
+        if pixels.is_empty() || pixels[0].is_empty() {
+            return pixels;
+        }
+
+        let width = pixels[0].len();
+        let mut first_col = 0;
+        let mut last_col = width;
+
+        // Find first non-empty column
+        'outer: while first_col < last_col {
+            for row in &pixels {
+                if row[first_col] {
+                    break 'outer;
+                }
+            }
+            first_col += 1;
+        }
+
+        // Find last non-empty column
+        'outer: while last_col > first_col {
+            for row in &pixels {
+                if row[last_col - 1] {
+                    break 'outer;
+                }
+            }
+            last_col -= 1;
+        }
+
+        pixels
+            .into_iter()
+            .map(|row| row[first_col..last_col].to_vec())
+            .collect()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_strip_empty_rows() {
+            let input = vec![
+                vec![false, false],
+                vec![false, true],
+                vec![true, false],
+                vec![false, false],
+            ];
+            let expected = vec![vec![false, true], vec![true, false]];
+            assert_eq!(strip_empty_rows(input), expected);
+        }
+
+        #[test]
+        fn test_strip_empty_columns() {
+            let input = vec![
+                vec![false, false, true, false],
+                vec![false, true, false, false],
+            ];
+            let expected = vec![vec![false, true], vec![true, false]];
+            assert_eq!(strip_empty_columns(input), expected);
+        }
+
+        #[test]
+        fn test_empty_input() {
+            let empty: Vec<Vec<bool>> = vec![];
+            assert_eq!(strip_empty_rows(empty.clone()), empty.clone());
+            assert_eq!(strip_empty_columns(empty.clone()), empty);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -515,8 +703,6 @@ impl PhysicalItem {
             PhysicalItemForm::Ball => {
                 self.material.palette().draw_ball(rand, ITEM_SIZE)
             }
-
-            _ => panic!("physical form not implemented: {:?}", self.form),
         }
     }
 

@@ -92,8 +92,8 @@ impl DrawMinigame {
         }
     }
 
-    pub fn to_rune(&self) -> Option<Rune> {
-        pixels_to_rune(self.pixels.clone())
+    pub fn to_rune(&self) -> Option<rune::Rune> {
+        rune::pixels_to_rune(self.pixels.clone())
     }
 
     pub fn toggle_pixel(&mut self, x: u8, y: u8) {
@@ -116,177 +116,6 @@ impl DrawMinigame {
     }
 }
 
-// A Rune is a magical symbol that can be drawn in a Draw minigame.
-// Each rune is a 2D grid of pixels, where each pixel can be on or off.
-// For a Rune, only connected pixels are considered.
-// Orientation also matters - a rune cannot be rotated or flipped.
-#[repr(u8)]
-pub enum Rune {
-    // 1x1 pixels
-    // magically, refers to the inclusive self
-    InclusiveSelf,
-    // 2x1
-    // magically, acts as connector
-    Connector,
-    // 2x2
-    // magically, refers to the EXCLUSIVE self
-    ExclusiveSelf,
-    // 3x2, missing middle bottom
-    // magically, refers to shelter or protection
-    Shelter,
-    // 3x3, missing middle
-    // magically, refers to the inclusive other (not-self)
-    InclusiveOther,
-    // 4x3 TODO
-    // 4x4, missing middle
-    // magically, refers to the EXCLUSIVE other (not-self)
-    ExclusiveOther,
-    // TODO: add more runes - at least 100 in total
-    //       each expansion of space should require a new rune
-}
-
-const BIG_DOT_PATTERN: [[bool; 2]; 2] = [[true, true], [true, true]];
-const SHELTER_PATTERN: [[bool; 3]; 2] =
-    [[true, true, true], [true, false, true]];
-const OTHER_PATTERN: [[bool; 3]; 3] =
-    [[true, true, true], [true, false, true], [true, true, true]];
-const EXCLUSIVE_OTHER_PATTERN: [[bool; 4]; 4] = [
-    [true, true, true, true],
-    [true, false, false, true],
-    [true, false, false, true],
-    [true, true, true, true],
-];
-
-fn pattern_to_pixels<const W: usize, const H: usize>(
-    pattern: &[[bool; W]; H],
-) -> Vec<Vec<bool>> {
-    pattern.iter().map(|row| row.to_vec()).collect()
-}
-
-pub fn pixels_to_rune(pixels: Vec<Vec<bool>>) -> Option<Rune> {
-    let pixels = strip_empty_rows(strip_empty_columns(pixels));
-    if pixels.is_empty() {
-        return None;
-    }
-    let width = pixels[0].len();
-    let height = pixels.len();
-    if width == 1 && height == 1 {
-        return Some(Rune::InclusiveSelf);
-    }
-    if width == 2 && height == 1 {
-        return Some(Rune::Connector);
-    }
-    if width == 2 && height == 2 {
-        return (pattern_to_pixels(&BIG_DOT_PATTERN) == pixels)
-            .then_some(Rune::ExclusiveSelf);
-    }
-    if width == 3 && height == 2 {
-        return (pattern_to_pixels(&SHELTER_PATTERN) == pixels)
-            .then_some(Rune::Shelter);
-    }
-    if width == 3 && height == 3 {
-        return (pattern_to_pixels(&OTHER_PATTERN) == pixels)
-            .then_some(Rune::InclusiveOther);
-    }
-    // TODO 4x3
-    if width == 4 && height == 4 {
-        return (pattern_to_pixels(&EXCLUSIVE_OTHER_PATTERN) == pixels)
-            .then_some(Rune::ExclusiveOther);
-    }
-
-    None
-}
-
-fn strip_empty_rows(pixels: Vec<Vec<bool>>) -> Vec<Vec<bool>> {
-    if pixels.is_empty() {
-        return pixels;
-    }
-
-    let mut first_row = 0;
-    let mut last_row = pixels.len();
-
-    // Find first non-empty row
-    while first_row < last_row && pixels[first_row].iter().all(|&p| !p) {
-        first_row += 1;
-    }
-
-    // Find last non-empty row
-    while last_row > first_row && pixels[last_row - 1].iter().all(|&p| !p) {
-        last_row -= 1;
-    }
-
-    pixels[first_row..last_row].to_vec()
-}
-
-fn strip_empty_columns(pixels: Vec<Vec<bool>>) -> Vec<Vec<bool>> {
-    if pixels.is_empty() || pixels[0].is_empty() {
-        return pixels;
-    }
-
-    let width = pixels[0].len();
-    let mut first_col = 0;
-    let mut last_col = width;
-
-    // Find first non-empty column
-    'outer: while first_col < last_col {
-        for row in &pixels {
-            if row[first_col] {
-                break 'outer;
-            }
-        }
-        first_col += 1;
-    }
-
-    // Find last non-empty column
-    'outer: while last_col > first_col {
-        for row in &pixels {
-            if row[last_col - 1] {
-                break 'outer;
-            }
-        }
-        last_col -= 1;
-    }
-
-    pixels
-        .into_iter()
-        .map(|row| row[first_col..last_col].to_vec())
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_strip_empty_rows() {
-        let input = vec![
-            vec![false, false],
-            vec![false, true],
-            vec![true, false],
-            vec![false, false],
-        ];
-        let expected = vec![vec![false, true], vec![true, false]];
-        assert_eq!(strip_empty_rows(input), expected);
-    }
-
-    #[test]
-    fn test_strip_empty_columns() {
-        let input = vec![
-            vec![false, false, true, false],
-            vec![false, true, false, false],
-        ];
-        let expected = vec![vec![false, true], vec![true, false]];
-        assert_eq!(strip_empty_columns(input), expected);
-    }
-
-    #[test]
-    fn test_empty_input() {
-        let empty: Vec<Vec<bool>> = vec![];
-        assert_eq!(strip_empty_rows(empty.clone()), empty.clone());
-        assert_eq!(strip_empty_columns(empty.clone()), empty);
-    }
-}
-
 pub fn spawn(
     commands: &mut Commands,
     transform: Transform,
@@ -296,10 +125,6 @@ pub fn spawn(
     let area = minigame.area();
     let blocks_per_row = minigame.blocks_per_row();
     let blocks_per_column = minigame.blocks_per_column();
-    println!(
-        "Spawning draw minigame with {}x{} blocks",
-        blocks_per_row, blocks_per_column
-    );
     commands
         .spawn(DrawMinigameBundle::new(minigame, area, transform))
         .with_children(|parent| {
@@ -317,20 +142,19 @@ pub fn spawn(
 
             for y in 0..blocks_per_column {
                 for x in 0..blocks_per_row {
-                    println!("Spawning pixel at ({}, {})", x, y);
                     parent.spawn(PixelBundle::new(x, y));
                 }
             }
         });
 }
 
-const PIXEL_SIZE: f32 = 10.0;
+const PIXEL_SIZE: f32 = 25.0;
 const PIXEL_AREA: RectangularArea = RectangularArea {
     width: PIXEL_SIZE,
     height: PIXEL_SIZE,
 };
 const PIXEL_ON_COLOR: Color = Color::srgb(1.0, 1.0, 1.0);
-const PIXEL_OFF_COLOR: Color = Color::srgb(0.0, 0.0, 0.0);
+const PIXEL_OFF_COLOR: Color = Color::srgb(1.0, 0.0, 0.0);
 
 #[derive(Bundle)]
 pub struct PixelBundle {
@@ -414,8 +238,22 @@ pub fn pixel_update(
             let mut minigame =
                 draw_minigame_query.get_mut(minigame_entity).unwrap();
             minigame.toggle_pixel(pixel.x, pixel.y);
+            match minigame.to_rune() {
+                Some(_) => {
+                    if !ready_query.get(minigame_entity).is_ok() {
+                        commands
+                            .entity(minigame_entity)
+                            .insert(Ready::new(time.elapsed_seconds()));
+                    }
+                }
+                None => {
+                    if ready_query.get(minigame_entity).is_ok() {
+                        commands.entity(minigame_entity).remove::<Ready>();
+                    }
+                }
+            }
             if minigame.to_rune().is_some()
-                && ready_query.get(minigame_entity).is_ok()
+                && !ready_query.get(minigame_entity).is_ok()
             {
                 commands
                     .entity(minigame_entity)
@@ -439,7 +277,6 @@ pub fn fixed_update(
     )>,
     ready_query: Query<(&Ready, Entity), With<DrawMinigame>>,
 ) {
-    // TODO if minigame is Ready, and enough time has passed, emit rune then set pixels off
     for (ready, entity) in ready_query.iter() {
         if time.elapsed_seconds() - ready.since_time > RUNE_TRIGGER_SECONDS {
             commands.entity(entity).remove::<Ready>();
