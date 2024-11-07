@@ -28,11 +28,11 @@ fn main() {
                 update_camera,
                 player_move,
                 constant_velocity_system,
-                grab_resources,
-                release_resources,
+                grab_items,
+                release_items,
                 engage_button_update,
                 minigames::button::update,
-                minigames::draw::pixel_update,
+                minigames::rune::pixel_update,
                 minigames::tree::update,
                 minigames::ball_breaker::unselected_paddle_update,
                 minigames::primordial_ocean::update,
@@ -44,13 +44,13 @@ fn main() {
         .add_systems(
             FixedUpdate,
             (
-                minigames::draw::fixed_update,
-                minigames::draw::levelup,
+                minigames::rune::fixed_update,
+                minigames::rune::levelup,
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::hit_block_fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,
-                resource::teleport_distant_loose_resources,
-                resource::combine_loose_resources,
+                item::teleport_distant_loose_items,
+                item::combine_loose_items,
             ),
         )
         .insert_resource(mouse::MouseState::new(1.0))
@@ -97,10 +97,10 @@ fn setup_board(
             ..default()
         },
     );
-    entities::minigames::draw::spawn(
+    entities::minigames::rune::spawn(
         &mut commands,
         Transform::from_xyz(-400.0, -300.0, 0.0),
-        entities::minigames::draw::DrawMinigame::new(0),
+        entities::minigames::rune::RuneMinigame::new(0),
     );
     // entities::minigames::tree::spawn(
     //     &mut commands,

@@ -1,8 +1,8 @@
 pub mod minigame;
 pub mod minigames;
 pub mod player;
-pub mod resource;
+pub mod item;
 
 pub use minigame::*;
 pub use player::*;
-pub use resource::*;
+pub use item::*;

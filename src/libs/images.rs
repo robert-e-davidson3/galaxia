@@ -37,7 +37,7 @@ pub mod image_gen {
     use bevy::render::texture::ImageSampler;
     use wyrand::WyRand;
 
-    use crate::resource::rune;
+    use crate::item::rune;
 
     // For images that have already been generated.
     #[derive(Default, Resource)]

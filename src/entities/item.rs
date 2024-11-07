@@ -290,7 +290,7 @@ impl Item {
 pub enum ItemType {
     // clicks, shapes, colors
     // usually inert but in the right context can combine to create a new
-    // resource or effect
+    // item or effect
     Abstract,
     // behave kinda like they do in real life
     Physical,
@@ -300,8 +300,8 @@ pub enum ItemType {
     // electricity, heat, potential and kinetic energy, sunlight, light, sound
     // expended for an effect as soon as possible
     Energy,
-    // special resource acquired when the player beats a minigame
-    // behaves like a physical solid resource
+    // special item acquired when the player beats a minigame
+    // behaves like a physical solid item
     Minigame,
 }
 
@@ -900,7 +900,7 @@ impl PhysicalItemMaterial {
 #[derive(Debug, Clone, Copy, Hash)]
 #[repr(C)]
 pub struct ManaItem {
-    pub kind: ManaResourceKind,
+    pub kind: ManaKind,
     pub subkind: u8,
     pub intent: ManaIntent,
 }
@@ -921,7 +921,7 @@ impl ManaItem {
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
-pub enum ManaResourceKind {
+pub enum ManaKind {
     Fire,
     Water,
     Earth,
@@ -941,7 +941,7 @@ pub enum ManaIntent {
 #[derive(Debug, Clone, Copy, Hash)]
 #[repr(C)]
 pub struct EnergyItem {
-    pub kind: EnergyResourceKind,
+    pub kind: EnergyKind,
 }
 
 impl EnergyItem {
@@ -960,7 +960,7 @@ impl EnergyItem {
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
-pub enum EnergyResourceKind {
+pub enum EnergyKind {
     Kinetic,
     Potential,
     Thermal,
@@ -972,7 +972,7 @@ pub enum EnergyResourceKind {
 #[derive(Debug, Clone, Copy, Hash)]
 #[repr(C)]
 pub struct MinigameItem {
-    pub kind: MinigameResourceKind,
+    pub kind: MinigameItemKind,
     pub variant: u32,
 }
 
@@ -992,7 +992,7 @@ impl MinigameItem {
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
-pub enum MinigameResourceKind {
+pub enum MinigameItemKind {
     Button,
     PrimordialOcean,
     Draw,
@@ -1008,7 +1008,7 @@ pub struct Stuck {
 #[derive(Debug, Default, Copy, Clone, Component)]
 pub struct Sticky;
 
-pub fn teleport_distant_loose_resources(
+pub fn teleport_distant_loose_items(
     mut query: Query<&mut Transform, (With<Item>, Without<Stuck>)>,
 ) {
     for mut transform in query.iter_mut() {
@@ -1018,12 +1018,12 @@ pub fn teleport_distant_loose_resources(
     }
 }
 
-pub fn combine_loose_resources(
+pub fn combine_loose_items(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
 
-    loose_resource_query: Query<(&Item, &Transform, &Velocity), Without<Stuck>>,
+    loose_item_query: Query<(&Item, &Transform, &Velocity), Without<Stuck>>,
     mut collision_events: EventReader<CollisionEvent>,
 ) {
     let mut eliminated: HashSet<Entity> = HashSet::new();
@@ -1035,20 +1035,20 @@ pub fn combine_loose_resources(
                 {
                     continue;
                 }
-                // only loose resources handled
-                let (resource1, transform1, velocity1) =
-                    match loose_resource_query.get(*entity1) {
+                // only loose items handled
+                let (item1, transform1, velocity1) =
+                    match loose_item_query.get(*entity1) {
                         Ok(r) => r,
                         Err(_) => continue,
                     };
-                let (resource2, _, velocity2) =
-                    match loose_resource_query.get(*entity2) {
-                        Ok(r) => r,
-                        Err(_) => continue,
-                    };
+                let (item2, _, velocity2) = match loose_item_query.get(*entity2)
+                {
+                    Ok(r) => r,
+                    Err(_) => continue,
+                };
 
                 // combine if possible
-                let combined = match resource1.combine(&resource2) {
+                let combined = match item1.combine(&item2) {
                     Some(c) => c,
                     None => continue,
                 };
@@ -1074,11 +1074,11 @@ pub fn combine_loose_resources(
     }
 }
 
-pub fn grab_resources(
+pub fn grab_items(
     mut commands: Commands,
     rapier_context: Res<RapierContext>,
     player_query: Query<(Entity, &CircularArea), (With<Player>, With<Sticky>)>,
-    mut loose_resource_query: Query<
+    mut loose_item_query: Query<
         (&CircularArea, &mut Velocity),
         (With<Item>, Without<Stuck>),
     >,
@@ -1104,10 +1104,10 @@ pub fn grab_resources(
                     continue;
                 }
 
-                let Ok(resource) = loose_resource_query.get_mut(other) else {
+                let Ok(item) = loose_item_query.get_mut(other) else {
                     continue;
                 };
-                let (resource_area, mut resource_velocity) = resource;
+                let (item_area, mut item_velocity) = item;
 
                 let Some(contact_pair) =
                     rapier_context.contact_pair(player_entity, other)
@@ -1123,7 +1123,7 @@ pub fn grab_resources(
                     manifold.local_n2()
                 })
                 .normalize();
-                let distance = player_area.radius + resource_area.radius;
+                let distance = player_area.radius + item_area.radius;
 
                 let joint = FixedJointBuilder::new()
                     .local_anchor1(direction * distance);
@@ -1133,20 +1133,20 @@ pub fn grab_resources(
                     .insert(Stuck {
                         player: player_entity,
                     });
-                resource_velocity.linvel = Vec2::ZERO;
-                resource_velocity.angvel = 0.0;
+                item_velocity.linvel = Vec2::ZERO;
+                item_velocity.angvel = 0.0;
             }
             _ => {}
         }
     }
 }
 
-pub fn release_resources(
+pub fn release_items(
     mut commands: Commands,
-    loose_resource_query: Query<(Entity, &Stuck), With<Item>>,
+    loose_item_query: Query<(Entity, &Stuck), With<Item>>,
     player_query: Query<Entity, (With<Player>, Without<Sticky>)>,
 ) {
-    for (stuck_entity, stuck) in loose_resource_query.iter() {
+    for (stuck_entity, stuck) in loose_item_query.iter() {
         let player_entity = stuck.player;
         if !player_query.contains(player_entity) {
             continue;

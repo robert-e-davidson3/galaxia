@@ -4,7 +4,7 @@ use bevy_prototype_lyon::prelude::*;
 use crate::entities::*;
 use crate::libs::*;
 
-pub const NAME: &str = "draw";
+pub const NAME: &str = "rune";
 pub const _DESCRIPTION: &str = "Draw runes!";
 
 const MIN_WIDTH: f32 = 100.0;
@@ -18,16 +18,16 @@ const PIXEL_ON_COLOR: Color = Color::srgb(0.0, 0.0, 0.0);
 const PIXEL_OFF_COLOR: Color = Color::srgb(1.0, 1.0, 1.0);
 
 #[derive(Debug, Clone, Bundle)]
-pub struct DrawMinigameBundle {
-    pub minigame: DrawMinigame,
+pub struct RuneMinigameBundle {
+    pub minigame: RuneMinigame,
     pub area: RectangularArea,
     pub tag: Minigame,
     pub spatial: SpatialBundle,
 }
 
-impl DrawMinigameBundle {
+impl RuneMinigameBundle {
     pub fn new(
-        minigame: DrawMinigame,
+        minigame: RuneMinigame,
         area: RectangularArea,
         transform: Transform,
     ) -> Self {
@@ -44,12 +44,12 @@ impl DrawMinigameBundle {
 }
 
 #[derive(Debug, Clone, Default, Component)]
-pub struct DrawMinigame {
+pub struct RuneMinigame {
     pub level: u8,
     pub pixels: Vec<Vec<bool>>,
 }
 
-impl DrawMinigame {
+impl RuneMinigame {
     pub fn new(level: u8) -> Self {
         if level > 99 {
             panic!("Invalid level: {}", level);
@@ -126,13 +126,13 @@ impl DrawMinigame {
 pub fn spawn(
     commands: &mut Commands,
     transform: Transform,
-    minigame: DrawMinigame,
+    minigame: RuneMinigame,
 ) {
     let area = minigame.area();
     let blocks_per_row = minigame.blocks_per_row();
     let blocks_per_column = minigame.blocks_per_column();
     commands
-        .spawn(DrawMinigameBundle::new(minigame, area, transform))
+        .spawn(RuneMinigameBundle::new(minigame, area, transform))
         .with_children(|parent| {
             let _background = parent.spawn(SpriteBundle {
                 sprite: Sprite {
@@ -224,9 +224,9 @@ pub fn pixel_update(
     time: Res<Time>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     window_query: Query<&Window>,
-    mut draw_minigame_query: Query<&mut DrawMinigame>,
-    leveling_up_query: Query<&LevelingUp, With<DrawMinigame>>,
-    ready_query: Query<&Ready, With<DrawMinigame>>,
+    mut rune_minigame_query: Query<&mut RuneMinigame>,
+    leveling_up_query: Query<&LevelingUp, With<RuneMinigame>>,
+    ready_query: Query<&Ready, With<RuneMinigame>>,
     pixel_query: Query<(&Pixel, Entity, &Parent, &GlobalTransform)>,
     mut fill_query: Query<&mut Fill, With<Pixel>>,
 ) {
@@ -251,7 +251,7 @@ pub fn pixel_update(
             pixel_global_transform.translation().truncate(),
         ) {
             let mut minigame =
-                draw_minigame_query.get_mut(minigame_entity).unwrap();
+                rune_minigame_query.get_mut(minigame_entity).unwrap();
             PixelBundle::toggle(pixel_entity, &mut fill_query);
             minigame.toggle_pixel(pixel.x, pixel.y);
             let is_ready = ready_query.get(minigame_entity).is_ok();
@@ -275,19 +275,19 @@ pub fn pixel_update(
 
 pub fn levelup(
     mut commands: Commands,
-    draw_minigame_query: Query<
-        (&DrawMinigame, Entity, &Transform),
+    rune_minigame_query: Query<
+        (&RuneMinigame, Entity, &Transform),
         With<LevelingUp>,
     >,
 ) {
-    for (minigame, entity, transform) in draw_minigame_query.iter() {
+    for (minigame, entity, transform) in rune_minigame_query.iter() {
         let level = if minigame.level < 99 {
             minigame.level + 1
         } else {
             99
         };
         commands.entity(entity).despawn_recursive();
-        spawn(&mut commands, transform.clone(), DrawMinigame::new(level));
+        spawn(&mut commands, transform.clone(), RuneMinigame::new(level));
     }
 }
 
@@ -298,13 +298,13 @@ pub fn fixed_update(
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     time: Res<Time>,
-    mut draw_minigame_query: Query<(
-        &mut DrawMinigame,
+    mut rune_minigame_query: Query<(
+        &mut RuneMinigame,
         &GlobalTransform,
         &RectangularArea,
     )>,
-    leveling_up_query: Query<&LevelingUp, With<DrawMinigame>>,
-    ready_query: Query<(&Ready, Entity), With<DrawMinigame>>,
+    leveling_up_query: Query<&LevelingUp, With<RuneMinigame>>,
+    ready_query: Query<(&Ready, Entity), With<RuneMinigame>>,
     pixel_query: Query<(Entity, &Parent)>,
     mut fill_query: Query<&mut Fill, With<Pixel>>,
 ) {
@@ -315,7 +315,7 @@ pub fn fixed_update(
         if time.elapsed_seconds() - ready.since_time > RUNE_TRIGGER_SECONDS {
             commands.entity(minigame_entity).remove::<Ready>();
             let (mut minigame, minigame_transform, minigame_area) =
-                draw_minigame_query.get_mut(minigame_entity).unwrap();
+                rune_minigame_query.get_mut(minigame_entity).unwrap();
             match minigame.to_rune() {
                 Some(rune) => {
                     for (pixel_entity, pixel_parent) in pixel_query.iter() {
