@@ -8,6 +8,8 @@ pub struct MouseState {
     pub left_button_press_start: Option<f32>,
     pub start_position: Option<Vec2>,
     pub current_position: Option<Vec2>,
+    pub just_pressed: bool,
+    pub just_released: bool,
 }
 
 impl MouseState {
@@ -17,6 +19,8 @@ impl MouseState {
             left_button_press_start: None,
             start_position: None,
             current_position: None,
+            just_pressed: false,
+            just_released: false,
         }
     }
 
@@ -82,13 +86,20 @@ pub fn update_mouse_state(
     }
 
     if mouse_button_input.just_pressed(MouseButton::Left) {
+        mouse_state.just_pressed = true;
+        mouse_state.just_released = false;
         if let Some(click_position) =
             get_mouse_position(&camera_query, &window_query)
         {
             mouse_state.start_press(time.elapsed_seconds(), click_position);
         }
     } else if mouse_button_input.just_released(MouseButton::Left) {
+        mouse_state.just_released = true;
+        mouse_state.just_pressed = false;
         mouse_state.end_press(time.elapsed_seconds());
+    } else {
+        mouse_state.just_pressed = false;
+        mouse_state.just_released = false;
     }
 }
 

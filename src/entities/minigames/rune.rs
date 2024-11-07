@@ -47,6 +47,7 @@ impl RuneMinigameBundle {
 pub struct RuneMinigame {
     pub level: u8,
     pub pixels: Vec<Vec<bool>>,
+    pub erasing: bool,
 }
 
 impl RuneMinigame {
@@ -57,7 +58,11 @@ impl RuneMinigame {
         let blocks_per_row = Self::_blocks_per_row(level) as usize;
         let blocks_per_column = Self::_blocks_per_column(level) as usize;
         let pixels = vec![vec![false; blocks_per_row]; blocks_per_column];
-        Self { level, pixels }
+        Self {
+            level,
+            pixels,
+            erasing: false,
+        }
     }
 
     pub fn blocks_per_row(&self) -> u8 {
@@ -101,6 +106,28 @@ impl RuneMinigame {
 
     pub fn to_rune(&self) -> Option<rune::Rune> {
         rune::pixels_to_rune(&self.pixels)
+    }
+
+    pub fn set_pixel(&mut self, x: u8, y: u8, value: bool) {
+        let (x, y) = (x as usize, y as usize);
+        if y >= self.pixels.len() {
+            return;
+        }
+        if x >= self.pixels[y].len() {
+            return;
+        }
+        self.pixels[y][x] = value;
+    }
+
+    pub fn get_pixel(&self, x: u8, y: u8) -> bool {
+        let (x, y) = (x as usize, y as usize);
+        if y >= self.pixels.len() {
+            return false;
+        }
+        if x >= self.pixels[y].len() {
+            return false;
+        }
+        self.pixels[y][x]
     }
 
     pub fn toggle_pixel(&mut self, x: u8, y: u8) {
@@ -204,6 +231,12 @@ impl PixelBundle {
         }
     }
 
+    pub fn turn_on(entity: Entity, query: &mut Query<&mut Fill, With<Pixel>>) {
+        if let Ok(mut fill) = query.get_mut(entity) {
+            fill.color = PIXEL_ON_COLOR;
+        }
+    }
+
     pub fn turn_off(entity: Entity, query: &mut Query<&mut Fill, With<Pixel>>) {
         if let Ok(mut fill) = query.get_mut(entity) {
             fill.color = PIXEL_OFF_COLOR;
@@ -220,21 +253,27 @@ pub struct Pixel {
 // Pixel was clicked.
 pub fn pixel_update(
     mut commands: Commands,
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    mouse_state: Res<MouseState>,
     time: Res<Time>,
-    camera_query: Query<(&Camera, &GlobalTransform)>,
-    window_query: Query<&Window>,
     mut rune_minigame_query: Query<&mut RuneMinigame>,
     leveling_up_query: Query<&LevelingUp, With<RuneMinigame>>,
     ready_query: Query<&Ready, With<RuneMinigame>>,
     pixel_query: Query<(&Pixel, Entity, &Parent, &GlobalTransform)>,
     mut fill_query: Query<&mut Fill, With<Pixel>>,
 ) {
-    let click_position = match get_click_release_position(
-        camera_query,
-        window_query,
-        mouse_button_input,
-    ) {
+    // reset erasing state when mouse is released
+    if mouse_state.just_released {
+        for mut minigame in rune_minigame_query.iter_mut() {
+            minigame.erasing = false;
+        }
+        return;
+    }
+    // only draw/erase when mouse is continuously pressed (dragging)
+    if !mouse_state.dragging() {
+        return;
+    }
+
+    let mouse_position = match mouse_state.current_position {
         Some(position) => position,
         None => return,
     };
@@ -247,13 +286,31 @@ pub fn pixel_update(
             continue;
         }
         if PIXEL_AREA.is_within(
-            click_position,
+            mouse_position,
             pixel_global_transform.translation().truncate(),
         ) {
             let mut minigame =
                 rune_minigame_query.get_mut(minigame_entity).unwrap();
-            PixelBundle::toggle(pixel_entity, &mut fill_query);
-            minigame.toggle_pixel(pixel.x, pixel.y);
+            // set erasing state so player can draw/erase multiple pixels
+            if mouse_state.just_pressed {
+                if minigame.get_pixel(pixel.x, pixel.y) {
+                    minigame.erasing = true;
+                } else {
+                    minigame.erasing = false;
+                }
+            } else if mouse_state.just_released {
+                minigame.erasing = false;
+            }
+            // draw/erase pixel
+            if minigame.erasing {
+                PixelBundle::turn_off(pixel_entity, &mut fill_query);
+                minigame.set_pixel(pixel.x, pixel.y, false);
+            } else {
+                PixelBundle::turn_on(pixel_entity, &mut fill_query);
+                minigame.set_pixel(pixel.x, pixel.y, true);
+            }
+            // emit rune or get ready to
+            // TODO visual change when drawing is a valid rune
             let is_ready = ready_query.get(minigame_entity).is_ok();
             match minigame.to_rune() {
                 Some(_) => {
