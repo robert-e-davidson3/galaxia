@@ -34,6 +34,7 @@ pub mod image_gen {
     use bevy::render::render_resource::{
         Extent3d, TextureDimension, TextureFormat,
     };
+    use bevy::render::texture::ImageSampler;
     use wyrand::WyRand;
 
     use crate::resource::rune;
@@ -442,7 +443,7 @@ pub mod image_gen {
         let bits: Vec<Vec<bool>> = rune::rune_to_pixels(&r);
         let height = bits.len();
         let width = bits[0].len();
-        let mut data = Vec::with_capacity((width * height * 4) as usize);
+        let mut data = Vec::with_capacity((width * width * 4) as usize);
         for y in 0..height {
             for x in 0..width {
                 data.extend_from_slice(&[
@@ -453,16 +454,25 @@ pub mod image_gen {
                 ]);
             }
         }
-        Image::new(
+        // add a row of transparent pixels to make the image square
+        // else the image will be stretched
+        if width > height {
+            for _ in 0..width {
+                data.extend_from_slice(&[0, 0, 0, 0]);
+            }
+        }
+        let mut image = Image::new(
             Extent3d {
                 width: width as u32,
-                height: height as u32,
+                height: width as u32,
                 depth_or_array_layers: 1,
             },
             TextureDimension::D2,
             data,
             TextureFormat::Rgba8Unorm,
             RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
-        )
+        );
+        image.sampler = ImageSampler::nearest();
+        image
     }
 }

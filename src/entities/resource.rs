@@ -38,12 +38,12 @@ impl ItemBundle {
         let density = item.density();
         let texture: Handle<Image> =
             match generated_image_assets.get(&item.uid()) {
-                Some(image) => image,
+                Some(texture) => texture,
                 None => {
                     let image = item.draw(&mut WyRand::new(SEED));
-                    let handle = images.add(image.clone());
-                    generated_image_assets.insert(item.uid(), &handle);
-                    handle
+                    let texture = images.add(image.clone());
+                    generated_image_assets.insert(item.uid(), &texture);
+                    texture
                 }
             };
         Self {
