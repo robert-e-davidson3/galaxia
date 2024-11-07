@@ -273,24 +273,6 @@ pub fn pixel_update(
     }
 }
 
-pub fn levelup(
-    mut commands: Commands,
-    rune_minigame_query: Query<
-        (&RuneMinigame, Entity, &Transform),
-        With<LevelingUp>,
-    >,
-) {
-    for (minigame, entity, transform) in rune_minigame_query.iter() {
-        let level = if minigame.level < 99 {
-            minigame.level + 1
-        } else {
-            99
-        };
-        commands.entity(entity).despawn_recursive();
-        spawn(&mut commands, transform.clone(), RuneMinigame::new(level));
-    }
-}
-
 const RUNE_TRIGGER_SECONDS: f32 = 2.0;
 
 pub fn fixed_update(
@@ -347,5 +329,23 @@ pub fn fixed_update(
                 None => {}
             }
         }
+    }
+}
+
+pub fn levelup(
+    mut commands: Commands,
+    rune_minigame_query: Query<
+        (&RuneMinigame, Entity, &Transform),
+        With<LevelingUp>,
+    >,
+) {
+    for (minigame, entity, transform) in rune_minigame_query.iter() {
+        let level = if minigame.level < 99 {
+            minigame.level + 1
+        } else {
+            99
+        };
+        commands.entity(entity).despawn_recursive();
+        spawn(&mut commands, transform.clone(), RuneMinigame::new(level));
     }
 }
