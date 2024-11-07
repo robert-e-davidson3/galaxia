@@ -444,8 +444,6 @@ pub mod image_gen {
         }
     }
 
-    pub const RUNE_SIZE: usize = 50;
-
     pub fn draw_rune(r: rune::Rune) -> Image {
         let bits: Vec<Vec<bool>> = rune::rune_to_pixels(&r);
         let height = bits.len();

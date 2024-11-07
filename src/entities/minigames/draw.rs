@@ -197,6 +197,12 @@ impl PixelBundle {
             };
         }
     }
+
+    pub fn turn_off(entity: Entity, query: &mut Query<&mut Fill, With<Pixel>>) {
+        if let Ok(mut fill) = query.get_mut(entity) {
+            fill.color = PIXEL_OFF_COLOR;
+        }
+    }
 }
 
 #[derive(Debug, Clone, Component)]
@@ -234,9 +240,9 @@ pub fn pixel_update(
             pixel_global_transform.translation().truncate(),
         ) {
             let minigame_entity = pixel_parent.get();
-            PixelBundle::toggle(pixel_entity, &mut fill_query);
             let mut minigame =
                 draw_minigame_query.get_mut(minigame_entity).unwrap();
+            PixelBundle::toggle(pixel_entity, &mut fill_query);
             minigame.toggle_pixel(pixel.x, pixel.y);
             let is_ready = ready_query.get(minigame_entity).is_ok();
             match minigame.to_rune() {
@@ -270,14 +276,21 @@ pub fn fixed_update(
         &RectangularArea,
     )>,
     ready_query: Query<(&Ready, Entity), With<DrawMinigame>>,
+    pixel_query: Query<(Entity, &Parent)>,
+    mut fill_query: Query<&mut Fill, With<Pixel>>,
 ) {
-    for (ready, entity) in ready_query.iter() {
+    for (ready, minigame_entity) in ready_query.iter() {
         if time.elapsed_seconds() - ready.since_time > RUNE_TRIGGER_SECONDS {
-            commands.entity(entity).remove::<Ready>();
+            commands.entity(minigame_entity).remove::<Ready>();
             let (mut minigame, minigame_transform, minigame_area) =
-                draw_minigame_query.get_mut(entity).unwrap();
-            // TODO reset pixel entities too, not just the minigame
+                draw_minigame_query.get_mut(minigame_entity).unwrap();
+            for (pixel_entity, pixel_parent) in pixel_query.iter() {
+                if pixel_parent.get() == minigame_entity {
+                    PixelBundle::turn_off(pixel_entity, &mut fill_query);
+                }
+            }
             minigame.clear();
+
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
