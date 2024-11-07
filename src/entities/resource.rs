@@ -80,7 +80,7 @@ impl ItemBundle {
     ) -> Self {
         let transform = Transform::from_translation(
             minigame_global_transform.translation()
-                + minigame_area.dimensions3() / 1.8,
+                + minigame_area.dimensions3() / 1.5,
         );
         Self::new(
             images,
@@ -395,6 +395,7 @@ impl AbstractItem {
                     Ok(rune::Rune::ExclusiveSelf) => "Exclusive Self",
                     Ok(rune::Rune::Shelter) => "Shelter",
                     Ok(rune::Rune::InclusiveOther) => "Inclusive Other",
+                    Ok(rune::Rune::Force) => "Force",
                     Ok(rune::Rune::ExclusiveOther) => "Exclusive Other",
                     Err(_) => panic!(
                         "Invalid abstract item variant {} for rune",
@@ -439,6 +440,7 @@ impl AbstractItem {
                     Ok(rune::Rune::InclusiveOther) => {
                         adjective = "Inclusive Other"
                     }
+                    Ok(rune::Rune::Force) => adjective = "Force",
                     Ok(rune::Rune::ExclusiveOther) => {
                         adjective = "Exclusive Other"
                     }
@@ -464,6 +466,8 @@ pub mod rune {
     // Each rune is a 2D grid of pixels, where each pixel can be on or off.
     // For a Rune, only connected pixels are considered.
     // Orientation also matters - a rune cannot be rotated or flipped.
+    // NOTE: The order of the variants is important, as it is used to determine
+    //       leveling of the Rune minigame.
     #[repr(u8)]
     #[derive(Debug, PartialEq, Copy, Clone, IntEnum)]
     pub enum Rune {
@@ -482,22 +486,36 @@ pub mod rune {
         // 3x3, missing middle
         // magically, refers to the inclusive other (not-self)
         InclusiveOther = 4,
-        // 4x3 TODO
+        // 4x3
+        // magically, refers to affecting physical matter
+        Force = 5,
         // 4x4, missing middle
         // magically, refers to the EXCLUSIVE other (not-self)
-        ExclusiveOther = 5,
-        // TODO: add more runes - at least 100 in total
-        //       each expansion of space should require a new rune
+        ExclusiveOther = 6,
+        // TODO: add 100 runes in total
+        //       each expansion of space / level up should require a new rune
     }
 
     pub mod pattern {
         pub const INCLUSIVE_SELF: [[bool; 1]; 1] = [[true]];
         pub const CONNECTOR: [[bool; 2]; 1] = [[true, true]];
         pub const EXCLUSIVE_SELF: [[bool; 2]; 2] = [[true, true], [true, true]];
-        pub const SHELTER: [[bool; 3]; 2] =
-            [[true, true, true], [true, false, true]];
-        pub const INCLUSIVE_OTHER: [[bool; 3]; 3] =
-            [[true, true, true], [true, false, true], [true, true, true]];
+        pub const SHELTER: [[bool; 3]; 2] = [
+            //
+            [true, true, true],
+            [true, false, true],
+        ];
+        pub const INCLUSIVE_OTHER: [[bool; 3]; 3] = [
+            //
+            [true, true, true],
+            [true, false, true],
+            [true, true, true],
+        ];
+        pub const FORCE: [[bool; 4]; 3] = [
+            [true, true, false, false],
+            [true, false, true, true],
+            [true, true, true, false],
+        ];
         pub const EXCLUSIVE_OTHER: [[bool; 4]; 4] = [
             [true, true, true, true],
             [true, false, false, true],
@@ -509,7 +527,15 @@ pub mod rune {
     fn pattern_to_pixels<const W: usize, const H: usize>(
         pattern: &[[bool; W]; H],
     ) -> Vec<Vec<bool>> {
-        pattern.iter().map(|row| row.to_vec()).collect()
+        let mut pixels: Vec<Vec<bool>> = Vec::with_capacity(H);
+        for col in pattern.iter() {
+            let mut row: Vec<bool> = Vec::with_capacity(W);
+            for &pixel in col.iter() {
+                row.push(pixel);
+            }
+            pixels.push(row);
+        }
+        pixels
     }
 
     pub fn rune_to_pixels(rune: &Rune) -> Vec<Vec<bool>> {
@@ -521,14 +547,15 @@ pub mod rune {
             Rune::InclusiveOther => {
                 pattern_to_pixels(&pattern::INCLUSIVE_OTHER)
             }
+            Rune::Force => pattern_to_pixels(&pattern::FORCE),
             Rune::ExclusiveOther => {
                 pattern_to_pixels(&pattern::EXCLUSIVE_OTHER)
             }
         }
     }
 
-    pub fn pixels_to_rune(pixels: Vec<Vec<bool>>) -> Option<Rune> {
-        let pixels = strip_empty_rows(strip_empty_columns(pixels));
+    pub fn pixels_to_rune(pixels: &Vec<Vec<bool>>) -> Option<Rune> {
+        let pixels = strip_empty_rows(&strip_empty_columns(pixels));
         if pixels.is_empty() {
             return None;
         }
@@ -554,18 +581,20 @@ pub mod rune {
             return (pattern_to_pixels(&pattern::INCLUSIVE_OTHER) == pixels)
                 .then_some(Rune::InclusiveOther);
         }
-        // TODO 4x3
+        if width == 4 && height == 3 {
+            return (pattern_to_pixels(&pattern::FORCE) == pixels)
+                .then_some(Rune::Force);
+        }
         if width == 4 && height == 4 {
             return (pattern_to_pixels(&pattern::EXCLUSIVE_OTHER) == pixels)
                 .then_some(Rune::ExclusiveOther);
         }
-
         None
     }
 
-    pub fn strip_empty_rows(pixels: Vec<Vec<bool>>) -> Vec<Vec<bool>> {
+    pub fn strip_empty_rows(pixels: &Vec<Vec<bool>>) -> Vec<Vec<bool>> {
         if pixels.is_empty() {
-            return pixels;
+            return pixels.clone();
         }
 
         let mut first_row = 0;
@@ -584,9 +613,9 @@ pub mod rune {
         pixels[first_row..last_row].to_vec()
     }
 
-    pub fn strip_empty_columns(pixels: Vec<Vec<bool>>) -> Vec<Vec<bool>> {
+    pub fn strip_empty_columns(pixels: &Vec<Vec<bool>>) -> Vec<Vec<bool>> {
         if pixels.is_empty() || pixels[0].is_empty() {
-            return pixels;
+            return pixels.clone();
         }
 
         let width = pixels[0].len();
@@ -595,7 +624,7 @@ pub mod rune {
 
         // Find first non-empty column
         'outer: while first_col < last_col {
-            for row in &pixels {
+            for row in pixels {
                 if row[first_col] {
                     break 'outer;
                 }
@@ -605,7 +634,7 @@ pub mod rune {
 
         // Find last non-empty column
         'outer: while last_col > first_col {
-            for row in &pixels {
+            for row in pixels {
                 if row[last_col - 1] {
                     break 'outer;
                 }
@@ -632,7 +661,7 @@ pub mod rune {
                 vec![false, false],
             ];
             let expected = vec![vec![false, true], vec![true, false]];
-            assert_eq!(strip_empty_rows(input), expected);
+            assert_eq!(strip_empty_rows(&input), expected);
         }
 
         #[test]
@@ -642,14 +671,14 @@ pub mod rune {
                 vec![false, true, false, false],
             ];
             let expected = vec![vec![false, true], vec![true, false]];
-            assert_eq!(strip_empty_columns(input), expected);
+            assert_eq!(strip_empty_columns(&input), expected);
         }
 
         #[test]
         fn test_empty_input() {
             let empty: Vec<Vec<bool>> = vec![];
-            assert_eq!(strip_empty_rows(empty.clone()), empty.clone());
-            assert_eq!(strip_empty_columns(empty.clone()), empty);
+            assert_eq!(strip_empty_rows(&empty), empty.clone());
+            assert_eq!(strip_empty_columns(&empty), empty);
         }
     }
 }

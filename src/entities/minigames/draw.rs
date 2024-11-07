@@ -7,7 +7,15 @@ use crate::libs::*;
 pub const NAME: &str = "draw";
 pub const _DESCRIPTION: &str = "Draw runes!";
 
-pub const BLOCK_SIZE: f32 = 20.0;
+const MIN_WIDTH: f32 = 100.0;
+const MIN_HEIGHT: f32 = 100.0;
+const PIXEL_SIZE: f32 = 25.0;
+const PIXEL_AREA: RectangularArea = RectangularArea {
+    width: PIXEL_SIZE,
+    height: PIXEL_SIZE,
+};
+const PIXEL_ON_COLOR: Color = Color::srgb(0.0, 0.0, 0.0);
+const PIXEL_OFF_COLOR: Color = Color::srgb(1.0, 1.0, 1.0);
 
 #[derive(Debug, Clone, Bundle)]
 pub struct DrawMinigameBundle {
@@ -80,31 +88,30 @@ impl DrawMinigame {
         1 + level / 2
     }
 
-    const MIN_WIDTH: f32 = 100.0;
-    const MIN_HEIGHT: f32 = 100.0;
-
     pub fn area(&self) -> RectangularArea {
+        const BUFFER: f32 = 20.0;
+        let blocks_per_row = self.blocks_per_row();
+        let blocks_per_column = self.blocks_per_column();
         RectangularArea {
-            width: Self::MIN_WIDTH
-                .max(BLOCK_SIZE * self.blocks_per_row() as f32),
-            height: Self::MIN_HEIGHT
-                .max(BLOCK_SIZE * self.blocks_per_column() as f32),
+            width: BUFFER + MIN_WIDTH.max(PIXEL_SIZE * blocks_per_row as f32),
+            height: BUFFER
+                + MIN_HEIGHT.max(PIXEL_SIZE * blocks_per_column as f32),
         }
     }
 
     pub fn to_rune(&self) -> Option<rune::Rune> {
-        rune::pixels_to_rune(self.pixels.clone())
+        rune::pixels_to_rune(&self.pixels)
     }
 
     pub fn toggle_pixel(&mut self, x: u8, y: u8) {
-        if x as usize >= self.pixels.len() {
+        let (x, y) = (x as usize, y as usize);
+        if y >= self.pixels.len() {
             return;
         }
-        if y as usize >= self.pixels[x as usize].len() {
+        if x >= self.pixels[y].len() {
             return;
         }
-        self.pixels[x as usize][y as usize] =
-            !self.pixels[x as usize][y as usize];
+        self.pixels[y][x] = !self.pixels[y][x];
     }
 
     pub fn clear(&mut self) {
@@ -119,9 +126,8 @@ impl DrawMinigame {
 pub fn spawn(
     commands: &mut Commands,
     transform: Transform,
-    frozen: &DrawMinigame,
+    minigame: DrawMinigame,
 ) {
-    let minigame = frozen.clone();
     let area = minigame.area();
     let blocks_per_row = minigame.blocks_per_row();
     let blocks_per_column = minigame.blocks_per_column();
@@ -142,19 +148,16 @@ pub fn spawn(
 
             for y in 0..blocks_per_column {
                 for x in 0..blocks_per_row {
-                    parent.spawn(PixelBundle::new(x, y));
+                    parent.spawn(PixelBundle::new(
+                        x,
+                        y,
+                        blocks_per_row,
+                        blocks_per_column,
+                    ));
                 }
             }
         });
 }
-
-const PIXEL_SIZE: f32 = 25.0;
-const PIXEL_AREA: RectangularArea = RectangularArea {
-    width: PIXEL_SIZE,
-    height: PIXEL_SIZE,
-};
-const PIXEL_ON_COLOR: Color = Color::srgb(1.0, 1.0, 1.0);
-const PIXEL_OFF_COLOR: Color = Color::srgb(1.0, 0.0, 0.0);
 
 #[derive(Bundle)]
 pub struct PixelBundle {
@@ -165,7 +168,10 @@ pub struct PixelBundle {
 }
 
 impl PixelBundle {
-    pub fn new(x: u8, y: u8) -> Self {
+    pub fn new(x: u8, y: u8, cols: u8, rows: u8) -> Self {
+        let t_y = rows - y; // top to bottom
+        let dx = -PIXEL_SIZE * ((cols - 1) as f32 / 2.0);
+        let dy = -PIXEL_SIZE * ((rows + 1) as f32 / 2.0);
         Self {
             pixel: Pixel { x, y },
             toggleable: Toggleable::new(),
@@ -176,8 +182,8 @@ impl PixelBundle {
                 }),
                 spatial: SpatialBundle {
                     transform: Transform::from_xyz(
-                        PIXEL_SIZE * (x as f32),
-                        PIXEL_SIZE * (y as f32),
+                        x as f32 * PIXEL_SIZE + dx,
+                        t_y as f32 * PIXEL_SIZE + dy,
                         0.0,
                     ),
                     ..default()
@@ -275,12 +281,13 @@ pub fn levelup(
     >,
 ) {
     for (minigame, entity, transform) in draw_minigame_query.iter() {
-        let mut frozen = minigame.clone();
-        if frozen.level < 99 {
-            frozen.level += 1;
-        }
+        let level = if minigame.level < 99 {
+            minigame.level + 1
+        } else {
+            99
+        };
         commands.entity(entity).despawn_recursive();
-        spawn(&mut commands, transform.clone(), &frozen);
+        spawn(&mut commands, transform.clone(), DrawMinigame::new(level));
     }
 }
 

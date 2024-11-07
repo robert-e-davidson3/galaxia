@@ -423,12 +423,6 @@ pub mod image_gen {
         }
 
         pub fn to_image(&self) -> Image {
-            // let data = colors
-            // .iter()
-            // .flat_map(|color| {
-            // vec![color.red, color.green, color.blue, color.alpha]
-            // })
-            // .collect::<Vec<u8>>();
             Image::new(
                 Extent3d {
                     width: self.width,
@@ -449,7 +443,6 @@ pub mod image_gen {
         let height = bits.len();
         let width = bits[0].len();
         let mut data = Vec::with_capacity((width * height * 4) as usize);
-
         for y in 0..height {
             for x in 0..width {
                 data.extend_from_slice(&[
@@ -460,7 +453,6 @@ pub mod image_gen {
                 ]);
             }
         }
-
         Image::new(
             Extent3d {
                 width: width as u32,

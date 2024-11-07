@@ -100,7 +100,7 @@ fn setup_board(
     entities::minigames::draw::spawn(
         &mut commands,
         Transform::from_xyz(-400.0, -300.0, 0.0),
-        &entities::minigames::draw::DrawMinigame::new(0),
+        entities::minigames::draw::DrawMinigame::new(5),
     );
     // entities::minigames::tree::spawn(
     //     &mut commands,
