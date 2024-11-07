@@ -238,26 +238,20 @@ pub fn pixel_update(
             let mut minigame =
                 draw_minigame_query.get_mut(minigame_entity).unwrap();
             minigame.toggle_pixel(pixel.x, pixel.y);
+            let is_ready = ready_query.get(minigame_entity).is_ok();
             match minigame.to_rune() {
                 Some(_) => {
-                    if !ready_query.get(minigame_entity).is_ok() {
+                    if !is_ready {
                         commands
                             .entity(minigame_entity)
                             .insert(Ready::new(time.elapsed_seconds()));
                     }
                 }
                 None => {
-                    if ready_query.get(minigame_entity).is_ok() {
+                    if is_ready {
                         commands.entity(minigame_entity).remove::<Ready>();
                     }
                 }
-            }
-            if minigame.to_rune().is_some()
-                && !ready_query.get(minigame_entity).is_ok()
-            {
-                commands
-                    .entity(minigame_entity)
-                    .insert(Ready::new(time.elapsed_seconds()));
             }
         }
     }
@@ -282,6 +276,7 @@ pub fn fixed_update(
             commands.entity(entity).remove::<Ready>();
             let (mut minigame, minigame_transform, minigame_area) =
                 draw_minigame_query.get_mut(entity).unwrap();
+            // TODO reset pixel entities too, not just the minigame
             minigame.clear();
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,

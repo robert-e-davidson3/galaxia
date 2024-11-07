@@ -363,8 +363,19 @@ impl AbstractItem {
     }
 
     pub fn draw(&self, _rand: &mut WyRand) -> Image {
-        let path = "assets/abstract/".to_string() + self.object() + ".png";
-        load_image(&path)
+        match self.kind {
+            AbstractItemKind::Click => {
+                let path = format!("assets/abstract/{}.png", self.object());
+                load_image(&path)
+            }
+            AbstractItemKind::Rune => {
+                match rune::Rune::try_from(self.variant) {
+                    Ok(rune) => image_gen::draw_rune(rune),
+                    Err(_) => panic!("Invalid rune variant {}", self.variant),
+                }
+            }
+            _ => panic!("Invalid abstract item kind {:?}", self.kind),
+        }
     }
 
     pub fn object(&self) -> &str {
