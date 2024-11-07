@@ -130,17 +130,6 @@ impl RuneMinigame {
         self.pixels[y][x]
     }
 
-    pub fn toggle_pixel(&mut self, x: u8, y: u8) {
-        let (x, y) = (x as usize, y as usize);
-        if y >= self.pixels.len() {
-            return;
-        }
-        if x >= self.pixels[y].len() {
-            return;
-        }
-        self.pixels[y][x] = !self.pixels[y][x];
-    }
-
     pub fn clear(&mut self) {
         for row in self.pixels.iter_mut() {
             for pixel in row.iter_mut() {
@@ -218,16 +207,6 @@ impl PixelBundle {
                 ..default()
             },
             fill: Fill::color(PIXEL_OFF_COLOR),
-        }
-    }
-
-    pub fn toggle(entity: Entity, query: &mut Query<&mut Fill, With<Pixel>>) {
-        if let Ok(mut fill) = query.get_mut(entity) {
-            fill.color = match fill.color {
-                PIXEL_ON_COLOR => PIXEL_OFF_COLOR,
-                PIXEL_OFF_COLOR => PIXEL_ON_COLOR,
-                _ => panic!("Invalid color"),
-            };
         }
     }
 
