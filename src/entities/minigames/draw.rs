@@ -65,7 +65,11 @@ impl DrawMinigame {
     // 1 -> 1
     // 2 -> 2
     fn _blocks_per_row(level: u8) -> u8 {
-        1 + level / 2
+        if level % 2 == 0 {
+            1 + level / 2
+        } else {
+            2 + level / 2
+        }
     }
 
     // level -> blocks_per_column
@@ -73,11 +77,7 @@ impl DrawMinigame {
     // 1 -> 2
     // 2 -> 2
     fn _blocks_per_column(level: u8) -> u8 {
-        if level % 2 == 0 {
-            1 + level / 2
-        } else {
-            2 + level / 2
-        }
+        1 + level / 2
     }
 
     const MIN_WIDTH: f32 = 100.0;
@@ -130,7 +130,7 @@ pub fn spawn(
         .with_children(|parent| {
             let _background = parent.spawn(SpriteBundle {
                 sprite: Sprite {
-                    color: Color::WHITE,
+                    color: Color::srgb(0.5, 0.5, 0.5),
                     custom_size: Some(area.into()),
                     ..default()
                 },
@@ -219,6 +219,7 @@ pub fn pixel_update(
     camera_query: Query<(&Camera, &GlobalTransform)>,
     window_query: Query<&Window>,
     mut draw_minigame_query: Query<&mut DrawMinigame>,
+    leveling_up_query: Query<&LevelingUp, With<DrawMinigame>>,
     ready_query: Query<&Ready, With<DrawMinigame>>,
     pixel_query: Query<(&Pixel, Entity, &Parent, &GlobalTransform)>,
     mut fill_query: Query<&mut Fill, With<Pixel>>,
@@ -235,11 +236,14 @@ pub fn pixel_update(
     for (pixel, pixel_entity, pixel_parent, pixel_global_transform) in
         pixel_query.iter()
     {
+        let minigame_entity = pixel_parent.get();
+        if leveling_up_query.get(minigame_entity).is_ok() {
+            continue;
+        }
         if PIXEL_AREA.is_within(
             click_position,
             pixel_global_transform.translation().truncate(),
         ) {
-            let minigame_entity = pixel_parent.get();
             let mut minigame =
                 draw_minigame_query.get_mut(minigame_entity).unwrap();
             PixelBundle::toggle(pixel_entity, &mut fill_query);
@@ -263,6 +267,23 @@ pub fn pixel_update(
     }
 }
 
+pub fn levelup(
+    mut commands: Commands,
+    draw_minigame_query: Query<
+        (&DrawMinigame, Entity, &Transform),
+        With<LevelingUp>,
+    >,
+) {
+    for (minigame, entity, transform) in draw_minigame_query.iter() {
+        let mut frozen = minigame.clone();
+        if frozen.level < 99 {
+            frozen.level += 1;
+        }
+        commands.entity(entity).despawn_recursive();
+        spawn(&mut commands, transform.clone(), &frozen);
+    }
+}
+
 const RUNE_TRIGGER_SECONDS: f32 = 2.0;
 
 pub fn fixed_update(
@@ -275,29 +296,49 @@ pub fn fixed_update(
         &GlobalTransform,
         &RectangularArea,
     )>,
+    leveling_up_query: Query<&LevelingUp, With<DrawMinigame>>,
     ready_query: Query<(&Ready, Entity), With<DrawMinigame>>,
     pixel_query: Query<(Entity, &Parent)>,
     mut fill_query: Query<&mut Fill, With<Pixel>>,
 ) {
     for (ready, minigame_entity) in ready_query.iter() {
+        if leveling_up_query.get(minigame_entity).is_ok() {
+            continue;
+        }
         if time.elapsed_seconds() - ready.since_time > RUNE_TRIGGER_SECONDS {
             commands.entity(minigame_entity).remove::<Ready>();
             let (mut minigame, minigame_transform, minigame_area) =
                 draw_minigame_query.get_mut(minigame_entity).unwrap();
-            for (pixel_entity, pixel_parent) in pixel_query.iter() {
-                if pixel_parent.get() == minigame_entity {
-                    PixelBundle::turn_off(pixel_entity, &mut fill_query);
+            match minigame.to_rune() {
+                Some(rune) => {
+                    for (pixel_entity, pixel_parent) in pixel_query.iter() {
+                        if pixel_parent.get() == minigame_entity {
+                            PixelBundle::turn_off(
+                                pixel_entity,
+                                &mut fill_query,
+                            );
+                        }
+                    }
+                    minigame.clear();
+                    commands.spawn(ItemBundle::new_from_minigame(
+                        &mut images,
+                        &mut generated_image_assets,
+                        Item::new_abstract(
+                            AbstractItemKind::Rune,
+                            rune as u8,
+                            1.0,
+                        ),
+                        minigame_transform,
+                        minigame_area,
+                    ));
+                    if rune as u8 == minigame.level {
+                        commands.entity(minigame_entity).insert(LevelingUp {
+                            minigame: minigame_entity,
+                        });
+                    }
                 }
+                None => {}
             }
-            minigame.clear();
-
-            commands.spawn(ItemBundle::new_from_minigame(
-                &mut images,
-                &mut generated_image_assets,
-                Item::new_abstract(AbstractItemKind::Rune, 0, 1.0),
-                minigame_transform,
-                minigame_area,
-            ));
         }
     }
 }

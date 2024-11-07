@@ -465,7 +465,7 @@ pub mod rune {
     // For a Rune, only connected pixels are considered.
     // Orientation also matters - a rune cannot be rotated or flipped.
     #[repr(u8)]
-    #[derive(Debug, PartialEq, IntEnum)]
+    #[derive(Debug, PartialEq, Copy, Clone, IntEnum)]
     pub enum Rune {
         // 1x1 pixels
         // magically, refers to the inclusive self

@@ -45,6 +45,7 @@ fn main() {
             FixedUpdate,
             (
                 minigames::draw::fixed_update,
+                minigames::draw::levelup,
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::hit_block_fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,
