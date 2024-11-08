@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
 use crate::entities::*;
+use crate::item::rune::*;
 use crate::libs::*;
 
 pub const NAME: &str = "rune";
@@ -104,8 +105,21 @@ impl RuneMinigame {
         }
     }
 
-    pub fn to_rune(&self) -> Option<rune::Rune> {
-        rune::pixels_to_rune(&self.pixels)
+    pub fn to_rune(&self) -> Option<Rune> {
+        pixels_to_rune(&self.pixels)
+    }
+
+    // Level unlocked by drawing rune.
+    pub fn rune_level(rune: &Rune) -> u8 {
+        match rune {
+            Rune::InclusiveSelf => 1,
+            Rune::Connector => 2,
+            Rune::ExclusiveSelf => 3,
+            Rune::Shelter => 4,
+            Rune::InclusiveOther => 5,
+            Rune::Force => 6,
+            Rune::ExclusiveOther => 7,
+        }
     }
 
     pub fn set_pixel(&mut self, x: u8, y: u8, value: bool) {
@@ -357,7 +371,7 @@ pub fn fixed_update(
                         minigame_transform,
                         minigame_area,
                     ));
-                    if rune as u8 == minigame.level {
+                    if RuneMinigame::rune_level(&rune) > minigame.level {
                         commands.entity(minigame_entity).insert(LevelingUp {
                             minigame: minigame_entity,
                         });

@@ -614,7 +614,11 @@ pub fn ingest_resource_fixed_update(
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut collision_events: EventReader<CollisionEvent>,
-    minigame_query: Query<(&BallBreakerMinigame, &Transform)>,
+    minigame_query: Query<(
+        &BallBreakerMinigame,
+        &GlobalTransform,
+        &RectangularArea,
+    )>,
     aura_query: Query<&MinigameAura>,
     item_query: Query<(&Item, &Transform)>,
 ) {
@@ -657,7 +661,7 @@ pub fn ingest_resource_fixed_update(
             Err(_) => continue,
         };
         // only applies to ball breaker minigame
-        let (minigame, minigame_transform) =
+        let (minigame, minigame_transform, minigame_area) =
             match minigame_query.get(aura.minigame) {
                 Ok(x) => x,
                 Err(_) => continue,
@@ -672,14 +676,14 @@ pub fn ingest_resource_fixed_update(
             let mut new_item = item.clone();
             new_item.amount = amount;
             let velocity = (item_transform.translation
-                - minigame_transform.translation)
-                .truncate();
-            commands.spawn(ItemBundle::new(
+                - minigame_transform.translation())
+            .truncate();
+            commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
                 new_item,
-                *item_transform,
-                Velocity::linear(velocity.normalize() * 70.0),
+                minigame_transform,
+                minigame_area,
             ));
         }
 

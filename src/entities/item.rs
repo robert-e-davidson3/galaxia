@@ -466,8 +466,6 @@ pub mod rune {
     // Each rune is a 2D grid of pixels, where each pixel can be on or off.
     // For a Rune, only connected pixels are considered.
     // Orientation also matters - a rune cannot be rotated or flipped.
-    // NOTE: The order of the variants is important, as it is used to determine
-    //       leveling of the Rune minigame.
     #[repr(u8)]
     #[derive(Debug, PartialEq, Copy, Clone, IntEnum)]
     pub enum Rune {
@@ -492,8 +490,7 @@ pub mod rune {
         // 4x4, missing middle
         // magically, refers to the EXCLUSIVE other (not-self)
         ExclusiveOther = 6,
-        // TODO: add 100 runes in total
-        //       each expansion of space / level up should require a new rune
+        // TODO: add runes until there are at least 100
     }
 
     pub mod pattern {
@@ -554,6 +551,7 @@ pub mod rune {
         }
     }
 
+    // Given a 2D grid of pixels, return the corresponding rune, if any.
     pub fn pixels_to_rune(pixels: &Vec<Vec<bool>>) -> Option<Rune> {
         let pixels = strip_empty_rows(&strip_empty_columns(pixels));
         if pixels.is_empty() {
@@ -789,7 +787,7 @@ impl PhysicalItem {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
 pub enum PhysicalItemForm {
     Gas,

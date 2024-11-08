@@ -2,7 +2,6 @@ mod entities;
 mod libs;
 
 use bevy::app::AppExit;
-use bevy::asset::LoadedFolder;
 use bevy::prelude::*;
 use bevy_framepace::{FramepacePlugin, FramepaceSettings};
 use bevy_prototype_lyon::prelude::*;
@@ -45,8 +44,10 @@ fn main() {
             FixedUpdate,
             (
                 minigames::button::levelup,
-                minigames::rune::fixed_update,
                 minigames::rune::levelup,
+                minigames::primordial_ocean::levelup,
+                minigames::primordial_ocean::ingest_resource_fixed_update,
+                minigames::rune::fixed_update,
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::hit_block_fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,
@@ -94,9 +95,9 @@ fn setup_board(
     entities::minigames::primordial_ocean::spawn(
         &mut commands,
         Transform::from_xyz(400.0, -300.0, 0.0),
-        &entities::minigames::primordial_ocean::PrimordialOceanMinigame {
-            ..default()
-        },
+        entities::minigames::primordial_ocean::PrimordialOceanMinigame::new(
+            0.0,
+        ),
     );
     entities::minigames::rune::spawn(
         &mut commands,

@@ -40,8 +40,20 @@ pub struct ButtonMinigame {
 }
 
 impl ButtonMinigame {
-    pub fn required_clicks(level: u8) -> u64 {
-        1u64 << level // 2^level
+    pub fn level_by_clicks(clicks: u64) -> u8 {
+        if clicks == 0 {
+            0
+        } else {
+            (((clicks as f32).log2() + 1.0) as u8).min(99)
+        }
+    }
+
+    pub fn should_level_up(&self) -> bool {
+        if self.count == 0 {
+            false
+        } else {
+            Self::level_by_clicks(self.count) > self.level
+        }
     }
 }
 
@@ -163,9 +175,7 @@ pub fn update(
             text.sections[0].value = format!("Clicks: {}", minigame.count);
 
             // Check for level up condition
-            let required_clicks =
-                ButtonMinigame::required_clicks(minigame.level);
-            if minigame.count >= required_clicks && minigame.level < 99 {
+            if minigame.should_level_up() {
                 commands.entity(button.game).insert(LevelingUp {
                     minigame: button.game,
                 });
