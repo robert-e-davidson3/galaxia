@@ -44,6 +44,7 @@ fn main() {
         .add_systems(
             FixedUpdate,
             (
+                minigames::button::levelup,
                 minigames::rune::fixed_update,
                 minigames::rune::levelup,
                 minigames::tree::fixed_update,

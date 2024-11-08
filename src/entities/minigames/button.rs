@@ -36,6 +36,13 @@ impl ButtonMinigameBundle {
 #[derive(Debug, Default, Clone, Component)]
 pub struct ButtonMinigame {
     pub count: u64,
+    pub level: u8,
+}
+
+impl ButtonMinigame {
+    pub fn required_clicks(level: u8) -> u64 {
+        1u64 << level // 2^level
+    }
 }
 
 pub fn spawn(
@@ -128,6 +135,7 @@ pub fn update(
         &RectangularArea,
     )>,
     mut text_query: Query<&mut Text>,
+    leveling_up_query: Query<&LevelingUp>,
 ) {
     let click_position = match get_click_release_position(
         camera_query,
@@ -143,11 +151,25 @@ pub fn update(
             click_position,
             global_transform.translation().truncate(),
         ) {
+            // Skip if already leveling up
+            if leveling_up_query.get(button.game).is_ok() {
+                continue;
+            }
+
             let (mut minigame, minigame_transform, minigame_area) =
                 button_minigames_query.get_mut(button.game).unwrap();
             minigame.count += 1;
             let mut text = text_query.get_mut(button.text).unwrap();
             text.sections[0].value = format!("Clicks: {}", minigame.count);
+
+            // Check for level up condition
+            let required_clicks =
+                ButtonMinigame::required_clicks(minigame.level);
+            if minigame.count >= required_clicks && minigame.level < 99 {
+                commands.entity(button.game).insert(LevelingUp {
+                    minigame: button.game,
+                });
+            }
 
             let click_type = mouse_state.get_click_type(time.elapsed_seconds());
             let variant = match click_type {
@@ -166,5 +188,20 @@ pub fn update(
                 minigame_area,
             ));
         }
+    }
+}
+
+pub fn levelup(
+    mut commands: Commands,
+    mut button_minigame_query: Query<
+        (&mut ButtonMinigame, Entity),
+        With<LevelingUp>,
+    >,
+) {
+    for (mut minigame, entity) in button_minigame_query.iter_mut() {
+        if minigame.level < 99 {
+            minigame.level += 1;
+        }
+        commands.entity(entity).remove::<LevelingUp>();
     }
 }
