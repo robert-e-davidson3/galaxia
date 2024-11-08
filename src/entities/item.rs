@@ -1034,16 +1034,13 @@ pub fn combine_loose_items(
                     continue;
                 }
                 // only loose items handled
-                let (item1, transform1, velocity1) =
-                    match loose_item_query.get(*entity1) {
+                let items =
+                    match loose_item_query.get_many([*entity1, *entity2]) {
                         Ok(r) => r,
                         Err(_) => continue,
                     };
-                let (item2, _, velocity2) = match loose_item_query.get(*entity2)
-                {
-                    Ok(r) => r,
-                    Err(_) => continue,
-                };
+                let (item1, transform1, velocity1) = items[0];
+                let (item2, transform2, velocity2) = items[1];
 
                 // combine if possible
                 let combined = match item1.combine(&item2) {
@@ -1051,39 +1048,27 @@ pub fn combine_loose_items(
                     None => continue,
                 };
 
+                // prefer the transform of the stuck item, if any
+                let transform = match stuck_query.get(*entity1) {
+                    Ok(_) => transform1,
+                    Err(_) => transform2,
+                };
+
                 // despawn both and add a new one
                 commands.entity(*entity1).despawn();
                 commands.entity(*entity2).despawn();
                 eliminated.insert(*entity1);
                 eliminated.insert(*entity2);
-                let new_entity = commands
-                    .spawn(ItemBundle::new(
-                        &mut images,
-                        &mut generated_image_assets,
-                        combined,
-                        *transform1,
-                        Velocity {
-                            linvel: velocity1.linvel + velocity2.linvel,
-                            angvel: velocity1.angvel + velocity2.angvel,
-                        },
-                    ))
-                    .id();
-
-                let stuck = match stuck_query.get(*entity1) {
-                    Ok(stuck) => Some(stuck),
-                    Err(_) => match stuck_query.get(*entity2) {
-                        Ok(stuck) => Some(stuck),
-                        Err(_) => None,
+                commands.spawn(ItemBundle::new(
+                    &mut images,
+                    &mut generated_image_assets,
+                    combined,
+                    *transform,
+                    Velocity {
+                        linvel: velocity1.linvel + velocity2.linvel,
+                        angvel: velocity1.angvel + velocity2.angvel,
                     },
-                };
-                match stuck {
-                    Some(stuck) => {
-                        commands.entity(new_entity).insert(Stuck {
-                            player: stuck.player,
-                        });
-                    }
-                    None => {}
-                }
+                ));
             }
             _ => {}
         }
@@ -1139,22 +1124,42 @@ pub fn grab_items(
                     manifold.local_n2()
                 })
                 .normalize();
-                let distance = player_area.radius + item_area.radius;
 
-                let joint = FixedJointBuilder::new()
-                    .local_anchor1(direction * distance);
-                commands
-                    .entity(other)
-                    .insert(ImpulseJoint::new(player_entity, joint))
-                    .insert(Stuck {
-                        player: player_entity,
-                    });
-                item_velocity.linvel = Vec2::ZERO;
-                item_velocity.angvel = 0.0;
+                stick(
+                    &mut commands,
+                    player_entity,
+                    *player_area,
+                    other,
+                    *item_area,
+                    &mut item_velocity,
+                    direction,
+                );
             }
             _ => {}
         }
     }
+}
+
+pub fn stick(
+    commands: &mut Commands,
+    player_entity: Entity,
+    player_area: CircularArea,
+    item_entity: Entity,
+    item_area: CircularArea,
+    item_velocity: &mut Velocity,
+    direction: Vect,
+) {
+    let distance = player_area.radius + item_area.radius;
+
+    let joint = FixedJointBuilder::new().local_anchor1(direction * distance);
+    commands
+        .entity(item_entity)
+        .insert(ImpulseJoint::new(player_entity, joint))
+        .insert(Stuck {
+            player: player_entity,
+        });
+    item_velocity.linvel = Vec2::ZERO;
+    item_velocity.angvel = 0.0;
 }
 
 pub fn release_items(
