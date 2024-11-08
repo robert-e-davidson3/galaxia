@@ -614,13 +614,9 @@ pub fn ingest_resource_fixed_update(
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut collision_events: EventReader<CollisionEvent>,
-    minigame_query: Query<(
-        &BallBreakerMinigame,
-        &GlobalTransform,
-        &RectangularArea,
-    )>,
+    minigame_query: Query<&BallBreakerMinigame>,
     aura_query: Query<&MinigameAura>,
-    item_query: Query<(&Item, &Transform)>,
+    mut item_query: Query<(&mut Item)>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
@@ -631,14 +627,14 @@ pub fn ingest_resource_fixed_update(
         };
 
         // only care about collisions of resources
-        let (item_entity, aura_entity, item, item_transform) =
-            match item_query.get(*a) {
-                Ok(x) => (a, b, x.0, x.1),
-                Err(_) => match item_query.get(*b) {
-                    Ok(x) => (b, a, x.0, x.1),
-                    Err(_) => continue,
-                },
-            };
+        let (item_entity, aura_entity, mut item) = match item_query.get_mut(*a)
+        {
+            Ok(item) => (a, b, item),
+            Err(_) => match item_query.get_mut(*b) {
+                Ok(item) => (b, a, item),
+                Err(_) => continue,
+            },
+        };
 
         // already handled
         if ingested.contains(&item_entity) {
@@ -646,7 +642,7 @@ pub fn ingest_resource_fixed_update(
         }
 
         // only certain resources can be ingested
-        if !BallBreakerMinigame::item_is_valid(item) {
+        if !BallBreakerMinigame::item_is_valid(&item) {
             continue;
         }
 
@@ -661,30 +657,24 @@ pub fn ingest_resource_fixed_update(
             Err(_) => continue,
         };
         // only applies to ball breaker minigame
-        let (minigame, minigame_transform, minigame_area) =
-            match minigame_query.get(aura.minigame) {
-                Ok(x) => x,
-                Err(_) => continue,
-            };
+        let minigame = match minigame_query.get(aura.minigame) {
+            Ok(x) => x,
+            Err(_) => continue,
+        };
 
-        // deplete or remove resource
-        commands.entity(*item_entity).despawn_recursive();
+        // too small to form ball
+        if item.amount < 1.0 {
+            continue;
+        }
+
         ingested.insert(*item_entity);
 
-        let amount = item.amount - 1.0;
-        if amount > 0.0 {
-            let mut new_item = item.clone();
-            new_item.amount = amount;
-            let velocity = (item_transform.translation
-                - minigame_transform.translation())
-            .truncate();
-            commands.spawn(ItemBundle::new_from_minigame(
-                &mut images,
-                &mut generated_image_assets,
-                new_item,
-                minigame_transform,
-                minigame_area,
-            ));
+        // deplete item
+        item.amount -= 1.0;
+
+        // item is destroyed
+        if item.amount == 0.0 {
+            commands.entity(*item_entity).despawn_recursive();
         }
 
         // add ball to minigame

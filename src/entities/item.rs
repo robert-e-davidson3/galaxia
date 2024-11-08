@@ -1020,8 +1020,8 @@ pub fn combine_loose_items(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
-
-    loose_item_query: Query<(&Item, &Transform, &Velocity), Without<Stuck>>,
+    loose_item_query: Query<(&Item, &Transform, &Velocity)>,
+    stuck_query: Query<&Stuck>,
     mut collision_events: EventReader<CollisionEvent>,
 ) {
     let mut eliminated: HashSet<Entity> = HashSet::new();
@@ -1056,16 +1056,34 @@ pub fn combine_loose_items(
                 commands.entity(*entity2).despawn();
                 eliminated.insert(*entity1);
                 eliminated.insert(*entity2);
-                commands.spawn(ItemBundle::new(
-                    &mut images,
-                    &mut generated_image_assets,
-                    combined,
-                    *transform1,
-                    Velocity {
-                        linvel: velocity1.linvel + velocity2.linvel,
-                        angvel: velocity1.angvel + velocity2.angvel,
+                let new_entity = commands
+                    .spawn(ItemBundle::new(
+                        &mut images,
+                        &mut generated_image_assets,
+                        combined,
+                        *transform1,
+                        Velocity {
+                            linvel: velocity1.linvel + velocity2.linvel,
+                            angvel: velocity1.angvel + velocity2.angvel,
+                        },
+                    ))
+                    .id();
+
+                let stuck = match stuck_query.get(*entity1) {
+                    Ok(stuck) => Some(stuck),
+                    Err(_) => match stuck_query.get(*entity2) {
+                        Ok(stuck) => Some(stuck),
+                        Err(_) => None,
                     },
-                ));
+                };
+                match stuck {
+                    Some(stuck) => {
+                        commands.entity(new_entity).insert(Stuck {
+                            player: stuck.player,
+                        });
+                    }
+                    None => {}
+                }
             }
             _ => {}
         }
