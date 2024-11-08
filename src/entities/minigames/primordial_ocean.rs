@@ -37,11 +37,15 @@ impl PrimordialOceanMinigameBundle {
 #[derive(Debug, Clone, Component)]
 pub struct PrimordialOceanMinigame {
     pub size: f32,
+    pub level: u8,
 }
 
 impl Default for PrimordialOceanMinigame {
     fn default() -> Self {
-        Self { size: 120.0 }
+        Self {
+            size: 120.0,
+            level: 0,
+        }
     }
 }
 
@@ -60,7 +64,7 @@ pub fn spawn(
         ))
         .with_children(|parent| {
             parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), area));
-            spawn_minigame_container(parent, area, NAME);
+            spawn_minigame_container(parent, area, NAME, frozen.level);
             parent.spawn(OceanBundle::new(parent.parent_entity(), radius));
         });
 }

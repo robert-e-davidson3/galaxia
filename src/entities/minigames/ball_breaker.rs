@@ -49,7 +49,7 @@ impl BallBreakerMinigameBundle {
 pub struct BallBreakerMinigame {
     pub blocks_per_row: u32,
     pub blocks_per_column: u32,
-    pub level: u64,
+    pub level: u8,
     pub _balls: Vec<(Item, f32, f32)>, // (item,x,y) - for (de)serialization
 }
 
@@ -81,14 +81,14 @@ impl BallBreakerMinigame {
     }
 
     pub fn random_material(
-        level: u64,
+        level: u8,
         random: &mut Random,
     ) -> PhysicalItemMaterial {
         let r: u64;
         if level == 0 {
             r = 0;
         } else {
-            r = 1 + random.next() % level;
+            r = 1 + random.next() % (level as u64);
         }
 
         match r {
@@ -170,6 +170,7 @@ pub fn spawn(
         blocks_per_column = 10;
     } else {
         let r: u64 = random.next();
+        let level = level as u64;
         blocks_per_row = (10 + (r % level)) as u32;
         blocks_per_column = (10 + (r % level)) as u32;
     }
@@ -197,7 +198,7 @@ pub fn spawn(
                 ..default()
             });
             parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), area));
-            spawn_minigame_container(parent, area, NAME);
+            spawn_minigame_container(parent, area, NAME, frozen.level);
 
             for y in 3..blocks_per_column {
                 for x in 0..blocks_per_row {

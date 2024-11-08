@@ -54,7 +54,7 @@ pub fn spawn(
         .spawn(ButtonMinigameBundle::new(frozen.clone(), transform))
         .with_children(|parent| {
             parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), AREA));
-            spawn_minigame_container(parent, AREA, NAME);
+            spawn_minigame_container(parent, AREA, NAME, frozen.level);
             spawn_background(parent);
             let text = spawn_text(parent, frozen.count);
             spawn_button(parent, text);

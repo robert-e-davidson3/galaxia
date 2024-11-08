@@ -35,6 +35,7 @@ pub struct TreeMinigame {
     pub count: u32,
     pub _lushness: f32,
     pub last_fruit_time: f32,
+    pub level: u8,
 }
 
 impl Default for TreeMinigame {
@@ -44,6 +45,7 @@ impl Default for TreeMinigame {
             count: 0,
             _lushness: 1.0,
             last_fruit_time: 0.0,
+            level: 0,
         }
     }
 }
@@ -71,7 +73,7 @@ pub fn spawn(
         ))
         .with_children(|parent| {
             parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), AREA));
-            spawn_minigame_container(parent, AREA, NAME);
+            spawn_minigame_container(parent, AREA, NAME, frozen.level);
         });
 }
 

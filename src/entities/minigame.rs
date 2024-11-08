@@ -48,6 +48,7 @@ pub fn spawn_minigame_container(
     parent: &mut ChildBuilder,
     area: RectangularArea,
     name: &str,
+    level: u8,
 ) {
     let minigame = parent.parent_entity();
     spawn_minigame_bounds(parent, area);
@@ -91,7 +92,7 @@ pub fn spawn_minigame_container(
                 Stroke::new(Color::BLACK, WALL_THICKNESS),
             ));
             spawn_minigame_name(parent, name);
-            spawn_minigame_buttons(parent, meta_area, minigame);
+            spawn_minigame_buttons(parent, meta_area, minigame, level);
         });
 }
 
@@ -125,8 +126,9 @@ pub fn spawn_minigame_buttons(
     parent: &mut ChildBuilder,
     area: RectangularArea,
     minigame: Entity,
+    level: u8,
 ) {
-    spawn_minigame_engage_button(parent, area, minigame);
+    spawn_minigame_engage_button(parent, area, minigame, level);
 }
 
 #[derive(Debug, Copy, Clone, Component)]
@@ -143,33 +145,53 @@ pub fn spawn_minigame_engage_button(
     parent: &mut ChildBuilder,
     area: RectangularArea,
     minigame: Entity,
+    level: u8,
 ) {
-    parent.spawn((
-        MinigameEngageButton { minigame },
-        Toggleable::new(),
-        CircularArea { radius: 90.0 },
-        ShapeBundle {
-            path: GeometryBuilder::build_as(&shapes::Rectangle {
-                extents: Vec2::new(BUTTON_WIDTH, META_HEIGHT),
-                ..default()
-            }),
-            spatial: SpatialBundle {
-                transform: Transform::from_xyz(
-                    area.right() - BUTTON_WIDTH / 2.0,
-                    0.0,
-                    0.0,
-                ),
+    parent
+        .spawn((
+            MinigameEngageButton { minigame },
+            Toggleable::new(),
+            CircularArea { radius: 90.0 },
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&shapes::Rectangle {
+                    extents: Vec2::new(BUTTON_WIDTH, META_HEIGHT),
+                    ..default()
+                }),
+                spatial: SpatialBundle {
+                    transform: Transform::from_xyz(
+                        area.right() - BUTTON_WIDTH / 2.0,
+                        0.0,
+                        0.0,
+                    ),
+                    ..default()
+                },
                 ..default()
             },
-            ..default()
-        },
-        Fill::color(Color::srgba(0.2, 0.8, 0.8, 1.0)),
-        Stroke::new(Color::BLACK, 1.0),
-        RectangularArea {
-            width: BUTTON_WIDTH,
-            height: META_HEIGHT,
-        },
-    ));
+            Fill::color(Color::srgba(0.2, 0.8, 0.8, 1.0)),
+            Stroke::new(Color::BLACK, 1.0),
+            RectangularArea {
+                width: BUTTON_WIDTH,
+                height: META_HEIGHT,
+            },
+        ))
+        .with_children(|parent| {
+            parent.spawn(Text2dBundle {
+                text: Text {
+                    sections: vec![TextSection {
+                        value: format!("{}", level).into(),
+                        style: TextStyle {
+                            font_size: 24.0,
+                            color: Color::BLACK,
+                            ..default()
+                        },
+                    }],
+                    justify: JustifyText::Center,
+                    ..default()
+                },
+                transform: Transform::from_xyz(0.0, 0.0, 1.0),
+                ..default()
+            });
+        });
 }
 
 pub fn engage_button_update(

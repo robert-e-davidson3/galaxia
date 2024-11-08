@@ -147,6 +147,7 @@ pub fn spawn(
     let area = minigame.area();
     let blocks_per_row = minigame.blocks_per_row();
     let blocks_per_column = minigame.blocks_per_column();
+    let level = minigame.level;
     commands
         .spawn(RuneMinigameBundle::new(minigame, area, transform))
         .with_children(|parent| {
@@ -160,7 +161,7 @@ pub fn spawn(
                 ..default()
             });
             parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), area));
-            spawn_minigame_container(parent, area, NAME);
+            spawn_minigame_container(parent, area, NAME, level);
 
             for y in 0..blocks_per_column {
                 for x in 0..blocks_per_row {
