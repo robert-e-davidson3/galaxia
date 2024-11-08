@@ -260,7 +260,7 @@ pub fn update(
                     (PhysicalItemForm::Liquid, PhysicalItemMaterial::SaltWater)
                 }
                 ClickType::Long => {
-                    (PhysicalItemForm::Block, PhysicalItemMaterial::Mud)
+                    (PhysicalItemForm::Lump, PhysicalItemMaterial::Mud)
                 }
                 ClickType::Invalid => {
                     println!("unexpected: invalid click type");
@@ -287,8 +287,6 @@ pub fn levelup(
 ) {
     for (minigame, entity, transform) in primordial_ocean_minigame_query.iter()
     {
-        println!("Leveling up Primordial Ocean Minigame");
-        println!("Salt water collected: {}", minigame.salt_water_collected);
         commands.entity(entity).despawn_recursive();
         spawn(
             &mut commands,
