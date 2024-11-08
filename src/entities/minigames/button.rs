@@ -193,15 +193,22 @@ pub fn update(
 
 pub fn levelup(
     mut commands: Commands,
-    mut button_minigame_query: Query<
-        (&mut ButtonMinigame, Entity),
+    button_minigame_query: Query<
+        (&ButtonMinigame, Entity, &Transform),
         With<LevelingUp>,
     >,
 ) {
-    for (mut minigame, entity) in button_minigame_query.iter_mut() {
-        if minigame.level < 99 {
-            minigame.level += 1;
-        }
-        commands.entity(entity).remove::<LevelingUp>();
+    for (minigame, entity, transform) in button_minigame_query.iter() {
+        let next_level = if minigame.level < 99 {
+            minigame.level + 1
+        } else {
+            99
+        };
+        let new_minigame = ButtonMinigame {
+            count: minigame.count,
+            level: next_level,
+        };
+        commands.entity(entity).despawn_recursive();
+        spawn(&mut commands, transform.clone(), &new_minigame);
     }
 }
