@@ -9,7 +9,6 @@ use bevy_rapier2d::prelude::*;
 
 use entities::*;
 use libs::*;
-use minigames::common::Minigame;
 
 #[derive(Copy, Clone, Component)]
 pub union MiniganeUnion {
@@ -50,7 +49,7 @@ fn main() {
         .add_systems(
             FixedUpdate,
             (
-                minigames::common::levelup,
+                minigame::levelup,
                 minigames::primordial_ocean::ingest_resource_fixed_update,
                 minigames::rune::fixed_update,
                 minigames::tree::fixed_update,
@@ -128,7 +127,11 @@ fn setup_board(
             entities::minigames::ball_breaker::BallBreakerMinigame::new(0),
         ),
         Transform::from_xyz(400.0, 400.0, 0.0),
-    )
+    );
+    spawn(
+        Minigame::Tree(entities::minigames::tree::TreeMinigame::new(0)),
+        Transform::from_xyz(-400.0, 400.0, 0.0),
+    );
 }
 
 fn exit_system(

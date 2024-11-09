@@ -4,7 +4,6 @@ use bevy_prototype_lyon::prelude::*;
 use crate::entities::*;
 use crate::item::rune::*;
 use crate::libs::*;
-use crate::minigames::common::{LevelingUp, Minigame};
 
 pub const NAME: &str = "rune";
 pub const DESCRIPTION: &str = "Draw runes!";
@@ -18,32 +17,6 @@ const PIXEL_AREA: RectangularArea = RectangularArea {
 };
 const PIXEL_ON_COLOR: Color = Color::srgb(0.0, 0.0, 0.0);
 const PIXEL_OFF_COLOR: Color = Color::srgb(1.0, 1.0, 1.0);
-
-#[derive(Debug, Clone, Bundle)]
-pub struct RuneMinigameBundle {
-    pub minigame: RuneMinigame,
-    pub area: RectangularArea,
-    pub tag: MinigameTag,
-    pub spatial: SpatialBundle,
-}
-
-impl RuneMinigameBundle {
-    pub fn new(
-        minigame: RuneMinigame,
-        area: RectangularArea,
-        transform: Transform,
-    ) -> Self {
-        Self {
-            minigame,
-            area,
-            tag: MinigameTag,
-            spatial: SpatialBundle {
-                transform,
-                ..default()
-            },
-        }
-    }
-}
 
 #[derive(Debug, Clone, Default, Component)]
 pub struct RuneMinigame {

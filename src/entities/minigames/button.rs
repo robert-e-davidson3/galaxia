@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
-use crate::entities::minigames::common::{LevelingUp, Minigame};
 use crate::entities::*;
 use crate::libs::*;
 
@@ -11,28 +10,6 @@ const AREA: RectangularArea = RectangularArea {
     width: 200.0,
     height: 220.0,
 };
-
-#[derive(Debug, Default, Bundle)]
-pub struct ButtonMinigameBundle {
-    pub minigame: ButtonMinigame,
-    pub area: RectangularArea,
-    pub tag: MinigameTag,
-    pub spatial: SpatialBundle,
-}
-
-impl ButtonMinigameBundle {
-    pub fn new(minigame: ButtonMinigame, transform: Transform) -> Self {
-        Self {
-            minigame,
-            area: AREA,
-            tag: MinigameTag,
-            spatial: SpatialBundle {
-                transform,
-                ..default()
-            },
-        }
-    }
-}
 
 #[derive(Debug, Default, Clone, Component)]
 pub struct ButtonMinigame {

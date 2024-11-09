@@ -5,7 +5,6 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use wyrand::WyRand;
 
-use crate::entities::minigames::common::{LevelingUp, Minigame};
 use crate::entities::*;
 use crate::libs::*;
 
@@ -20,32 +19,6 @@ pub const NAME: &str = "ball breaker";
 pub const DESCRIPTION: &str = "Throw balls to break blocks!";
 
 pub const BLOCK_SIZE: f32 = 20.0;
-
-#[derive(Debug, Clone, Bundle)]
-pub struct BallBreakerMinigameBundle {
-    pub minigame: BallBreakerMinigame,
-    pub area: RectangularArea,
-    pub tag: MinigameTag,
-    pub spatial: SpatialBundle,
-}
-
-impl BallBreakerMinigameBundle {
-    pub fn new(
-        minigame: BallBreakerMinigame,
-        area: RectangularArea,
-        transform: Transform,
-    ) -> Self {
-        Self {
-            minigame,
-            area,
-            tag: MinigameTag,
-            spatial: SpatialBundle {
-                transform,
-                ..default()
-            },
-        }
-    }
-}
 
 #[derive(Debug, Clone, Default, Component)]
 pub struct BallBreakerMinigame {

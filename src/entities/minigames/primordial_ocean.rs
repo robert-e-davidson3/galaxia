@@ -3,7 +3,6 @@ use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 use std::collections::HashSet;
 
-use crate::entities::minigames::common::{LevelingUp, Minigame};
 use crate::entities::*;
 use crate::libs::*;
 
@@ -12,33 +11,6 @@ pub const DESCRIPTION: &str = "Infinitely deep, the source of water and mud.";
 
 const BASE_SIZE: f32 = 120.0;
 const MAX_SIZE_MULTIPLIER: f32 = 2.0;
-
-#[derive(Debug, Clone, Bundle)]
-pub struct PrimordialOceanMinigameBundle {
-    pub minigame: PrimordialOceanMinigame,
-    pub area: RectangularArea,
-    pub tag: MinigameTag,
-    pub spatial: SpatialBundle,
-}
-
-impl PrimordialOceanMinigameBundle {
-    pub fn new(
-        minigame: PrimordialOceanMinigame,
-        radius: f32,
-        transform: Transform,
-    ) -> Self {
-        let area = RectangularArea::new_square(radius * 2.0);
-        Self {
-            minigame,
-            area,
-            tag: MinigameTag,
-            spatial: SpatialBundle {
-                transform,
-                ..default()
-            },
-        }
-    }
-}
 
 #[derive(Debug, Clone, Component)]
 pub struct PrimordialOceanMinigame {

@@ -30,11 +30,7 @@ pub fn update_camera(
     player_query: Query<&Transform, (With<player::Player>, Without<Camera2d>)>,
     minigame_query: Query<
         &Transform,
-        (
-            With<MinigameTag>,
-            Without<player::Player>,
-            Without<Camera2d>,
-        ),
+        (With<Minigame>, Without<player::Player>, Without<Camera2d>),
     >,
 ) {
     let Ok(camera) = camera_query.get_single_mut() else {

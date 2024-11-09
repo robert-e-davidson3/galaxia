@@ -730,7 +730,9 @@ impl PhysicalItem {
                 self.material.palette().draw_powder(rand, ITEM_SIZE)
             }
             PhysicalItemForm::Object => {
-                load_image(&self.material.object().to_string())
+                let path =
+                    format!("assets/physical/{}.png", self.material.object());
+                load_image(&path)
             }
             PhysicalItemForm::Lump => {
                 self.material.palette().draw_lump(rand, ITEM_SIZE)
@@ -836,7 +838,7 @@ impl PhysicalItemMaterial {
 
     pub fn object(&self) -> &str {
         match self {
-            PhysicalItemMaterial::Apple => "apple",
+            PhysicalItemMaterial::Apple => "Apple",
             _ => panic!("object not implemented for {:?}", self),
         }
     }
