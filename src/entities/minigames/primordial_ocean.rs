@@ -7,7 +7,7 @@ use crate::entities::*;
 use crate::libs::*;
 
 pub const NAME: &str = "Primordial Ocean";
-pub const _DESCRIPTION: &str = "Infinitely deep, the source of water and mud.";
+pub const DESCRIPTION: &str = "Infinitely deep, the source of water and mud.";
 
 const BASE_SIZE: f32 = 120.0;
 const MAX_SIZE_MULTIPLIER: f32 = 2.0;
@@ -16,7 +16,7 @@ const MAX_SIZE_MULTIPLIER: f32 = 2.0;
 pub struct PrimordialOceanMinigameBundle {
     pub minigame: PrimordialOceanMinigame,
     pub area: RectangularArea,
-    pub tag: Minigame,
+    pub tag: MinigameTag,
     pub spatial: SpatialBundle,
 }
 
@@ -30,7 +30,7 @@ impl PrimordialOceanMinigameBundle {
         Self {
             minigame,
             area,
-            tag: Minigame,
+            tag: MinigameTag,
             spatial: SpatialBundle {
                 transform,
                 ..default()
@@ -41,7 +41,7 @@ impl PrimordialOceanMinigameBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct PrimordialOceanMinigame {
-    pub size: f32,
+    pub radius: f32,
     pub level: u8,
     pub salt_water_collected: f32,
 }
@@ -49,7 +49,7 @@ pub struct PrimordialOceanMinigame {
 impl Default for PrimordialOceanMinigame {
     fn default() -> Self {
         Self {
-            size: BASE_SIZE,
+            radius: BASE_SIZE,
             level: 0,
             salt_water_collected: 0.0,
         }
@@ -62,10 +62,26 @@ impl PrimordialOceanMinigame {
         let size_multiplier =
             1.0 + (level as f32 / 99.0) * (MAX_SIZE_MULTIPLIER - 1.0);
         Self {
-            size: BASE_SIZE * size_multiplier,
+            radius: BASE_SIZE * size_multiplier,
             level,
             salt_water_collected,
         }
+    }
+
+    pub fn name(&self) -> &str {
+        NAME
+    }
+
+    pub fn description(&self) -> &str {
+        DESCRIPTION
+    }
+
+    pub fn area(&self) -> RectangularArea {
+        RectangularArea::new_square(self.radius * 2.0)
+    }
+
+    pub fn level(&self) -> u8 {
+        self.level
     }
 
     pub fn level_by_salt_water_collected(salt_water_collected: f32) -> u8 {
@@ -100,7 +116,7 @@ pub fn spawn(
     transform: Transform,
     minigame: PrimordialOceanMinigame,
 ) {
-    let radius = minigame.size;
+    let radius = minigame.radius;
     let level = minigame.level;
     let area = RectangularArea::new_square(radius * 2.0);
     commands

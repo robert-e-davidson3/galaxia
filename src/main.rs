@@ -9,6 +9,12 @@ use bevy_rapier2d::prelude::*;
 
 use entities::*;
 use libs::*;
+use minigames::common::Minigame;
+
+#[derive(Copy, Clone, Component)]
+pub union MiniganeUnion {
+    pub button: Button,
+}
 
 fn main() {
     App::new()
@@ -99,11 +105,8 @@ fn setup_board(
             0.0,
         ),
     );
-    entities::minigames::rune::spawn(
-        &mut commands,
-        Transform::from_xyz(-400.0, -300.0, 0.0),
-        entities::minigames::rune::RuneMinigame::new(0),
-    );
+    Minigame::Rune(entities::minigames::rune::RuneMinigame::new(0))
+        .spawn(&mut commands, Transform::from_xyz(-400.0, -300.0, 0.0));
     // entities::minigames::tree::spawn(
     //     &mut commands,
     //     &asset_server,

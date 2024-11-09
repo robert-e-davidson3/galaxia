@@ -4,9 +4,10 @@ use bevy_prototype_lyon::prelude::*;
 use crate::entities::*;
 use crate::item::rune::*;
 use crate::libs::*;
+use crate::minigames::common::Minigame;
 
 pub const NAME: &str = "rune";
-pub const _DESCRIPTION: &str = "Draw runes!";
+pub const DESCRIPTION: &str = "Draw runes!";
 
 const MIN_WIDTH: f32 = 100.0;
 const MIN_HEIGHT: f32 = 100.0;
@@ -22,7 +23,7 @@ const PIXEL_OFF_COLOR: Color = Color::srgb(1.0, 1.0, 1.0);
 pub struct RuneMinigameBundle {
     pub minigame: RuneMinigame,
     pub area: RectangularArea,
-    pub tag: Minigame,
+    pub tag: MinigameTag,
     pub spatial: SpatialBundle,
 }
 
@@ -35,7 +36,7 @@ impl RuneMinigameBundle {
         Self {
             minigame,
             area,
-            tag: Minigame,
+            tag: MinigameTag,
             spatial: SpatialBundle {
                 transform,
                 ..default()
@@ -66,6 +67,63 @@ impl RuneMinigame {
         }
     }
 
+    //
+    // COMMON
+    //
+
+    pub fn name(&self) -> &str {
+        NAME
+    }
+
+    pub fn description(&self) -> &str {
+        DESCRIPTION
+    }
+
+    pub fn area(&self) -> RectangularArea {
+        const BUFFER: f32 = 20.0;
+        let blocks_per_row = self.blocks_per_row();
+        let blocks_per_column = self.blocks_per_column();
+        RectangularArea {
+            width: BUFFER + MIN_WIDTH.max(PIXEL_SIZE * blocks_per_row as f32),
+            height: BUFFER
+                + MIN_HEIGHT.max(PIXEL_SIZE * blocks_per_column as f32),
+        }
+    }
+
+    pub fn level(&self) -> u8 {
+        self.level
+    }
+
+    pub fn spawn(&self, parent: &mut ChildBuilder) {
+        let (area, blocks_per_row, blocks_per_column) =
+            (self.area(), self.blocks_per_row(), self.blocks_per_column());
+
+        let _background = parent.spawn(SpriteBundle {
+            sprite: Sprite {
+                color: Color::srgb(0.5, 0.5, 0.5),
+                custom_size: Some(area.into()),
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, 0.0, -1.0),
+            ..default()
+        });
+
+        for y in 0..blocks_per_column {
+            for x in 0..blocks_per_row {
+                parent.spawn(PixelBundle::new(
+                    x,
+                    y,
+                    blocks_per_row,
+                    blocks_per_column,
+                ));
+            }
+        }
+    }
+
+    //
+    // SPECIFIC
+    //
+
     pub fn blocks_per_row(&self) -> u8 {
         Self::_blocks_per_row(self.level)
     }
@@ -92,17 +150,6 @@ impl RuneMinigame {
     // 2 -> 2
     fn _blocks_per_column(level: u8) -> u8 {
         1 + level / 2
-    }
-
-    pub fn area(&self) -> RectangularArea {
-        const BUFFER: f32 = 20.0;
-        let blocks_per_row = self.blocks_per_row();
-        let blocks_per_column = self.blocks_per_column();
-        RectangularArea {
-            width: BUFFER + MIN_WIDTH.max(PIXEL_SIZE * blocks_per_row as f32),
-            height: BUFFER
-                + MIN_HEIGHT.max(PIXEL_SIZE * blocks_per_column as f32),
-        }
     }
 
     pub fn to_rune(&self) -> Option<Rune> {
@@ -151,43 +198,6 @@ impl RuneMinigame {
             }
         }
     }
-}
-
-pub fn spawn(
-    commands: &mut Commands,
-    transform: Transform,
-    minigame: RuneMinigame,
-) {
-    let area = minigame.area();
-    let blocks_per_row = minigame.blocks_per_row();
-    let blocks_per_column = minigame.blocks_per_column();
-    let level = minigame.level;
-    commands
-        .spawn(RuneMinigameBundle::new(minigame, area, transform))
-        .with_children(|parent| {
-            let _background = parent.spawn(SpriteBundle {
-                sprite: Sprite {
-                    color: Color::srgb(0.5, 0.5, 0.5),
-                    custom_size: Some(area.into()),
-                    ..default()
-                },
-                transform: Transform::from_xyz(0.0, 0.0, -1.0),
-                ..default()
-            });
-            parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), area));
-            spawn_minigame_container(parent, area, NAME, level);
-
-            for y in 0..blocks_per_column {
-                for x in 0..blocks_per_row {
-                    parent.spawn(PixelBundle::new(
-                        x,
-                        y,
-                        blocks_per_row,
-                        blocks_per_column,
-                    ));
-                }
-            }
-        });
 }
 
 #[derive(Bundle)]
@@ -249,16 +259,21 @@ pub fn pixel_update(
     mut commands: Commands,
     mouse_state: Res<MouseState>,
     time: Res<Time>,
-    mut rune_minigame_query: Query<&mut RuneMinigame>,
-    leveling_up_query: Query<&LevelingUp, With<RuneMinigame>>,
-    ready_query: Query<&Ready, With<RuneMinigame>>,
+    mut rune_minigame_query: Query<&mut Minigame>,
+    leveling_up_query: Query<&LevelingUp, With<Minigame>>,
+    ready_query: Query<&Ready, With<Minigame>>,
     pixel_query: Query<(&Pixel, Entity, &Parent, &GlobalTransform)>,
     mut fill_query: Query<&mut Fill, With<Pixel>>,
 ) {
     // reset erasing state when mouse is released
     if mouse_state.just_released {
-        for mut minigame in rune_minigame_query.iter_mut() {
-            minigame.erasing = false;
+        for minigame in rune_minigame_query.iter_mut() {
+            match minigame.into_inner() {
+                Minigame::Rune(minigame) => {
+                    minigame.erasing = false;
+                }
+                _ => {}
+            }
         }
         return;
     }
@@ -283,8 +298,15 @@ pub fn pixel_update(
             mouse_position,
             pixel_global_transform.translation().truncate(),
         ) {
-            let mut minigame =
-                rune_minigame_query.get_mut(minigame_entity).unwrap();
+            let minigame = match rune_minigame_query
+                .get_mut(minigame_entity)
+                .unwrap()
+                .into_inner()
+            {
+                Minigame::Rune(m) => m,
+                _ => continue,
+            };
+
             // set erasing state so player can draw/erase multiple pixels
             if mouse_state.just_pressed {
                 if minigame.get_pixel(pixel.x, pixel.y) {
@@ -332,12 +354,12 @@ pub fn fixed_update(
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     time: Res<Time>,
     mut rune_minigame_query: Query<(
-        &mut RuneMinigame,
+        &mut Minigame,
         &GlobalTransform,
         &RectangularArea,
     )>,
-    leveling_up_query: Query<&LevelingUp, With<RuneMinigame>>,
-    ready_query: Query<(&Ready, Entity), With<RuneMinigame>>,
+    leveling_up_query: Query<&LevelingUp, With<Minigame>>,
+    ready_query: Query<(&Ready, Entity), With<Minigame>>,
     pixel_query: Query<(Entity, &Parent)>,
     mut fill_query: Query<&mut Fill, With<Pixel>>,
 ) {
@@ -347,8 +369,12 @@ pub fn fixed_update(
         }
         if time.elapsed_seconds() - ready.since_time > RUNE_TRIGGER_SECONDS {
             commands.entity(minigame_entity).remove::<Ready>();
-            let (mut minigame, minigame_transform, minigame_area) =
+            let (minigame, minigame_transform, minigame_area) =
                 rune_minigame_query.get_mut(minigame_entity).unwrap();
+            let minigame = match minigame.into_inner() {
+                Minigame::Rune(m) => m,
+                _ => continue,
+            };
             match minigame.to_rune() {
                 Some(rune) => {
                     for (pixel_entity, pixel_parent) in pixel_query.iter() {
@@ -386,17 +412,18 @@ pub fn fixed_update(
 pub fn levelup(
     mut commands: Commands,
     rune_minigame_query: Query<
-        (&RuneMinigame, Entity, &Transform),
+        (&Minigame, Entity, &Transform),
         With<LevelingUp>,
     >,
 ) {
     for (minigame, entity, transform) in rune_minigame_query.iter() {
-        let level = if minigame.level < 99 {
-            minigame.level + 1
+        let level = if minigame.level() < 99 {
+            minigame.level() + 1
         } else {
             99
         };
         commands.entity(entity).despawn_recursive();
-        spawn(&mut commands, transform.clone(), RuneMinigame::new(level));
+        Minigame::Rune(RuneMinigame::new(level))
+            .spawn(&mut commands, transform.clone());
     }
 }

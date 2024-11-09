@@ -10,7 +10,7 @@ const BUTTON_COUNT: f32 = 1.0;
 const WALL_THICKNESS: f32 = 1.0;
 
 #[derive(Debug, Default, Copy, Clone, Component)]
-pub struct Minigame;
+pub struct MinigameTag;
 
 #[derive(Debug, Bundle)]
 pub struct MinigameAuraBundle {

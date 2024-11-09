@@ -5,7 +5,7 @@ use crate::entities::*;
 use crate::libs::*;
 
 pub const NAME: &str = "Button";
-pub const _DESCRIPTION: &str = "Click the button, get clicks!";
+pub const DESCRIPTION: &str = "Click the button, get clicks!";
 const AREA: RectangularArea = RectangularArea {
     width: 200.0,
     height: 220.0,
@@ -15,7 +15,7 @@ const AREA: RectangularArea = RectangularArea {
 pub struct ButtonMinigameBundle {
     pub minigame: ButtonMinigame,
     pub area: RectangularArea,
-    pub tag: Minigame,
+    pub tag: MinigameTag,
     pub spatial: SpatialBundle,
 }
 
@@ -24,7 +24,7 @@ impl ButtonMinigameBundle {
         Self {
             minigame,
             area: AREA,
-            tag: Minigame,
+            tag: MinigameTag,
             spatial: SpatialBundle {
                 transform,
                 ..default()
@@ -40,6 +40,22 @@ pub struct ButtonMinigame {
 }
 
 impl ButtonMinigame {
+    pub fn name(&self) -> &str {
+        NAME
+    }
+
+    pub fn description(&self) -> &str {
+        DESCRIPTION
+    }
+
+    pub fn area(&self) -> RectangularArea {
+        AREA
+    }
+
+    pub fn level(&self) -> u8 {
+        self.level
+    }
+
     pub fn level_by_clicks(clicks: u64) -> u8 {
         if clicks == 0 {
             0

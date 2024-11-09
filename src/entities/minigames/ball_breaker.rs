@@ -15,7 +15,7 @@ use crate::libs::*;
 // minigame to use or deploy.
 
 pub const NAME: &str = "ball breaker";
-pub const _DESCRIPTION: &str = "Throw balls to break blocks!";
+pub const DESCRIPTION: &str = "Throw balls to break blocks!";
 
 pub const BLOCK_SIZE: f32 = 20.0;
 
@@ -23,7 +23,7 @@ pub const BLOCK_SIZE: f32 = 20.0;
 pub struct BallBreakerMinigameBundle {
     pub minigame: BallBreakerMinigame,
     pub area: RectangularArea,
-    pub tag: Minigame,
+    pub tag: MinigameTag,
     pub spatial: SpatialBundle,
 }
 
@@ -36,7 +36,7 @@ impl BallBreakerMinigameBundle {
         Self {
             minigame,
             area,
-            tag: Minigame,
+            tag: MinigameTag,
             spatial: SpatialBundle {
                 transform,
                 ..default()
@@ -54,6 +54,25 @@ pub struct BallBreakerMinigame {
 }
 
 impl BallBreakerMinigame {
+    pub fn name(&self) -> &str {
+        NAME
+    }
+
+    pub fn description(&self) -> &str {
+        DESCRIPTION
+    }
+
+    pub fn area(&self) -> RectangularArea {
+        RectangularArea {
+            width: self.blocks_per_row as f32 * BLOCK_SIZE,
+            height: self.blocks_per_column as f32 * BLOCK_SIZE,
+        }
+    }
+
+    pub fn level(&self) -> u8 {
+        self.level
+    }
+
     pub fn item_is_valid(item: &Item) -> bool {
         let physical = match item.as_physical() {
             Some(data) => data,
@@ -174,10 +193,6 @@ pub fn spawn(
         blocks_per_row = (10 + (r % level)) as u32;
         blocks_per_column = (10 + (r % level)) as u32;
     }
-    let area = RectangularArea {
-        width: BLOCK_SIZE * blocks_per_row as f32,
-        height: BLOCK_SIZE * blocks_per_column as f32,
-    };
 
     let minigame = BallBreakerMinigame {
         level,
@@ -185,6 +200,7 @@ pub fn spawn(
         blocks_per_column,
         _balls: Vec::new(),
     };
+    let area = minigame.area();
     commands
         .spawn(BallBreakerMinigameBundle::new(minigame, area, transform))
         .with_children(|parent| {

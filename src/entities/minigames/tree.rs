@@ -14,7 +14,7 @@ const AREA: RectangularArea = RectangularArea {
 pub struct TreeMinigameBundle {
     pub minigame: TreeMinigame,
     pub area: RectangularArea,
-    pub tag: Minigame,
+    pub tag: MinigameTag,
     pub sprite: SpriteBundle,
 }
 
@@ -23,7 +23,7 @@ impl TreeMinigameBundle {
         Self {
             minigame,
             area: AREA,
-            tag: Minigame,
+            tag: MinigameTag,
             sprite,
         }
     }
