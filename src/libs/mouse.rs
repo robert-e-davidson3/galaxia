@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_prototype_lyon::prelude::*;
 
 use crate::libs::*;
 
@@ -211,4 +212,99 @@ fn translate_to_world_position(
         .cursor_position()
         .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor))
         .map(|ray| ray.origin.truncate())
+}
+
+#[derive(Component)]
+pub struct ClickIndicator {}
+
+#[derive(Resource)]
+pub struct ClickIndicatorConfig {
+    pub radius: f32,
+    pub color: Color,
+    pub stroke_width: f32,
+}
+
+impl Default for ClickIndicatorConfig {
+    fn default() -> Self {
+        Self {
+            radius: 10.0,
+            color: Color::srgba(1.0, 0.5, 0.0, 1.0),
+            stroke_width: 2.0,
+        }
+    }
+}
+
+fn setup_click_indicator(mut commands: Commands) {
+    commands.insert_resource(ClickIndicatorConfig::default());
+}
+
+fn manage_click_indicator(
+    mut commands: Commands,
+    mouse_state: Res<MouseState>,
+    indicator_config: Res<ClickIndicatorConfig>,
+    indicator_query: Query<Entity, With<ClickIndicator>>,
+    time: Res<Time>,
+) {
+    if !mouse_state.dragging() {
+        // Remove the indicator when mouse is not dragging
+        for entity in indicator_query.iter() {
+            commands.entity(entity).despawn();
+        }
+        return;
+    }
+
+    let elapsed = time.elapsed_seconds()
+        - mouse_state.left_button_press_start.unwrap_or(0.0);
+    if elapsed < mouse_state.long_click_threshold / 5.0 {
+        return; // not pressed long enough to show indicator
+    }
+    let progress = (elapsed / mouse_state.long_click_threshold).min(1.0);
+
+    if indicator_query.iter().count() == 0 {
+        // Create the indicator
+        let position = match mouse_state.current_position {
+            Some(position) => position,
+            None => return, // shouldn't happen
+        };
+        let shape = shapes::Circle {
+            radius: indicator_config.radius,
+            center: Vec2::ZERO,
+        };
+        commands.spawn((
+            ShapeBundle {
+                path: GeometryBuilder::build_as(&shape),
+                spatial: SpatialBundle {
+                    transform: Transform::from_xyz(position.x, position.y, 1.0),
+                    ..default()
+                },
+                ..default()
+            },
+            Fill::color(Color::NONE),
+            Stroke::new(indicator_config.color, indicator_config.stroke_width),
+            ClickIndicator {},
+        ));
+    } else {
+        // Update the indicator
+        for entity in indicator_query.iter() {
+            if let Some(pos) = mouse_state.current_position {
+                // Update position
+                commands
+                    .entity(entity)
+                    .insert(Transform::from_xyz(pos.x, pos.y, 1.0));
+                commands.entity(entity).insert(Fill::color(
+                    indicator_config.color.with_alpha(progress),
+                ));
+            }
+        }
+    }
+}
+
+pub struct ClickIndicatorPlugin;
+
+impl Plugin for ClickIndicatorPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ClickIndicatorConfig>()
+            .add_systems(Startup, setup_click_indicator)
+            .add_systems(Update, manage_click_indicator);
+    }
 }
