@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
+use crate::entities::minigames::common::{LevelingUp, Minigame};
 use crate::entities::*;
 use crate::libs::*;
 
@@ -40,6 +41,16 @@ pub struct ButtonMinigame {
 }
 
 impl ButtonMinigame {
+    pub fn new(clicks: u64) -> Self {
+        Self {
+            count: clicks,
+            level: Self::level_by_clicks(clicks),
+        }
+    }
+
+    //
+    // COMMON
+    //
     pub fn name(&self) -> &str {
         NAME
     }
@@ -56,6 +67,20 @@ impl ButtonMinigame {
         self.level
     }
 
+    pub fn levelup(&self) -> Self {
+        Self::new(self.count)
+    }
+
+    pub fn spawn(&self, parent: &mut ChildBuilder) {
+        spawn_background(parent);
+        let text = spawn_text(parent, self.count);
+        spawn_button(parent, text);
+    }
+
+    //
+    // SPECIFIC
+    //
+
     pub fn level_by_clicks(clicks: u64) -> u8 {
         if clicks == 0 {
             0
@@ -71,22 +96,6 @@ impl ButtonMinigame {
             Self::level_by_clicks(self.count) > self.level
         }
     }
-}
-
-pub fn spawn(
-    commands: &mut Commands,
-    transform: Transform,
-    frozen: &ButtonMinigame,
-) {
-    commands
-        .spawn(ButtonMinigameBundle::new(frozen.clone(), transform))
-        .with_children(|parent| {
-            parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), AREA));
-            spawn_minigame_container(parent, AREA, NAME, frozen.level);
-            spawn_background(parent);
-            let text = spawn_text(parent, frozen.count);
-            spawn_button(parent, text);
-        });
 }
 
 fn spawn_background(parent: &mut ChildBuilder) {
@@ -157,8 +166,8 @@ pub fn update(
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     mouse_state: Res<MouseState>,
     time: Res<Time>,
-    mut button_minigames_query: Query<(
-        &mut ButtonMinigame,
+    mut minigame_query: Query<(
+        &mut Minigame,
         &GlobalTransform,
         &RectangularArea,
     )>,
@@ -184,17 +193,22 @@ pub fn update(
                 continue;
             }
 
-            let (mut minigame, minigame_transform, minigame_area) =
-                button_minigames_query.get_mut(button.game).unwrap();
+            let (minigame, minigame_transform, minigame_area) =
+                match minigame_query.get_mut(button.game) {
+                    Ok(x) => x,
+                    Err(_) => continue,
+                };
+            let minigame = match minigame.into_inner() {
+                Minigame::Button(minigame) => minigame,
+                _ => continue,
+            };
             minigame.count += 1;
             let mut text = text_query.get_mut(button.text).unwrap();
             text.sections[0].value = format!("Clicks: {}", minigame.count);
 
             // Check for level up condition
             if minigame.should_level_up() {
-                commands.entity(button.game).insert(LevelingUp {
-                    minigame: button.game,
-                });
+                commands.entity(button.game).insert(LevelingUp);
             }
 
             let click_type = mouse_state.get_click_type(time.elapsed_seconds());
@@ -214,27 +228,5 @@ pub fn update(
                 minigame_area,
             ));
         }
-    }
-}
-
-pub fn levelup(
-    mut commands: Commands,
-    button_minigame_query: Query<
-        (&ButtonMinigame, Entity, &Transform),
-        With<LevelingUp>,
-    >,
-) {
-    for (minigame, entity, transform) in button_minigame_query.iter() {
-        let next_level = if minigame.level < 99 {
-            minigame.level + 1
-        } else {
-            99
-        };
-        let new_minigame = ButtonMinigame {
-            count: minigame.count,
-            level: next_level,
-        };
-        commands.entity(entity).despawn_recursive();
-        spawn(&mut commands, transform.clone(), &new_minigame);
     }
 }

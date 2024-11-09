@@ -3,6 +3,7 @@ use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 use std::collections::HashSet;
 
+use crate::entities::minigames::common::{LevelingUp, Minigame};
 use crate::entities::*;
 use crate::libs::*;
 
@@ -68,6 +69,10 @@ impl PrimordialOceanMinigame {
         }
     }
 
+    //
+    // COMMON
+    //
+
     pub fn name(&self) -> &str {
         NAME
     }
@@ -83,6 +88,19 @@ impl PrimordialOceanMinigame {
     pub fn level(&self) -> u8 {
         self.level
     }
+
+    pub fn levelup(&self) -> Self {
+        Self::new(self.salt_water_collected)
+    }
+
+    pub fn spawn(&self, parent: &mut ChildBuilder) {
+        let radius = self.radius;
+        parent.spawn(OceanBundle::new(parent.parent_entity(), radius));
+    }
+
+    //
+    // SPECIFIC
+    //
 
     pub fn level_by_salt_water_collected(salt_water_collected: f32) -> u8 {
         if salt_water_collected <= 0.0 {
@@ -109,25 +127,6 @@ impl PrimordialOceanMinigame {
 
         matches!(physical.material, PhysicalItemMaterial::SaltWater)
     }
-}
-
-pub fn spawn(
-    commands: &mut Commands,
-    transform: Transform,
-    minigame: PrimordialOceanMinigame,
-) {
-    let radius = minigame.radius;
-    let level = minigame.level;
-    let area = RectangularArea::new_square(radius * 2.0);
-    commands
-        .spawn(PrimordialOceanMinigameBundle::new(
-            minigame, radius, transform,
-        ))
-        .with_children(|parent| {
-            parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), area));
-            spawn_minigame_container(parent, area, NAME, level);
-            parent.spawn(OceanBundle::new(parent.parent_entity(), radius));
-        });
 }
 
 #[derive(Bundle)]
@@ -164,10 +163,10 @@ pub struct Ocean {
 pub fn ingest_resource_fixed_update(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
-    mut minigame_query: Query<(Entity, &mut PrimordialOceanMinigame)>,
+    mut minigame_query: Query<(Entity, &mut Minigame)>,
     aura_query: Query<&MinigameAura>,
     item_query: Query<&Item>,
-    leveling_up_query: Query<&LevelingUp, With<PrimordialOceanMinigame>>,
+    leveling_up_query: Query<&LevelingUp, With<Minigame>>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
@@ -208,11 +207,15 @@ pub fn ingest_resource_fixed_update(
         }
 
         // Get minigame state
-        let (minigame_entity, mut minigame) =
+        let (minigame_entity, minigame) =
             match minigame_query.get_mut(aura.minigame) {
                 Ok(x) => x,
                 Err(_) => continue,
             };
+        let minigame = match minigame.into_inner() {
+            Minigame::PrimordialOcean(minigame) => minigame,
+            _ => continue,
+        };
 
         // Mark as ingested and remove the item
         commands.entity(item_entity).despawn_recursive();
@@ -223,9 +226,7 @@ pub fn ingest_resource_fixed_update(
 
         // Check for level up
         if minigame.should_level_up() {
-            commands.entity(minigame_entity).insert(LevelingUp {
-                minigame: minigame_entity,
-            });
+            commands.entity(minigame_entity).insert(LevelingUp);
         }
     }
 }
@@ -239,12 +240,9 @@ pub fn update(
     time: Res<Time>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     window_query: Query<&Window>,
-    primordial_ocean_minigame_query: Query<
-        (&GlobalTransform, &RectangularArea),
-        With<PrimordialOceanMinigame>,
-    >,
+    minigame_query: Query<(&GlobalTransform, &RectangularArea), With<Minigame>>,
     mut ocean_query: Query<(&Ocean, &GlobalTransform, &CircularArea)>,
-    leveling_up_query: Query<&LevelingUp, With<PrimordialOceanMinigame>>,
+    leveling_up_query: Query<&LevelingUp, With<Minigame>>,
 ) {
     let click_position = match get_click_release_position(
         camera_query,
@@ -267,9 +265,7 @@ pub fn update(
             .is_within(click_position, ocean_transform.translation().truncate())
         {
             let (minigame_transform, minigame_area) =
-                primordial_ocean_minigame_query
-                    .get(minigame_entity)
-                    .unwrap();
+                minigame_query.get(minigame_entity).unwrap();
             let click_type = mouse_state.get_click_type(time.elapsed_seconds());
             let (form, material) = match click_type {
                 ClickType::Short => {
@@ -291,23 +287,5 @@ pub fn update(
                 minigame_area,
             ));
         }
-    }
-}
-
-pub fn levelup(
-    mut commands: Commands,
-    primordial_ocean_minigame_query: Query<
-        (&PrimordialOceanMinigame, Entity, &Transform),
-        With<LevelingUp>,
-    >,
-) {
-    for (minigame, entity, transform) in primordial_ocean_minigame_query.iter()
-    {
-        commands.entity(entity).despawn_recursive();
-        spawn(
-            &mut commands,
-            transform.clone(),
-            PrimordialOceanMinigame::new(minigame.salt_water_collected),
-        );
     }
 }

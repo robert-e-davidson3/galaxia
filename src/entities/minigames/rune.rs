@@ -4,7 +4,7 @@ use bevy_prototype_lyon::prelude::*;
 use crate::entities::*;
 use crate::item::rune::*;
 use crate::libs::*;
-use crate::minigames::common::Minigame;
+use crate::minigames::common::{LevelingUp, Minigame};
 
 pub const NAME: &str = "rune";
 pub const DESCRIPTION: &str = "Draw runes!";
@@ -48,6 +48,7 @@ impl RuneMinigameBundle {
 #[derive(Debug, Clone, Default, Component)]
 pub struct RuneMinigame {
     pub level: u8,
+    pub highest_level_rune: Option<Rune>,
     pub pixels: Vec<Vec<bool>>,
     pub erasing: bool,
 }
@@ -62,6 +63,7 @@ impl RuneMinigame {
         let pixels = vec![vec![false; blocks_per_row]; blocks_per_column];
         Self {
             level,
+            highest_level_rune: Self::level_to_rune(level),
             pixels,
             erasing: false,
         }
@@ -94,6 +96,10 @@ impl RuneMinigame {
         self.level
     }
 
+    pub fn levelup(&self) -> Self {
+        Self::new(self.expected_level())
+    }
+
     pub fn spawn(&self, parent: &mut ChildBuilder) {
         let (area, blocks_per_row, blocks_per_column) =
             (self.area(), self.blocks_per_row(), self.blocks_per_column());
@@ -124,6 +130,13 @@ impl RuneMinigame {
     // SPECIFIC
     //
 
+    pub fn expected_level(&self) -> u8 {
+        match self.highest_level_rune {
+            Some(rune) => Self::rune_level(&rune),
+            None => 0,
+        }
+    }
+
     pub fn blocks_per_row(&self) -> u8 {
         Self::_blocks_per_row(self.level)
     }
@@ -152,8 +165,34 @@ impl RuneMinigame {
         1 + level / 2
     }
 
+    pub fn set_highest_level_rune(&mut self, rune: Rune) {
+        if self.highest_level_rune.is_none() {
+            self.highest_level_rune = Some(rune);
+        } else {
+            let current_level =
+                Self::rune_level(&self.highest_level_rune.unwrap());
+            let new_level = Self::rune_level(&rune);
+            if new_level > current_level {
+                self.highest_level_rune = Some(rune);
+            }
+        }
+    }
+
     pub fn to_rune(&self) -> Option<Rune> {
         pixels_to_rune(&self.pixels)
+    }
+
+    pub fn level_to_rune(level: u8) -> Option<Rune> {
+        match level {
+            1 => Some(Rune::InclusiveSelf),
+            2 => Some(Rune::Connector),
+            3 => Some(Rune::ExclusiveSelf),
+            4 => Some(Rune::Shelter),
+            5 => Some(Rune::InclusiveOther),
+            6 => Some(Rune::Force),
+            7 => Some(Rune::ExclusiveOther),
+            _ => None,
+        }
     }
 
     // Level unlocked by drawing rune.
@@ -385,6 +424,7 @@ pub fn fixed_update(
                             );
                         }
                     }
+                    minigame.set_highest_level_rune(rune);
                     minigame.clear();
                     commands.spawn(ItemBundle::new_from_minigame(
                         &mut images,
@@ -398,32 +438,11 @@ pub fn fixed_update(
                         minigame_area,
                     ));
                     if RuneMinigame::rune_level(&rune) > minigame.level {
-                        commands.entity(minigame_entity).insert(LevelingUp {
-                            minigame: minigame_entity,
-                        });
+                        commands.entity(minigame_entity).insert(LevelingUp);
                     }
                 }
                 None => {}
             }
         }
-    }
-}
-
-pub fn levelup(
-    mut commands: Commands,
-    rune_minigame_query: Query<
-        (&Minigame, Entity, &Transform),
-        With<LevelingUp>,
-    >,
-) {
-    for (minigame, entity, transform) in rune_minigame_query.iter() {
-        let level = if minigame.level() < 99 {
-            minigame.level() + 1
-        } else {
-            99
-        };
-        commands.entity(entity).despawn_recursive();
-        Minigame::Rune(RuneMinigame::new(level))
-            .spawn(&mut commands, transform.clone());
     }
 }

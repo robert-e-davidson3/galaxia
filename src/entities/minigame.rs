@@ -333,8 +333,3 @@ pub fn spawn_minigame_bounds(parent: &mut ChildBuilder, area: RectangularArea) {
             ));
         });
 }
-
-#[derive(Debug, Copy, Clone, Component)]
-pub struct LevelingUp {
-    pub minigame: Entity,
-}

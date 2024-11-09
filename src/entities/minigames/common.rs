@@ -62,6 +62,7 @@ impl Minigame {
         }
     }
 
+    // The level the minigame currently has.
     pub fn level(&self) -> u8 {
         match self {
             Minigame::Button(m) => m.level(),
@@ -71,10 +72,26 @@ impl Minigame {
         }
     }
 
+    // Recreate minigame with correct new level, by its internal logic.
+    pub fn levelup(&self) -> Self {
+        match self {
+            Minigame::Button(m) => Minigame::Button(m.levelup()),
+            Minigame::PrimordialOcean(m) => {
+                Minigame::PrimordialOcean(m.levelup())
+            }
+            Minigame::Rune(m) => Minigame::Rune(m.levelup()),
+            Minigame::BallBreaker(m) => Minigame::BallBreaker(m.levelup()),
+        }
+    }
+
     pub fn spawn(
         &self,
         commands: &mut Commands,
         transform: Transform,
+        random: &mut Random,
+        asset_server: &AssetServer,
+        _images: &mut Assets<Image>,
+        _generated_image_assets: &mut image_gen::GeneratedImageAssets,
     ) -> Entity {
         let area = self.area();
         let name = self.name();
@@ -88,10 +105,13 @@ impl Minigame {
                     area,
                 ));
                 match self {
-                    // Minigame::Button(m) => m.spawn(parent),
+                    Minigame::Button(m) => m.spawn(parent),
                     Minigame::Rune(m) => m.spawn(parent),
-                    // Minigame::PrimordialOcean(m) => m.spawn(parent),
-                    // Minigame::BallBreaker(m) => m.spawn(parent),
+                    Minigame::PrimordialOcean(m) => m.spawn(parent),
+                    Minigame::BallBreaker(m) => {
+                        m.spawn(parent, random, asset_server)
+                    }
+
                     _ => panic!("Minigame not implemented"),
                 };
             })
@@ -100,3 +120,28 @@ impl Minigame {
         entity
     }
 }
+
+pub fn levelup(
+    mut commands: Commands,
+    mut random: ResMut<Random>,
+    asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
+    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
+    mut query: Query<(&mut Minigame, &Transform, Entity), With<LevelingUp>>,
+) {
+    for (minigame, transform, entity) in query.iter_mut() {
+        let new_minigame = minigame.levelup();
+        commands.entity(entity).despawn_recursive();
+        new_minigame.spawn(
+            &mut commands,
+            *transform,
+            &mut random,
+            &asset_server,
+            &mut images,
+            &mut generated_image_assets,
+        );
+    }
+}
+
+#[derive(Debug, Copy, Clone, Component)]
+pub struct LevelingUp;

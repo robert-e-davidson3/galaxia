@@ -1,9 +1,11 @@
-use std::collections::HashSet;
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use wyrand::WyRand;
 
+use crate::entities::minigames::common::{LevelingUp, Minigame};
 use crate::entities::*;
 use crate::libs::*;
 
@@ -47,13 +49,22 @@ impl BallBreakerMinigameBundle {
 
 #[derive(Debug, Clone, Default, Component)]
 pub struct BallBreakerMinigame {
-    pub blocks_per_row: u32,
-    pub blocks_per_column: u32,
     pub level: u8,
-    pub _balls: Vec<(Item, f32, f32)>, // (item,x,y) - for (de)serialization
+    pub balls: HashMap<PhysicalItemMaterial, u32>,
 }
 
 impl BallBreakerMinigame {
+    pub fn new(level: u8) -> Self {
+        Self {
+            level,
+            balls: HashMap::new(),
+        }
+    }
+
+    //
+    // COMMON
+    //
+
     pub fn name(&self) -> &str {
         NAME
     }
@@ -64,13 +75,80 @@ impl BallBreakerMinigame {
 
     pub fn area(&self) -> RectangularArea {
         RectangularArea {
-            width: self.blocks_per_row as f32 * BLOCK_SIZE,
-            height: self.blocks_per_column as f32 * BLOCK_SIZE,
+            width: self.blocks_per_row() as f32 * BLOCK_SIZE,
+            height: (3 + self.blocks_per_column()) as f32 * BLOCK_SIZE,
         }
     }
 
     pub fn level(&self) -> u8 {
         self.level
+    }
+
+    pub fn levelup(&self) -> Self {
+        Self::new(self.level + 1)
+    }
+
+    pub fn spawn(
+        &self,
+        parent: &mut ChildBuilder,
+        mut random: &mut Random,
+        asset_server: &AssetServer,
+    ) {
+        let (area, blocks_per_column, blocks_per_row, level) = (
+            self.area(),
+            self.blocks_per_column(),
+            self.blocks_per_row(),
+            self.level,
+        );
+        let _background = parent.spawn(SpriteBundle {
+            sprite: Sprite {
+                color: Color::srgb(1.0, 1.0, 1.0),
+                custom_size: Some(area.into()),
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, 0.0, -1.0),
+            ..default()
+        });
+
+        for y in 3..(blocks_per_column + 3) {
+            for x in 0..blocks_per_row {
+                parent.spawn(BlockBundle::new(
+                    asset_server,
+                    BallBreakerMinigame::random_material(level, &mut random),
+                    blocks_per_column,
+                    blocks_per_row,
+                    x,
+                    y,
+                ));
+            }
+        }
+        parent.spawn(PaddleBundle::new(
+            asset_server,
+            parent.parent_entity(),
+            blocks_per_column,
+        ));
+
+        // TODO empty out balls as loose items
+    }
+
+    //
+    // SPECIFIC
+    //
+
+    pub fn blocks_per_row(&self) -> u32 {
+        Self::calculate_blocks_per_row(self.level)
+    }
+
+    pub fn blocks_per_column(&self) -> u32 {
+        Self::calculate_blocks_per_column(self.level)
+    }
+
+    pub fn calculate_blocks_per_row(level: u8) -> u32 {
+        10 + (level as u32 / 10)
+    }
+
+    pub fn calculate_blocks_per_column(level: u8) -> u32 {
+        7 + (level as u32 / 10)
     }
 
     pub fn item_is_valid(item: &Item) -> bool {
@@ -172,71 +250,21 @@ impl BallBreakerMinigame {
             _ => 16,
         }
     }
-}
 
-pub fn spawn(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    mut random: &mut Random,
-    transform: Transform,
-    frozen: &BallBreakerMinigame,
-) {
-    let level = frozen.level;
-    let blocks_per_row: u32;
-    let blocks_per_column: u32;
-    if level == 0 {
-        blocks_per_row = 10;
-        blocks_per_column = 10;
-    } else {
-        let r: u64 = random.next();
-        let level = level as u64;
-        blocks_per_row = (10 + (r % level)) as u32;
-        blocks_per_column = (10 + (r % level)) as u32;
+    // counts ball material
+    pub fn add_ball(&mut self, material: PhysicalItemMaterial) {
+        *self.balls.entry(material).or_insert(0) += 1;
     }
 
-    let minigame = BallBreakerMinigame {
-        level,
-        blocks_per_row,
-        blocks_per_column,
-        _balls: Vec::new(),
-    };
-    let area = minigame.area();
-    commands
-        .spawn(BallBreakerMinigameBundle::new(minigame, area, transform))
-        .with_children(|parent| {
-            let _background = parent.spawn(SpriteBundle {
-                sprite: Sprite {
-                    color: Color::srgb(1.0, 1.0, 1.0),
-                    custom_size: Some(Vec2::new(area.width, area.height)),
-                    ..default()
-                },
-                transform: Transform::from_xyz(0.0, 0.0, -1.0),
-                ..default()
-            });
-            parent.spawn(MinigameAuraBundle::new(parent.parent_entity(), area));
-            spawn_minigame_container(parent, area, NAME, frozen.level);
-
-            for y in 3..blocks_per_column {
-                for x in 0..blocks_per_row {
-                    parent.spawn(BlockBundle::new(
-                        asset_server,
-                        BallBreakerMinigame::random_material(
-                            level,
-                            &mut random,
-                        ),
-                        blocks_per_column,
-                        blocks_per_row,
-                        x,
-                        y,
-                    ));
-                }
+    // decrements ball material
+    pub fn remove_ball(&mut self, material: PhysicalItemMaterial) {
+        if let Entry::Occupied(mut entry) = self.balls.entry(material) {
+            let count = entry.get_mut();
+            if *count > 0 {
+                *count -= 1;
             }
-            parent.spawn(PaddleBundle::new(
-                asset_server,
-                parent.parent_entity(),
-                blocks_per_column,
-            ));
-        });
+        }
+    }
 }
 
 #[derive(Debug, Clone, Bundle)]
@@ -264,7 +292,7 @@ impl BlockBundle {
         let x = BLOCK_SIZE
             * ((x as f32) - (blocks_per_row as f32 / 2.0) + 1.0 / 2.0);
         let y = BLOCK_SIZE
-            * ((y as f32) - (blocks_per_column as f32 / 2.0) + 1.0 / 2.0);
+            * ((y as f32) - ((blocks_per_column + 3) as f32 / 2.0) + 1.0 / 2.0);
         Self {
             block: Block { material },
             sprite: SpriteBundle {
@@ -321,7 +349,7 @@ impl BallBundle {
         blocks_per_row: u32,
     ) -> Self {
         let x = BLOCK_SIZE * ((blocks_per_row / 2) as f32 - 2.0);
-        let y = -BLOCK_SIZE * ((blocks_per_column / 2) as f32 - 1.0);
+        let y = -BLOCK_SIZE * (((blocks_per_column + 3) / 2) as f32 - 1.0);
         let area = CircularArea {
             radius: BLOCK_SIZE / 2.0,
         };
@@ -396,7 +424,7 @@ impl PaddleBundle {
         blocks_per_column: u32,
     ) -> Self {
         let x = 0.0;
-        let y = -BLOCK_SIZE * ((blocks_per_column as f32 / 2.0) - 0.5);
+        let y = -BLOCK_SIZE * (((blocks_per_column + 3) as f32 / 2.0) - 0.5);
         let area = RectangularArea {
             width: BLOCK_SIZE * 3.0,
             height: BLOCK_SIZE,
@@ -433,10 +461,7 @@ pub fn unselected_paddle_update(
         (Entity, &Paddle, &GlobalTransform, &RectangularArea),
         Without<FollowsMouse>,
     >,
-    minigame_query: Query<
-        (&RectangularArea, &GlobalTransform),
-        With<BallBreakerMinigame>,
-    >,
+    minigame_query: Query<(&RectangularArea, &GlobalTransform), With<Minigame>>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     window_query: Query<&Window>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
@@ -482,10 +507,9 @@ pub fn hit_block_fixed_update(
     asset_server: Res<AssetServer>,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
-    mut random: ResMut<Random>,
     mut collision_events: EventReader<CollisionEvent>,
     mut minigame_query: Query<(
-        &mut BallBreakerMinigame,
+        &mut Minigame,
         &GlobalTransform,
         &RectangularArea,
     )>,
@@ -535,11 +559,15 @@ pub fn hit_block_fixed_update(
         }
 
         // get minigame
-        let (mut minigame, minigame_global_transform, minigame_area) =
+        let (minigame, minigame_global_transform, minigame_area) =
             match minigame_query.get_mut(minigame_entity) {
                 Ok(x) => x,
                 Err(_) => continue,
             };
+        let minigame = match minigame.into_inner() {
+            Minigame::BallBreaker(x) => x,
+            _ => continue,
+        };
 
         // break stuff! and spit out resources!
         if BallBreakerMinigame::material_damage(ball_material)
@@ -559,50 +587,9 @@ pub fn hit_block_fixed_update(
                 minigame_area,
             ));
 
-            // TODO move leveling up to another phase because it throws tons of
-            //      warnings here by trying to despawn what's already been
-            //      despawned yet despawn_recursive is needed anyway
-
             // this was the last block, so reset and level up!
             if block_query.iter().count() == 1 {
-                if minigame.level < 99 {
-                    minigame.level += 1;
-                }
-                for ball in ball_query.iter() {
-                    if ball.minigame != minigame_entity {
-                        continue;
-                    }
-                    if broken.contains(&ball_entity) {
-                        continue;
-                    }
-                    // TODO spawn in ball form, if appropriate
-                    // TODO check if ball broke here and so should spawn as pulverized, if appropriate
-                    commands.spawn(ItemBundle::new_from_minigame(
-                        &mut images,
-                        &mut generated_image_assets,
-                        Item::new_physical(
-                            PhysicalItemForm::Ball,
-                            ball.material,
-                            1.0,
-                        ),
-                        minigame_global_transform,
-                        minigame_area,
-                    ));
-                }
-
-                // Despawn and recreate
-                commands.entity(minigame_entity).despawn_recursive();
-                spawn(
-                    &mut commands,
-                    &asset_server,
-                    &mut random,
-                    Transform::from_translation(Vec3::new(
-                        minigame_global_transform.translation().x,
-                        minigame_global_transform.translation().y,
-                        0.0,
-                    )),
-                    &minigame,
-                );
+                commands.entity(minigame_entity).insert(LevelingUp);
             }
         }
         if BallBreakerMinigame::material_damage(block_material)
@@ -610,6 +597,7 @@ pub fn hit_block_fixed_update(
         {
             commands.entity(ball_entity).despawn();
             broken.insert(ball_entity);
+            minigame.remove_ball(ball_material);
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
@@ -630,9 +618,9 @@ pub fn ingest_resource_fixed_update(
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut collision_events: EventReader<CollisionEvent>,
-    minigame_query: Query<&BallBreakerMinigame>,
+    mut minigame_query: Query<&mut Minigame>,
     aura_query: Query<&MinigameAura>,
-    mut item_query: Query<(&mut Item)>,
+    mut item_query: Query<&mut Item>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
@@ -673,9 +661,13 @@ pub fn ingest_resource_fixed_update(
             Err(_) => continue,
         };
         // only applies to ball breaker minigame
-        let minigame = match minigame_query.get(aura.minigame) {
+        let minigame = match minigame_query.get_mut(aura.minigame) {
             Ok(x) => x,
             Err(_) => continue,
+        };
+        let minigame = match minigame.into_inner() {
+            Minigame::BallBreaker(m) => m,
+            _ => continue,
         };
 
         // too small to form ball
@@ -694,16 +686,17 @@ pub fn ingest_resource_fixed_update(
         }
 
         // add ball to minigame
+        let material = item.as_physical().unwrap().material;
         commands.entity(*aura_entity).with_children(|parent| {
-            let material = item.as_physical().unwrap().material;
             parent.spawn(BallBundle::new(
                 &mut images,
                 &mut generated_image_assets,
                 material,
                 aura.minigame,
-                minigame.blocks_per_column,
-                minigame.blocks_per_row,
+                minigame.blocks_per_column(),
+                minigame.blocks_per_row(),
             ));
         });
+        minigame.add_ball(material);
     }
 }
