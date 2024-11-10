@@ -31,6 +31,7 @@ pub enum Minigame {
     Button(button::ButtonMinigame),
     PrimordialOcean(primordial_ocean::PrimordialOceanMinigame),
     Rune(rune::RuneMinigame),
+    Chest(chest::ChestMinigame),
     BallBreaker(ball_breaker::BallBreakerMinigame),
     Tree(tree::TreeMinigame),
 }
@@ -41,6 +42,7 @@ impl Minigame {
             Minigame::Button(m) => m.name(),
             Minigame::PrimordialOcean(m) => m.name(),
             Minigame::Rune(m) => m.name(),
+            Minigame::Chest(m) => m.name(),
             Minigame::BallBreaker(m) => m.name(),
             Minigame::Tree(m) => m.name(),
         }
@@ -51,6 +53,7 @@ impl Minigame {
             Minigame::Button(m) => m.description(),
             Minigame::PrimordialOcean(m) => m.description(),
             Minigame::Rune(m) => m.description(),
+            Minigame::Chest(m) => m.description(),
             Minigame::BallBreaker(m) => m.description(),
             Minigame::Tree(m) => m.description(),
         }
@@ -61,6 +64,7 @@ impl Minigame {
             Minigame::Button(m) => m.area(),
             Minigame::PrimordialOcean(m) => m.area(),
             Minigame::Rune(m) => m.area(),
+            Minigame::Chest(m) => m.area(),
             Minigame::BallBreaker(m) => m.area(),
             Minigame::Tree(m) => m.area(),
         }
@@ -72,6 +76,7 @@ impl Minigame {
             Minigame::Button(m) => m.level(),
             Minigame::PrimordialOcean(m) => m.level(),
             Minigame::Rune(m) => m.level(),
+            Minigame::Chest(m) => m.level(),
             Minigame::BallBreaker(m) => m.level(),
             Minigame::Tree(m) => m.level(),
         }
@@ -85,6 +90,7 @@ impl Minigame {
                 Minigame::PrimordialOcean(m.levelup())
             }
             Minigame::Rune(m) => Minigame::Rune(m.levelup()),
+            Minigame::Chest(m) => Minigame::Chest(m.levelup()),
             Minigame::BallBreaker(m) => Minigame::BallBreaker(m.levelup()),
             Minigame::Tree(m) => Minigame::Tree(m.levelup()),
         }
@@ -114,6 +120,7 @@ impl Minigame {
                     Minigame::Button(m) => m.spawn(parent),
                     Minigame::Rune(m) => m.spawn(parent),
                     Minigame::PrimordialOcean(m) => m.spawn(parent),
+                    Minigame::Chest(m) => m.spawn(parent, asset_server),
                     Minigame::BallBreaker(m) => {
                         m.spawn(parent, random, asset_server)
                     }

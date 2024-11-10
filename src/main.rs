@@ -39,6 +39,7 @@ fn main() {
                 minigames::button::update,
                 minigames::rune::pixel_update,
                 minigames::tree::update,
+                minigames::chest::handle_item_clicks,
                 minigames::ball_breaker::unselected_paddle_update,
                 minigames::primordial_ocean::update,
                 mouse::update_mouse_state,
@@ -52,6 +53,7 @@ fn main() {
                 minigame::levelup,
                 minigames::primordial_ocean::ingest_resource_fixed_update,
                 minigames::rune::fixed_update,
+                minigames::chest::ingest_resource_fixed_update,
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::hit_block_fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,
@@ -123,15 +125,19 @@ fn setup_board(
         Transform::from_xyz(-400.0, -300.0, 0.0),
     );
     spawn(
-        Minigame::BallBreaker(
-            entities::minigames::ball_breaker::BallBreakerMinigame::new(0),
-        ),
+        Minigame::Chest(entities::minigames::chest::ChestMinigame::new(0)),
         Transform::from_xyz(400.0, 400.0, 0.0),
     );
-    spawn(
-        Minigame::Tree(entities::minigames::tree::TreeMinigame::new(0)),
-        Transform::from_xyz(-400.0, 400.0, 0.0),
-    );
+    // spawn(
+    //     Minigame::BallBreaker(
+    //         entities::minigames::ball_breaker::BallBreakerMinigame::new(0),
+    //     ),
+    //     Transform::from_xyz(400.0, 400.0, 0.0),
+    // );
+    // spawn(
+    //     Minigame::Tree(entities::minigames::tree::TreeMinigame::new(0)),
+    //     Transform::from_xyz(-400.0, 400.0, 0.0),
+    // );
 }
 
 fn exit_system(

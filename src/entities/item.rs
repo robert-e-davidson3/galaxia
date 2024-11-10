@@ -689,7 +689,7 @@ pub enum AbstractItemKind {
     Rune,
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(C)]
 pub struct PhysicalItem {
     pub form: PhysicalItemForm,
