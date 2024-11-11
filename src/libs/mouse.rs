@@ -8,7 +8,7 @@ pub struct MouseState {
     pub long_click_threshold: f32,
     pub left_button_press_start: Option<f32>,
     pub start_position: Option<Vec2>,
-    pub current_position: Option<Vec2>,
+    pub current_position: Vec2,
     pub just_pressed: bool,
     pub just_released: bool,
 }
@@ -19,7 +19,7 @@ impl MouseState {
             long_click_threshold,
             left_button_press_start: None,
             start_position: None,
-            current_position: None,
+            current_position: Vec2::ZERO,
             just_pressed: false,
             just_released: false,
         }
@@ -32,17 +32,17 @@ impl MouseState {
     pub fn start_press(&mut self, time: f32, position: Vec2) {
         self.left_button_press_start = Some(time);
         self.start_position = Some(position);
-        self.current_position = Some(position);
+        self.current_position = position;
     }
 
     pub fn update_position(&mut self, position: Vec2) {
-        self.current_position = Some(position);
+        self.current_position = position;
     }
 
     pub fn end_press(&mut self, current_time: f32) -> ClickType {
         let start_time = self.left_button_press_start.take();
         self.start_position.take();
-        self.current_position.take();
+        self.current_position = Vec2::ZERO;
         self.evaluate_click_type(current_time, start_time)
     }
 
@@ -137,11 +137,7 @@ pub fn follow_mouse_update(
     mouse_state: Res<MouseState>,
     mut query: Query<(Entity, &FollowsMouse, &mut Transform, &GlobalTransform)>,
 ) {
-    let mouse_position = match mouse_state.current_position {
-        Some(position) => position,
-        None => return, // shouldn't happen
-    };
-
+    let mouse_position = mouse_state.current_position;
     let is_dragging = mouse_state.dragging();
 
     for (entity, follows_mouse, mut transform, global_transform) in
@@ -262,10 +258,7 @@ fn manage_click_indicator(
 
     if indicator_query.iter().count() == 0 {
         // Create the indicator
-        let position = match mouse_state.current_position {
-            Some(position) => position,
-            None => return, // shouldn't happen
-        };
+        let position = mouse_state.current_position;
         let shape = shapes::Circle {
             radius: indicator_config.radius,
             center: Vec2::ZERO,
@@ -286,15 +279,14 @@ fn manage_click_indicator(
     } else {
         // Update the indicator
         for entity in indicator_query.iter() {
-            if let Some(pos) = mouse_state.current_position {
-                // Update position
-                commands
-                    .entity(entity)
-                    .insert(Transform::from_xyz(pos.x, pos.y, 1.0));
-                commands.entity(entity).insert(Fill::color(
-                    indicator_config.color.with_alpha(progress),
-                ));
-            }
+            let pos = mouse_state.current_position;
+            // Update position
+            commands
+                .entity(entity)
+                .insert(Transform::from_xyz(pos.x, pos.y, 1.0));
+            commands.entity(entity).insert(Fill::color(
+                indicator_config.color.with_alpha(progress),
+            ));
         }
     }
 }

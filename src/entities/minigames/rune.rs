@@ -294,11 +294,7 @@ pub fn pixel_update(
         return;
     }
 
-    let mouse_position = match mouse_state.current_position {
-        Some(position) => position,
-        None => return,
-    };
-
+    let mouse_position = mouse_state.current_position;
     for (pixel, pixel_entity, pixel_parent, pixel_global_transform) in
         pixel_query.iter()
     {

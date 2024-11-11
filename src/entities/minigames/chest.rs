@@ -378,11 +378,7 @@ pub fn handle_item_clicks(
     mouse_state: Res<MouseState>,
     time: Res<Time>,
 ) {
-    let click_position = match mouse_state.current_position {
-        Some(pos) => pos,
-        None => return,
-    };
-
+    let click_position = mouse_state.current_position;
     for (mut minigame, transform) in minigame_query.iter_mut() {
         let minigame = match minigame.as_mut() {
             Minigame::Chest(m) => m,
