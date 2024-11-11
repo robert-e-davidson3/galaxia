@@ -172,22 +172,17 @@ impl ChestMinigame {
         }
     }
 
-    pub fn add_item(&mut self, item: Item, amount: f32) -> bool {
+    pub fn add_item(&mut self, item: Item) -> bool {
         if !self.can_accept(&item) {
             return false;
         }
+        let amount = item.amount;
         let item = match item.as_physical() {
             Some(x) => x,
             None => return false, // should not happen
         };
 
-        let available_space = self.capacity() - self.total_stored();
-        if available_space <= 0.0 {
-            return false;
-        }
-
-        let amount_to_add = amount.min(available_space);
-        *self.storage.entry(item).or_insert(0.0) += amount_to_add;
+        *self.storage.entry(item).or_insert(0.0) += amount;
 
         // Check if we need to level up
         self.total_stored() >= self.capacity()
@@ -360,7 +355,7 @@ pub fn ingest_resource_fixed_update(
             continue;
         }
 
-        let should_level_up = minigame.add_item(*item, item.amount);
+        let should_level_up = minigame.add_item(*item);
         if should_level_up {
             commands.entity(aura.minigame).insert(LevelingUp);
         }
@@ -412,34 +407,14 @@ pub fn handle_item_clicks(
             if let Some((item, amount)) =
                 minigame.remove_item(item, amount_to_remove)
             {
-                spawn_item(
-                    &mut commands,
+                commands.spawn(ItemBundle::new_from_minigame(
                     &mut images,
                     &mut generated_image_assets,
-                    item,
-                    amount,
+                    Item::new_physical(item.form, item.material, amount),
                     transform,
-                );
+                    &minigame.area(),
+                ));
             }
         }
     }
-}
-
-fn spawn_item(
-    commands: &mut Commands,
-    images: &mut ResMut<Assets<Image>>,
-    generated_image_assets: &mut ResMut<image_gen::GeneratedImageAssets>,
-    item: PhysicalItem,
-    amount: f32,
-    minigame_transform: &GlobalTransform,
-) {
-    commands.spawn(ItemBundle::new(
-        images,
-        generated_image_assets,
-        Item::new_physical(item.form, item.material, amount),
-        Transform::from_translation(
-            minigame_transform.translation() + Vec3::new(0.0, -50.0, 0.0),
-        ),
-        Velocity::zero(),
-    ));
 }
