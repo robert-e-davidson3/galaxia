@@ -59,7 +59,10 @@ impl ChestMinigame {
     }
 
     pub fn levelup(&self) -> Self {
-        Self::new(self.level + 1)
+        Self {
+            level: self.level + 1,
+            ..self.clone()
+        }
     }
 
     pub fn capacity(&self) -> f32 {
@@ -75,11 +78,6 @@ impl ChestMinigame {
             Some(data) => data,
             None => return false,
         };
-
-        // Check if we have space
-        if self.total_stored() >= self.capacity() {
-            return false;
-        }
 
         // Level-based restrictions
         match self.level {
@@ -351,7 +349,6 @@ pub fn ingest_resource_fixed_update(
         };
 
         if !minigame.can_accept(&item) {
-            println!("Can't accept item");
             continue;
         }
 
@@ -373,18 +370,23 @@ pub fn handle_item_clicks(
     mouse_state: Res<MouseState>,
     time: Res<Time>,
 ) {
-    let click_position = mouse_state.current_position;
+    if !mouse_state.just_pressed {
+        return;
+    }
+    let mouse_position = mouse_state.current_position;
+
     for (mut minigame, transform) in minigame_query.iter_mut() {
         let minigame = match minigame.as_mut() {
             Minigame::Chest(m) => m,
-            _ => continue,
+            _ => {
+                continue;
+            }
         };
 
-        // Check if click is within minigame bounds
-        if !minigame
+        let is_within = minigame
             .area()
-            .is_within(click_position, transform.translation().truncate())
-        {
+            .is_within(mouse_position, transform.translation().truncate());
+        if !is_within {
             continue;
         }
 
@@ -393,11 +395,9 @@ pub fn handle_item_clicks(
             continue;
         }
 
-        // Find which item was clicked (if any)
         let filtered_items = minigame.filtered_items();
-        for (item, amount) in filtered_items.iter() {
-            // TODO: Check if click hits item's position
 
+        for (item, amount) in filtered_items.iter() {
             let amount_to_remove = if click_type == ClickType::Long {
                 *amount
             } else {
