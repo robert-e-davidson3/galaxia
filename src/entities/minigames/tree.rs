@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_prototype_lyon::prelude::*;
 
 use crate::entities::*;
 use crate::libs::*;

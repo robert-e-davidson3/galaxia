@@ -44,6 +44,7 @@ fn main() {
                 minigames::primordial_ocean::update,
                 mouse::update_mouse_state,
                 mouse::follow_mouse_update,
+                mouse::update_hover_text,
             )
                 .chain(),
         )

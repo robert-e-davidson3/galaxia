@@ -107,11 +107,18 @@ impl Minigame {
     ) -> Entity {
         let area = self.area();
         let name = self.name();
+        let description = self.description();
         let level = self.level();
         let entity = commands
             .spawn(MinigameBundle::new(self.clone(), transform))
             .with_children(|parent| {
-                spawn_minigame_container(parent, area, name.into(), level);
+                spawn_minigame_container(
+                    parent,
+                    area,
+                    name.into(),
+                    description,
+                    level,
+                );
                 parent.spawn(MinigameAuraBundle::new(
                     parent.parent_entity(),
                     area,
@@ -199,6 +206,7 @@ pub fn spawn_minigame_container(
     parent: &mut ChildBuilder,
     area: RectangularArea,
     name: &str,
+    description: &str,
     level: u8,
 ) {
     let minigame = parent.parent_entity();
@@ -243,7 +251,13 @@ pub fn spawn_minigame_container(
                 Stroke::new(Color::BLACK, WALL_THICKNESS),
             ));
             spawn_minigame_name(parent, name);
-            spawn_minigame_buttons(parent, meta_area, minigame, level);
+            spawn_minigame_buttons(
+                parent,
+                meta_area,
+                minigame,
+                level,
+                description,
+            );
         });
 }
 
@@ -278,8 +292,9 @@ pub fn spawn_minigame_buttons(
     area: RectangularArea,
     minigame: Entity,
     level: u8,
+    description: &str,
 ) {
-    spawn_minigame_engage_button(parent, area, minigame, level);
+    spawn_minigame_engage_button(parent, area, minigame, level, description);
 }
 
 #[derive(Debug, Copy, Clone, Component)]
@@ -297,12 +312,14 @@ pub fn spawn_minigame_engage_button(
     area: RectangularArea,
     minigame: Entity,
     level: u8,
+    description: &str,
 ) {
     parent
         .spawn((
             MinigameEngageButton { minigame },
             Toggleable::new(),
             CircularArea { radius: 90.0 },
+            HoverText::new(description.into()),
             ShapeBundle {
                 path: GeometryBuilder::build_as(&shapes::Rectangle {
                     extents: Vec2::new(BUTTON_WIDTH, META_HEIGHT),

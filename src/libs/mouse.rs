@@ -300,3 +300,68 @@ impl Plugin for ClickIndicatorPlugin {
             .add_systems(Update, manage_click_indicator);
     }
 }
+
+#[derive(Component)]
+pub struct HoverText {
+    pub text: String,
+    pub text_entity: Option<Entity>,
+}
+
+impl HoverText {
+    pub fn new(text: String) -> Self {
+        Self {
+            text,
+            text_entity: None,
+        }
+    }
+}
+
+pub fn update_hover_text(
+    mut commands: Commands,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    window_query: Query<&Window>,
+    mut hover_text_query: Query<(Entity, &mut HoverText, &GlobalTransform)>,
+) {
+    let mouse_position = match get_mouse_position(&camera_query, &window_query)
+    {
+        Some(pos) => pos,
+        None => return,
+    };
+
+    for (entity, mut hover_text, transform) in hover_text_query.iter_mut() {
+        let is_hovering = transform
+            .compute_transform()
+            .translation
+            .truncate()
+            .distance(mouse_position)
+            < 20.0;
+
+        match (is_hovering, hover_text.text_entity) {
+            (true, None) => {
+                // Spawn text entity when starting to hover
+                let text_entity = commands
+                    .spawn(Text2dBundle {
+                        text: Text::from_section(
+                            hover_text.text.clone(),
+                            TextStyle {
+                                font_size: 20.0,
+                                color: Color::BLACK,
+                                ..default()
+                            },
+                        ),
+                        transform: Transform::from_xyz(0.0, 30.0, 2.0),
+                        ..default()
+                    })
+                    .id();
+                commands.entity(entity).add_child(text_entity);
+                hover_text.text_entity = Some(text_entity);
+            }
+            (false, Some(text_entity)) => {
+                // Remove text entity when no longer hovering
+                commands.entity(text_entity).despawn();
+                hover_text.text_entity = None;
+            }
+            _ => {}
+        }
+    }
+}
