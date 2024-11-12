@@ -217,6 +217,7 @@ pub struct ClickIndicator {}
 pub struct ClickIndicatorConfig {
     pub radius: f32,
     pub color: Color,
+    pub long_color: Color,
     pub stroke_width: f32,
 }
 
@@ -225,6 +226,7 @@ impl Default for ClickIndicatorConfig {
         Self {
             radius: 10.0,
             color: Color::srgba(1.0, 0.5, 0.0, 1.0),
+            long_color: Color::srgba(1.0, 0.0, 0.0, 1.0),
             stroke_width: 2.0,
         }
     }
@@ -284,9 +286,16 @@ fn manage_click_indicator(
             commands
                 .entity(entity)
                 .insert(Transform::from_xyz(pos.x, pos.y, 1.0));
-            commands.entity(entity).insert(Fill::color(
-                indicator_config.color.with_alpha(progress),
-            ));
+            // Update color
+            if progress >= 1.0 {
+                commands
+                    .entity(entity)
+                    .insert(Fill::color(indicator_config.long_color));
+            } else {
+                commands.entity(entity).insert(Fill::color(
+                    indicator_config.color.with_alpha(progress),
+                ));
+            }
         }
     }
 }
