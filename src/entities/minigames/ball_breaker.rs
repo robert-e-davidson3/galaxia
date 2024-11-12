@@ -125,9 +125,9 @@ impl BallBreakerMinigame {
     }
 
     pub fn item_is_valid(item: &Item) -> bool {
-        let physical = match item.as_physical() {
-            Some(data) => data,
-            None => return false,
+        let physical = match item.r#type {
+            ItemType::Physical(data) => data,
+            _ => return false,
         };
 
         match physical.material {
@@ -659,7 +659,10 @@ pub fn ingest_resource_fixed_update(
         }
 
         // add ball to minigame
-        let material = item.as_physical().unwrap().material;
+        let material = match item.r#type {
+            ItemType::Physical(x) => x.material,
+            _ => continue,
+        };
         commands.entity(*aura_entity).with_children(|parent| {
             parent.spawn(BallBundle::new(
                 &mut images,

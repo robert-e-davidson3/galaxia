@@ -76,9 +76,9 @@ impl ChestMinigame {
     }
 
     pub fn can_accept(&self, item: &Item) -> bool {
-        let physical = match item.as_physical() {
-            Some(data) => data,
-            None => return false,
+        let physical = match item.r#type {
+            ItemType::Physical(data) => data,
+            _ => return false,
         };
 
         // Level-based restrictions
@@ -181,9 +181,9 @@ impl ChestMinigame {
             return false;
         }
         let amount = item.amount;
-        let item = match item.as_physical() {
-            Some(x) => x,
-            None => return false, // should not happen
+        let item = match item.r#type {
+            ItemType::Physical(x) => x,
+            _ => return false, // should not happen
         };
 
         *self.storage.entry(item).or_insert(0.0) += amount;

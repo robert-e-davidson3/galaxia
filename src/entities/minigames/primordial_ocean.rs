@@ -92,9 +92,9 @@ impl PrimordialOceanMinigame {
     }
 
     pub fn item_is_valid(item: &Item) -> bool {
-        let physical = match item.as_physical() {
-            Some(data) => data,
-            None => return false,
+        let physical = match item.r#type {
+            ItemType::Physical(data) => data,
+            _ => return false,
         };
 
         matches!(physical.material, PhysicalItemMaterial::SaltWater)

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::mem::discriminant;
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
@@ -94,28 +95,27 @@ impl ItemBundle {
 
 #[derive(Debug, Clone, Copy, Component)]
 #[component(storage = "SparseSet")]
-#[repr(C, align(8))]
 pub struct Item {
-    pub item_type: ItemType,
-    pub item_data: ItemData,
+    pub r#type: ItemType,
     pub amount: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ItemType {
+    Abstract(AbstractItem),
+    Physical(PhysicalItem),
+    Mana(ManaItem),
+    Energy(EnergyItem),
+    Minigame(MinigameItem),
+}
+
 impl Item {
-    pub fn new(item_type: ItemType, item_data: ItemData, amount: f32) -> Self {
-        Self {
-            item_type,
-            item_data,
-            amount,
-        }
+    pub fn new(r#type: ItemType, amount: f32) -> Self {
+        Self { r#type, amount }
     }
 
     pub fn uid(&self) -> String {
         self.identifier().uid()
-    }
-
-    pub fn new_one(item_type: ItemType, item_data: ItemData) -> Self {
-        Self::new(item_type, item_data, 1.0)
     }
 
     pub fn new_abstract(
@@ -123,13 +123,7 @@ impl Item {
         variant: u8,
         amount: f32,
     ) -> Self {
-        Self::new(
-            ItemType::Abstract,
-            ItemData {
-                r#abstract: AbstractItem { kind, variant },
-            },
-            amount,
-        )
+        Self::new(ItemType::Abstract(AbstractItem { kind, variant }), amount)
     }
 
     pub fn new_physical(
@@ -137,45 +131,49 @@ impl Item {
         material: PhysicalItemMaterial,
         amount: f32,
     ) -> Self {
-        Self::new(
-            ItemType::Physical,
-            ItemData {
-                physical: PhysicalItem { form, material },
-            },
-            amount,
-        )
+        Self::new(ItemType::Physical(PhysicalItem { form, material }), amount)
     }
 
     pub fn combine(&self, other: &Self) -> Option<Self> {
-        if self.item_type != other.item_type {
+        if discriminant(&self.r#type) != discriminant(&other.r#type) {
             return None;
         }
-        unsafe {
-            match match self.item_type {
-                ItemType::Abstract => self
-                    .item_data
-                    .r#abstract
-                    .combines(&other.item_data.r#abstract),
-                ItemType::Physical => {
-                    self.item_data.physical.combines(&other.item_data.physical)
+
+        match match (self.r#type, other.r#type) {
+            (ItemType::Abstract(a), ItemType::Abstract(b)) => {
+                match a.combine(&b, self.amount, other.amount) {
+                    Some((t, a)) => Some((ItemType::Abstract(t), a)),
+                    None => None,
                 }
-                ItemType::Mana => {
-                    self.item_data.mana.combines(&other.item_data.mana)
-                }
-                ItemType::Energy => {
-                    self.item_data.energy.combines(&other.item_data.energy)
-                }
-                ItemType::Minigame => {
-                    self.item_data.minigame.combines(&other.item_data.minigame)
-                }
-            } {
-                true => Some(Self {
-                    item_type: self.item_type,
-                    item_data: self.item_data,
-                    amount: self.amount + other.amount,
-                }),
-                false => None,
             }
+            (ItemType::Physical(a), ItemType::Physical(b)) => {
+                match a.combine(&b, self.amount, other.amount) {
+                    Some((t, a)) => Some((ItemType::Physical(t), a)),
+                    None => None,
+                }
+            }
+            (ItemType::Mana(a), ItemType::Mana(b)) => {
+                match a.combine(&b, self.amount, other.amount) {
+                    Some((t, a)) => Some((ItemType::Mana(t), a)),
+                    None => None,
+                }
+            }
+            (ItemType::Energy(a), ItemType::Energy(b)) => {
+                match a.combine(&b, self.amount, other.amount) {
+                    Some((t, a)) => Some((ItemType::Energy(t), a)),
+                    None => None,
+                }
+            }
+            (ItemType::Minigame(a), ItemType::Minigame(b)) => {
+                match a.combine(&b, self.amount, other.amount) {
+                    Some((t, a)) => Some((ItemType::Minigame(t), a)),
+                    None => None,
+                }
+            }
+            _ => None, // mismatched types
+        } {
+            Some((r#type, amount)) => Some(Self { r#type, amount }),
+            None => None,
         }
     }
 
@@ -185,56 +183,6 @@ impl Item {
 
     pub fn asset(&self) -> String {
         self.identifier().asset()
-    }
-
-    pub fn as_abstract(&self) -> Option<AbstractItem> {
-        unsafe {
-            if self.item_type == ItemType::Abstract {
-                Some(self.item_data.r#abstract)
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn as_physical(&self) -> Option<PhysicalItem> {
-        unsafe {
-            if self.item_type == ItemType::Physical {
-                Some(self.item_data.physical)
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn as_mana(&self) -> Option<ManaItem> {
-        unsafe {
-            if self.item_type == ItemType::Mana {
-                Some(self.item_data.mana)
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn as_energy(&self) -> Option<EnergyItem> {
-        unsafe {
-            if self.item_type == ItemType::Energy {
-                Some(self.item_data.energy)
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn as_minigame(&self) -> Option<MinigameItem> {
-        unsafe {
-            if self.item_type == ItemType::Minigame {
-                Some(self.item_data.minigame)
-            } else {
-                None
-            }
-        }
     }
 
     // Radius is cross-section of a cylinder with volume proportional to amount
@@ -261,63 +209,23 @@ impl Item {
     }
 
     pub fn draw(&self, rand: &mut WyRand) -> Image {
-        unsafe {
-            match self.item_type {
-                ItemType::Abstract => self.item_data.r#abstract.draw(rand),
-                ItemType::Physical => self.item_data.physical.draw(rand),
-                ItemType::Mana => self.item_data.mana.draw(rand),
-                ItemType::Energy => self.item_data.energy.draw(rand),
-                ItemType::Minigame => self.item_data.minigame.draw(rand),
-            }
+        match self.r#type {
+            ItemType::Abstract(a) => a.draw(rand),
+            ItemType::Physical(a) => a.draw(rand),
+            ItemType::Mana(a) => a.draw(rand),
+            ItemType::Energy(a) => a.draw(rand),
+            ItemType::Minigame(a) => a.draw(rand),
         }
     }
 
     fn identifier(&self) -> ItemIdentifier {
-        unsafe {
-            match self.item_type {
-                ItemType::Abstract => self.item_data.r#abstract.identifier(),
-                ItemType::Physical => self.item_data.physical.identifier(),
-                ItemType::Mana => self.item_data.mana.identifier(),
-                ItemType::Energy => self.item_data.energy.identifier(),
-                ItemType::Minigame => self.item_data.minigame.identifier(),
-            }
+        match self.r#type {
+            ItemType::Abstract(a) => a.identifier(),
+            ItemType::Physical(a) => a.identifier(),
+            ItemType::Mana(a) => a.identifier(),
+            ItemType::Energy(a) => a.identifier(),
+            ItemType::Minigame(a) => a.identifier(),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum ItemType {
-    // clicks, shapes, colors
-    // usually inert but in the right context can combine to create a new
-    // item or effect
-    Abstract,
-    // behave kinda like they do in real life
-    Physical,
-    // Fire, Water, Earth, Air, and much more esoteric magical energies
-    // behavior varies wildly by type
-    Mana,
-    // electricity, heat, potential and kinetic energy, sunlight, light, sound
-    // expended for an effect as soon as possible
-    Energy,
-    // special item acquired when the player beats a minigame
-    // behaves like a physical solid item
-    Minigame,
-}
-
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub union ItemData {
-    pub r#abstract: AbstractItem,
-    pub physical: PhysicalItem,
-    pub mana: ManaItem,
-    pub energy: EnergyItem,
-    pub minigame: MinigameItem,
-}
-
-impl std::fmt::Debug for ItemData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ItemData{{...}}")
     }
 }
 
@@ -350,7 +258,7 @@ impl ItemIdentifier {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(C)]
 pub struct AbstractItem {
     pub kind: AbstractItemKind,
@@ -358,8 +266,17 @@ pub struct AbstractItem {
 }
 
 impl AbstractItem {
-    pub fn combines(&self, other: &AbstractItem) -> bool {
-        self.kind == other.kind && self.variant == other.variant
+    pub fn combine(
+        &self,
+        other: &AbstractItem,
+        self_amount: f32,
+        other_amount: f32,
+    ) -> Option<(AbstractItem, f32)> {
+        if self.kind == other.kind && self.variant == other.variant {
+            Some((self.clone(), self_amount + other_amount))
+        } else {
+            None
+        }
     }
 
     pub fn draw(&self, _rand: &mut WyRand) -> Image {
@@ -699,19 +616,31 @@ pub struct PhysicalItem {
 const ITEM_SIZE: u32 = 256; // pixels
 
 impl PhysicalItem {
-    pub fn combines(&self, other: &PhysicalItem) -> bool {
+    pub fn combine(
+        &self,
+        other: &PhysicalItem,
+        self_amount: f32,
+        other_amount: f32,
+    ) -> Option<(PhysicalItem, f32)> {
         if self.material != other.material {
-            return false;
+            return None;
         }
         if self.material.is_goo() {
-            return true;
+            return Some((self.clone(), self_amount + other_amount));
         }
-        return match self.form {
+        if self.form != other.form {
+            return None;
+        }
+        if match self.form {
             PhysicalItemForm::Gas => true,
             PhysicalItemForm::Liquid => true,
             PhysicalItemForm::Powder => true,
             _ => false,
-        };
+        } {
+            Some((self.clone(), self_amount + other_amount))
+        } else {
+            None
+        }
     }
 
     pub fn draw(&self, rand: &mut WyRand) -> Image {
@@ -897,7 +826,7 @@ impl PhysicalItemMaterial {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(C)]
 pub struct ManaItem {
     pub kind: ManaKind,
@@ -906,8 +835,21 @@ pub struct ManaItem {
 }
 
 impl ManaItem {
-    pub fn combines(&self, other: &ManaItem) -> bool {
-        self.kind == other.kind && self.subkind == other.subkind
+    pub fn combine(
+        &self,
+        other: &ManaItem,
+        self_amount: f32,
+        other_amount: f32,
+    ) -> Option<(ManaItem, f32)> {
+        // TODO mana combining has weird rules - can actually change the mana type
+        if self.kind == other.kind
+            && self.subkind == other.subkind
+            && self.intent == other.intent
+        {
+            Some((self.clone(), self_amount + other_amount))
+        } else {
+            None
+        }
     }
 
     pub fn draw(&self, _rand: &mut WyRand) -> Image {
@@ -930,7 +872,7 @@ pub enum ManaKind {
     Dark,
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
 pub enum ManaIntent {
     Attack,
@@ -938,15 +880,24 @@ pub enum ManaIntent {
     Support,
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(C)]
 pub struct EnergyItem {
     pub kind: EnergyKind,
 }
 
 impl EnergyItem {
-    pub fn combines(&self, other: &EnergyItem) -> bool {
-        self.kind == other.kind
+    pub fn combine(
+        &self,
+        other: &EnergyItem,
+        self_amount: f32,
+        other_amount: f32,
+    ) -> Option<(EnergyItem, f32)> {
+        if self.kind == other.kind {
+            Some((self.clone(), self_amount + other_amount))
+        } else {
+            None
+        }
     }
 
     pub fn draw(&self, _rand: &mut WyRand) -> Image {
@@ -969,7 +920,7 @@ pub enum EnergyKind {
     Radiant,
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(C)]
 pub struct MinigameItem {
     pub kind: MinigameItemKind,
@@ -977,8 +928,14 @@ pub struct MinigameItem {
 }
 
 impl MinigameItem {
-    pub fn combines(&self, other: &MinigameItem) -> bool {
-        self.kind == other.kind && self.variant == other.variant
+    // Minigame items can't combine
+    pub fn combine(
+        &self,
+        _other: &MinigameItem,
+        _self_amount: f32,
+        _other_amount: f32,
+    ) -> Option<(MinigameItem, f32)> {
+        None
     }
 
     pub fn draw(&self, _rand: &mut WyRand) -> Image {
