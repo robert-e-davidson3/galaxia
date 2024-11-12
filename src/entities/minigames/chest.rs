@@ -22,6 +22,7 @@ pub struct ChestMinigame {
     pub storage: HashMap<PhysicalItem, f32>, // Item -> amount mapping
     pub scroll_offset: usize,
     pub filter: String,
+    pub displayed_items: Vec<PhysicalItem>,
 }
 
 impl ChestMinigame {
@@ -31,6 +32,7 @@ impl ChestMinigame {
             storage: HashMap::new(),
             scroll_offset: 0,
             filter: String::new(),
+            displayed_items: Vec::new(),
         }
     }
 
@@ -126,6 +128,7 @@ impl ChestMinigame {
         parent: &mut ChildBuilder,
         _asset_server: &AssetServer,
     ) {
+        let minigame_entity = parent.parent_entity();
         // Background
         parent.spawn(SpriteBundle {
             sprite: Sprite {
@@ -165,7 +168,10 @@ impl ChestMinigame {
                     * STORAGE_SIZE;
                 let y = (row as f32 - (VISIBLE_ROWS as f32 - 1.0) / 2.0)
                     * STORAGE_SIZE;
-                parent.spawn(ItemSlotBundle::new(Vec2::new(x, y)));
+                parent.spawn(ItemSlotBundle::new(
+                    minigame_entity,
+                    Vec2::new(x, y),
+                ));
             }
         }
     }
@@ -283,15 +289,19 @@ struct ScrollButton {
 }
 
 #[derive(Bundle)]
-struct ItemSlotBundle {
+pub struct ItemSlotBundle {
     slot: ItemSlot,
     sprite: SpriteBundle,
 }
 
 impl ItemSlotBundle {
-    fn new(position: Vec2) -> Self {
+    fn new(minigame: Entity, position: Vec2) -> Self {
         Self {
-            slot: ItemSlot,
+            slot: ItemSlot {
+                minigame,
+                position,
+                item: None,
+            },
             sprite: SpriteBundle {
                 sprite: Sprite {
                     color: Color::srgba(1.0, 1.0, 1.0, 0.2),
@@ -309,7 +319,11 @@ impl ItemSlotBundle {
 }
 
 #[derive(Component)]
-struct ItemSlot;
+pub struct ItemSlot {
+    minigame: Entity,
+    position: Vec2,
+    item: Option<PhysicalItem>,
+}
 
 pub fn ingest_resource_fixed_update(
     mut commands: Commands,
@@ -366,9 +380,10 @@ pub fn handle_item_clicks(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
-    mut minigame_query: Query<(&mut Minigame, &GlobalTransform)>,
     mouse_state: Res<MouseState>,
     time: Res<Time>,
+    mut minigame_query: Query<(&mut Minigame, &GlobalTransform)>,
+    slot_query: Query<&ItemSlot>,
 ) {
     if !mouse_state.just_pressed {
         return;
