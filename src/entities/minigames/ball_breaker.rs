@@ -477,7 +477,6 @@ pub fn unselected_paddle_update(
 
 pub fn hit_block_fixed_update(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut collision_events: EventReader<CollisionEvent>,

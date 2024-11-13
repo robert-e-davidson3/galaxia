@@ -1,6 +1,8 @@
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
+
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
-use std::collections::{HashMap, HashSet};
 
 use crate::entities::*;
 use crate::libs::*;
@@ -12,29 +14,31 @@ pub const NAME_WITH_TANKS: &str = "tanks, barrels, and chest with bags";
 pub const DESCRIPTION: &str = "Store your items!";
 
 const STORAGE_SIZE: f32 = 50.0;
-const ITEMS_PER_ROW: usize = 5;
-const VISIBLE_ROWS: usize = 3;
+const ITEMS_PER_ROW: u32 = 5;
+const VISIBLE_ROWS: u32 = 3;
 const SCROLL_BUTTON_WIDTH: f32 = 20.0;
 
 #[derive(Debug, Clone, Default, Component)]
 pub struct ChestMinigame {
     pub level: u8,
-    pub storage: HashMap<PhysicalItem, f32>, // Item -> amount mapping
     pub scroll_offset: usize,
     pub filter: String,
-    pub displayed_items: Vec<PhysicalItem>,
+    pub inventory: Arc<Mutex<HashMap<ItemType, f32>>>,
 }
 
 impl ChestMinigame {
     pub fn new(level: u8) -> Self {
         Self {
             level,
-            storage: HashMap::new(),
             scroll_offset: 0,
             filter: String::new(),
-            displayed_items: Vec::new(),
+            inventory: Arc::new(Mutex::new(HashMap::new())),
         }
     }
+
+    //
+    // COMMON
+    //
 
     pub fn name(&self) -> &str {
         match self.level {
@@ -67,12 +71,38 @@ impl ChestMinigame {
         }
     }
 
+    pub fn spawn(
+        &self,
+        parent: &mut ChildBuilder,
+        _asset_server: &AssetServer,
+        images: &mut Assets<Image>,
+        generated_image_assets: &mut image_gen::GeneratedImageAssets,
+    ) {
+        // TODO draw background chest, barrels, etc
+        InventoryBundle::spawn(
+            parent,
+            images,
+            generated_image_assets,
+            Inventory::new(
+                parent.parent_entity(),
+                (ITEMS_PER_ROW, VISIBLE_ROWS),
+                &self.inventory,
+            ),
+            Vec2::ZERO,
+            self.area().into(),
+        );
+    }
+
+    //
+    // SPECIFIC
+    //
+
     pub fn capacity(&self) -> f32 {
         2.0f32.powi(self.level as i32)
     }
 
     pub fn total_stored(&self) -> f32 {
-        self.storage.values().sum()
+        self.inventory.lock().unwrap().values().sum()
     }
 
     pub fn can_accept(&self, item: &Item) -> bool {
@@ -123,107 +153,77 @@ impl ChestMinigame {
         }
     }
 
-    pub fn spawn(
-        &self,
-        parent: &mut ChildBuilder,
-        _asset_server: &AssetServer,
-    ) {
-        let minigame_entity = parent.parent_entity();
-        // Background
-        parent.spawn(SpriteBundle {
-            sprite: Sprite {
-                color: Color::srgb(0.5, 0.5, 0.5),
-                custom_size: Some(self.area().into()),
-                ..default()
-            },
-            transform: Transform::from_xyz(0.0, 0.0, -1.0),
-            ..default()
-        });
+    // pub fn spawn(
+    //     &self,
+    //     parent: &mut ChildBuilder,
+    //     _asset_server: &AssetServer,
+    // ) {
+    //     let minigame_entity = parent.parent_entity();
+    //     // Background
+    //     parent.spawn(SpriteBundle {
+    //         sprite: Sprite {
+    //             color: Color::srgb(0.5, 0.5, 0.5),
+    //             custom_size: Some(self.area().into()),
+    //             ..default()
+    //         },
+    //         transform: Transform::from_xyz(0.0, 0.0, -1.0),
+    //         ..default()
+    //     });
 
-        // Search box
-        // parent.spawn(SearchBoxBundle::new(Vec2::new(
-        //     -self.area().width / 2.0 + 100.0,
-        //     self.area().height / 2.0 + 10.0,
-        // )));
+    //     // Search box
+    //     // parent.spawn(SearchBoxBundle::new(Vec2::new(
+    //     //     -self.area().width / 2.0 + 100.0,
+    //     //     self.area().height / 2.0 + 10.0,
+    //     // )));
 
-        // Scroll buttons
-        // parent.spawn(ScrollButtonBundle::new(
-        //     asset_server,
-        //     true,
-        //     Vec2::new(
-        //         -self.area().width / 2.0 + SCROLL_BUTTON_WIDTH / 2.0,
-        //         0.0,
-        //     ),
-        // ));
-        // parent.spawn(ScrollButtonBundle::new(
-        //     asset_server,
-        //     false,
-        //     Vec2::new(self.area().width / 2.0 - SCROLL_BUTTON_WIDTH / 2.0, 0.0),
-        // ));
+    //     // Scroll buttons
+    //     // parent.spawn(ScrollButtonBundle::new(
+    //     //     asset_server,
+    //     //     true,
+    //     //     Vec2::new(
+    //     //         -self.area().width / 2.0 + SCROLL_BUTTON_WIDTH / 2.0,
+    //     //         0.0,
+    //     //     ),
+    //     // ));
+    //     // parent.spawn(ScrollButtonBundle::new(
+    //     //     asset_server,
+    //     //     false,
+    //     //     Vec2::new(self.area().width / 2.0 - SCROLL_BUTTON_WIDTH / 2.0, 0.0),
+    //     // ));
 
-        // Grid slots for items
-        for row in 0..VISIBLE_ROWS {
-            for col in 0..ITEMS_PER_ROW {
-                let x = (col as f32 - (ITEMS_PER_ROW as f32 - 1.0) / 2.0)
-                    * STORAGE_SIZE;
-                let y = (row as f32 - (VISIBLE_ROWS as f32 - 1.0) / 2.0)
-                    * STORAGE_SIZE;
-                parent.spawn(ItemSlotBundle::new(
-                    minigame_entity,
-                    Vec2::new(x, y),
-                ));
-            }
-        }
-    }
+    //     // Grid slots for items
+    //     for row in 0..VISIBLE_ROWS {
+    //         for col in 0..ITEMS_PER_ROW {
+    //             let x = (col as f32 - (ITEMS_PER_ROW as f32 - 1.0) / 2.0)
+    //                 * STORAGE_SIZE;
+    //             let y = (row as f32 - (VISIBLE_ROWS as f32 - 1.0) / 2.0)
+    //                 * STORAGE_SIZE;
+    //             parent.spawn(ItemSlotBundle::new(
+    //                 minigame_entity,
+    //                 Vec2::new(x, y),
+    //             ));
+    //         }
+    //     }
+    // }
 
-    pub fn add_item(&mut self, item: Item) -> bool {
+    pub fn add_item(&self, item: Item) -> bool {
         if !self.can_accept(&item) {
             return false;
         }
         let amount = item.amount;
-        let item = match item.r#type {
-            ItemType::Physical(x) => x,
+        match item.r#type {
+            ItemType::Physical(_) => {}
             _ => return false, // should not happen
         };
 
-        *self.storage.entry(item).or_insert(0.0) += amount;
+        add_item(&self.inventory, item.r#type, amount);
 
         // Check if we need to level up
-        self.total_stored() >= self.capacity()
+        total_stored(&self.inventory) >= self.capacity()
     }
 
-    pub fn remove_item(
-        &mut self,
-        item: &PhysicalItem,
-        amount: f32,
-    ) -> Option<(PhysicalItem, f32)> {
-        if let Some(stored_amount) = self.storage.get_mut(item) {
-            let amount_to_remove = amount.min(*stored_amount);
-            *stored_amount -= amount_to_remove;
-
-            if *stored_amount <= 0.0 {
-                self.storage.remove(item);
-            }
-
-            Some((item.clone(), amount_to_remove))
-        } else {
-            None
-        }
-    }
-
-    pub fn filtered_items(&self) -> Vec<(PhysicalItem, f32)> {
-        let filter = self.filter.to_lowercase();
-        self.storage
-            .iter()
-            .filter(|(item, _)| {
-                if filter.is_empty() {
-                    return true;
-                }
-                let name = item.identifier().name().to_lowercase();
-                name.contains(&filter)
-            })
-            .map(|(item, &amount)| (item.clone(), amount))
-            .collect()
+    pub fn filtered_items(&self) -> HashMap<ItemType, f32> {
+        filter_items(&self.inventory, self.filter.to_lowercase())
     }
 }
 
@@ -325,6 +325,9 @@ pub struct ItemSlot {
     item: Option<PhysicalItem>,
 }
 
+// TODO on search, update slots (add this to inventory module?)
+
+// TODO update slots
 pub fn ingest_resource_fixed_update(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
@@ -373,63 +376,5 @@ pub fn ingest_resource_fixed_update(
 
         commands.entity(item_entity).despawn();
         ingested.insert(item_entity);
-    }
-}
-
-pub fn handle_item_clicks(
-    mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
-    mouse_state: Res<MouseState>,
-    time: Res<Time>,
-    mut minigame_query: Query<(&mut Minigame, &GlobalTransform)>,
-    slot_query: Query<&ItemSlot>,
-) {
-    if !mouse_state.just_pressed {
-        return;
-    }
-    let mouse_position = mouse_state.current_position;
-
-    for (mut minigame, transform) in minigame_query.iter_mut() {
-        let minigame = match minigame.as_mut() {
-            Minigame::Chest(m) => m,
-            _ => {
-                continue;
-            }
-        };
-
-        let is_within = minigame
-            .area()
-            .is_within(mouse_position, transform.translation().truncate());
-        if !is_within {
-            continue;
-        }
-
-        let click_type = mouse_state.get_click_type(time.elapsed_seconds());
-        if click_type == ClickType::Invalid {
-            continue;
-        }
-
-        let filtered_items = minigame.filtered_items();
-
-        for (item, amount) in filtered_items.iter() {
-            let amount_to_remove = if click_type == ClickType::Long {
-                *amount
-            } else {
-                1.0f32.min(*amount)
-            };
-
-            if let Some((item, amount)) =
-                minigame.remove_item(item, amount_to_remove)
-            {
-                commands.spawn(ItemBundle::new_from_minigame(
-                    &mut images,
-                    &mut generated_image_assets,
-                    Item::new_physical(item.form, item.material, amount),
-                    transform,
-                    &minigame.area(),
-                ));
-            }
-        }
     }
 }

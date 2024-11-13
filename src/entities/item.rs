@@ -100,15 +100,6 @@ pub struct Item {
     pub amount: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ItemType {
-    Abstract(AbstractItem),
-    Physical(PhysicalItem),
-    Mana(ManaItem),
-    Energy(EnergyItem),
-    Minigame(MinigameItem),
-}
-
 impl Item {
     pub fn new(r#type: ItemType, amount: f32) -> Self {
         Self { r#type, amount }
@@ -209,22 +200,49 @@ impl Item {
     }
 
     pub fn draw(&self, rand: &mut WyRand) -> Image {
-        match self.r#type {
-            ItemType::Abstract(a) => a.draw(rand),
-            ItemType::Physical(a) => a.draw(rand),
-            ItemType::Mana(a) => a.draw(rand),
-            ItemType::Energy(a) => a.draw(rand),
-            ItemType::Minigame(a) => a.draw(rand),
-        }
+        self.r#type.draw(rand)
     }
 
     fn identifier(&self) -> ItemIdentifier {
-        match self.r#type {
+        self.r#type.identifier()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ItemType {
+    Abstract(AbstractItem),
+    Physical(PhysicalItem),
+    Mana(ManaItem),
+    Energy(EnergyItem),
+    Minigame(MinigameItem),
+}
+
+impl ItemType {
+    pub fn uid(&self) -> String {
+        self.identifier().uid()
+    }
+
+    pub fn name(&self) -> String {
+        self.identifier().adjective
+    }
+
+    pub fn identifier(&self) -> ItemIdentifier {
+        match self {
             ItemType::Abstract(a) => a.identifier(),
             ItemType::Physical(a) => a.identifier(),
             ItemType::Mana(a) => a.identifier(),
             ItemType::Energy(a) => a.identifier(),
             ItemType::Minigame(a) => a.identifier(),
+        }
+    }
+
+    pub fn draw(&self, rand: &mut WyRand) -> Image {
+        match self {
+            ItemType::Abstract(a) => a.draw(rand),
+            ItemType::Physical(a) => a.draw(rand),
+            ItemType::Mana(a) => a.draw(rand),
+            ItemType::Energy(a) => a.draw(rand),
+            ItemType::Minigame(a) => a.draw(rand),
         }
     }
 }

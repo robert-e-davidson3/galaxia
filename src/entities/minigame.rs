@@ -102,8 +102,8 @@ impl Minigame {
         transform: Transform,
         random: &mut Random,
         asset_server: &AssetServer,
-        _images: &mut Assets<Image>,
-        _generated_image_assets: &mut image_gen::GeneratedImageAssets,
+        images: &mut Assets<Image>,
+        generated_image_assets: &mut image_gen::GeneratedImageAssets,
     ) -> Entity {
         let area = self.area();
         let name = self.name();
@@ -127,7 +127,12 @@ impl Minigame {
                     Minigame::Button(m) => m.spawn(parent),
                     Minigame::Rune(m) => m.spawn(parent),
                     Minigame::PrimordialOcean(m) => m.spawn(parent),
-                    Minigame::Chest(m) => m.spawn(parent, asset_server),
+                    Minigame::Chest(m) => m.spawn(
+                        parent,
+                        asset_server,
+                        images,
+                        generated_image_assets,
+                    ),
                     Minigame::BallBreaker(m) => {
                         m.spawn(parent, random, asset_server)
                     }

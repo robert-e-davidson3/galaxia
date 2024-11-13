@@ -39,9 +39,9 @@ fn main() {
                 minigames::button::update,
                 minigames::rune::pixel_update,
                 minigames::tree::update,
-                minigames::chest::handle_item_clicks,
                 minigames::ball_breaker::unselected_paddle_update,
                 minigames::primordial_ocean::update,
+                inventory::handle_slot_click,
                 mouse::update_mouse_state,
                 mouse::follow_mouse_update,
                 mouse::update_hover_text,
@@ -60,6 +60,7 @@ fn main() {
                 minigames::ball_breaker::ingest_resource_fixed_update,
                 item::teleport_distant_loose_items,
                 item::combine_loose_items,
+                inventory::redraw_slots,
             ),
         )
         .insert_resource(mouse::MouseState::new(1.0))
