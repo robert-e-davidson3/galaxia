@@ -70,6 +70,7 @@ pub struct Inventory {
     pub owner: Entity,
     pub slots: (u32, u32), // (x,y)
     pub items: Arc<Mutex<HashMap<ItemType, f32>>>,
+    pub filter: String,
 }
 
 impl Inventory {
@@ -82,6 +83,7 @@ impl Inventory {
             owner,
             items: items.clone(),
             slots,
+            filter: String::new(),
         }
     }
 }
@@ -159,7 +161,7 @@ impl SlotBundle {
             .with_children(|parent| {
                 let _background = parent.spawn(SpriteBundle {
                     sprite: Sprite {
-                        color: Color::srgba(1.0, 1.0, 1.0, 0.2),
+                        color: Color::srgba(0.5, 0.5, 0.5, 0.2),
                         custom_size: Some(size * 0.9),
                         ..Default::default()
                     },
@@ -274,19 +276,38 @@ pub fn total_stored(inventory: &Arc<Mutex<HashMap<ItemType, f32>>>) -> f32 {
 pub fn filter_items(
     inventory: &Arc<Mutex<HashMap<ItemType, f32>>>,
     filter: String,
-) -> HashMap<ItemType, f32> {
-    if filter.is_empty() {
-        return inventory.lock().unwrap().clone();
-    }
+    per_page: usize,
+    page: usize,
+) -> Vec<Item> {
+    let mut count = 0;
+    let offset = per_page * page;
     inventory
         .lock()
         .unwrap()
         .iter()
-        .filter(|(item, _)| {
-            item.uid().to_lowercase().contains(&filter.to_lowercase())
+        .filter_map(|(item_type, amount)| {
+            let matches = item_type
+                .uid()
+                .to_lowercase()
+                .contains(&filter.to_lowercase());
+            if !matches {
+                return None;
+            }
+            count += 1;
+            if count <= offset {
+                return None;
+            }
+            if count > offset + per_page {
+                // TODO rewrite to short-circuit
+                return None;
+            }
+            Some(Item {
+                r#type: item_type.clone(),
+                amount: *amount,
+            })
         })
-        .map(|(item, amount)| (item.clone(), *amount))
         .collect()
+    // TODO rewrite to pre-allocate
 }
 
 //

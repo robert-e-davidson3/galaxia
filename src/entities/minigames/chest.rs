@@ -221,10 +221,6 @@ impl ChestMinigame {
         // Check if we need to level up
         total_stored(&self.inventory) >= self.capacity()
     }
-
-    pub fn filtered_items(&self) -> HashMap<ItemType, f32> {
-        filter_items(&self.inventory, self.filter.to_lowercase())
-    }
 }
 
 #[derive(Bundle)]
@@ -288,44 +284,7 @@ struct ScrollButton {
     left: bool,
 }
 
-#[derive(Bundle)]
-pub struct ItemSlotBundle {
-    slot: ItemSlot,
-    sprite: SpriteBundle,
-}
-
-impl ItemSlotBundle {
-    fn new(minigame: Entity, position: Vec2) -> Self {
-        Self {
-            slot: ItemSlot {
-                minigame,
-                position,
-                item: None,
-            },
-            sprite: SpriteBundle {
-                sprite: Sprite {
-                    color: Color::srgba(1.0, 1.0, 1.0, 0.2),
-                    custom_size: Some(Vec2::new(
-                        STORAGE_SIZE * 0.9,
-                        STORAGE_SIZE * 0.9,
-                    )),
-                    ..default()
-                },
-                transform: Transform::from_xyz(position.x, position.y, 0.0),
-                ..default()
-            },
-        }
-    }
-}
-
-#[derive(Component)]
-pub struct ItemSlot {
-    minigame: Entity,
-    position: Vec2,
-    item: Option<PhysicalItem>,
-}
-
-// TODO on search, update slots (add this to inventory module?)
+// TODO on search, update slots (add this to inventory module)?
 
 // TODO update slots
 pub fn ingest_resource_fixed_update(
