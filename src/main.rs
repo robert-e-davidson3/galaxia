@@ -60,8 +60,11 @@ fn main() {
                 minigames::ball_breaker::ingest_resource_fixed_update,
                 item::teleport_distant_loose_items,
                 item::combine_loose_items,
-                inventory::redraw_slots,
             ),
+        )
+        .add_systems(
+            FixedUpdate,
+            (inventory::set_slots, inventory::redraw_slots).chain(),
         )
         .insert_resource(mouse::MouseState::new(1.0))
         .insert_resource(Time::<Fixed>::from_hz(20.0))

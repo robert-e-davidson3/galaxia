@@ -85,6 +85,7 @@ impl ChestMinigame {
             generated_image_assets,
             Inventory::new(
                 parent.parent_entity(),
+                Vec::new(),
                 (ITEMS_PER_ROW, VISIBLE_ROWS),
                 &self.inventory,
             ),
@@ -328,8 +329,9 @@ pub fn ingest_resource_fixed_update(
             continue;
         }
 
-        let should_level_up = minigame.add_item(*item);
-        if should_level_up {
+        add_item(&minigame.inventory, item.r#type, item.amount);
+
+        if total_stored(&minigame.inventory) >= minigame.capacity() {
             commands.entity(aura.minigame).insert(LevelingUp);
         }
 

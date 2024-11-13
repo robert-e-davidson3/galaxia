@@ -31,59 +31,80 @@ impl InventoryBundle {
         parent: &mut ChildBuilder,
         images: &mut Assets<Image>,
         generated_image_assets: &mut image_gen::GeneratedImageAssets,
-        inventory: Inventory,
+        mut inventory: Inventory,
         position: Vec2,
         inventory_size: Vec2,
     ) {
-        let (width, height) = inventory.slots;
+        let (width, height) = inventory.dimensions;
         let slot_size = Vec2::new(
             inventory_size.x / width as f32,
             inventory_size.y / height as f32,
         );
+        let items = filter_items(
+            &inventory.items,
+            inventory.filter.clone(),
+            (width * height) as usize,
+            0,
+        );
+        let inventory_area =
+            RectangularArea::new(inventory_size.x, inventory_size.y);
         parent
-            .spawn(InventoryBundle::new(inventory, position))
+            .spawn_empty()
             .with_children(|parent| {
                 let inventory_entity = parent.parent_entity();
+                let mut item_index = 0;
                 for y in 0..height {
+                    let y = height - y - 1;
                     for x in 0..width {
-                        SlotBundle::spawn(
+                        let slot_entity = SlotBundle::spawn(
                             parent,
                             images,
                             generated_image_assets,
                             Slot {
                                 inventory: inventory_entity,
-                                item: None,
+                                item: items
+                                    .get(item_index)
+                                    .map(|item| item.r#type),
                                 x,
                                 y,
                             },
                             (x, y),
                             slot_size,
+                            inventory_area,
                         );
+                        inventory.slots.push(slot_entity);
+                        item_index += 1;
                     }
                 }
-            });
+            })
+            .insert(InventoryBundle::new(inventory, position));
     }
 }
 
 #[derive(Debug, Clone, Component)]
 pub struct Inventory {
     pub owner: Entity,
-    pub slots: (u32, u32), // (x,y)
+    pub slots: Vec<Entity>,
+    pub dimensions: (u32, u32), // (x,y)
     pub items: Arc<Mutex<HashMap<ItemType, f32>>>,
     pub filter: String,
+    pub page: usize,
 }
 
 impl Inventory {
     pub fn new(
         owner: Entity,
-        slots: (u32, u32),
+        slots: Vec<Entity>,
+        dimensions: (u32, u32),
         items: &Arc<Mutex<HashMap<ItemType, f32>>>,
     ) -> Self {
         Inventory {
             owner,
-            items: items.clone(),
             slots,
+            dimensions,
+            items: items.clone(),
             filter: String::new(),
+            page: 0,
         }
     }
 }
@@ -101,26 +122,26 @@ impl SlotBundle {
         images: &mut Assets<Image>,
         generated_image_assets: &mut image_gen::GeneratedImageAssets,
         slot: Slot,
-        position: (u32, u32),
-        size: Vec2,
+        slot_position: (u32, u32),
+        slot_size: Vec2,
+        inventory_area: RectangularArea,
     ) -> Self {
-        let area = RectangularArea::new(size.x, size.y);
-        let (x, y) = position;
+        let area = RectangularArea::new(slot_size.x, slot_size.y);
         match slot.item {
             Some(item) => SlotBundle {
                 slot,
                 sprite: SpriteBundle {
-                    sprite: Self::present_sprite(&size),
+                    sprite: Self::present_sprite(&slot_size),
                     texture: Self::get_texture(
                         images,
                         generated_image_assets,
                         &item,
                     ),
-                    transform: Transform::from_translation(Vec3::new(
-                        x as f32 * size.x,
-                        y as f32 * size.y,
-                        0.0,
-                    )),
+                    transform: Self::slot_transform(
+                        slot_size,
+                        slot_position,
+                        inventory_area,
+                    ),
                     ..default()
                 },
                 area,
@@ -129,11 +150,11 @@ impl SlotBundle {
                 slot,
                 sprite: SpriteBundle {
                     sprite: Self::missing_sprite(),
-                    transform: Transform::from_translation(Vec3::new(
-                        x as f32 * size.x,
-                        y as f32 * size.y,
-                        0.0,
-                    )),
+                    transform: Self::slot_transform(
+                        slot_size,
+                        slot_position,
+                        inventory_area,
+                    ),
                     ..default()
                 },
                 area,
@@ -147,27 +168,30 @@ impl SlotBundle {
         images: &mut Assets<Image>,
         generated_image_assets: &mut image_gen::GeneratedImageAssets,
         slot: Slot,
-        position: (u32, u32),
-        size: Vec2,
-    ) {
+        slot_position: (u32, u32),
+        slot_size: Vec2,
+        inventory_area: RectangularArea,
+    ) -> Entity {
         parent
             .spawn(SlotBundle::new(
                 images,
                 generated_image_assets,
                 slot,
-                position,
-                size,
+                slot_position,
+                slot_size,
+                inventory_area,
             ))
             .with_children(|parent| {
                 let _background = parent.spawn(SpriteBundle {
                     sprite: Sprite {
                         color: Color::srgba(0.5, 0.5, 0.5, 0.2),
-                        custom_size: Some(size * 0.9),
-                        ..Default::default()
+                        custom_size: Some(slot_size * 0.9),
+                        ..default()
                     },
-                    ..Default::default()
+                    ..default()
                 });
-            });
+            })
+            .id()
     }
 
     pub fn redraw(
@@ -189,8 +213,8 @@ impl SlotBundle {
             }
             None => {
                 commands
-                    .insert(Self::missing_sprite())
-                    .insert(Self::missing_texture());
+                    .insert(Self::missing_texture())
+                    .insert(Self::missing_sprite());
             }
         }
     }
@@ -207,6 +231,20 @@ impl SlotBundle {
             custom_size: Some(*size * 0.8),
             ..default()
         }
+    }
+
+    fn slot_transform(
+        slot_size: Vec2,
+        slot_pos: (u32, u32),
+        inventory_area: RectangularArea,
+    ) -> Transform {
+        let delta_x = slot_size.x / 2.0 - inventory_area.width / 2.0;
+        let delta_y = slot_size.y / 2.0 - inventory_area.height / 2.0;
+        Transform::from_translation(Vec3::new(
+            delta_x + (slot_pos.0 as f32 * slot_size.x),
+            delta_y + (slot_pos.1 as f32 * slot_size.y),
+            1.0,
+        ))
     }
 
     fn get_texture(
@@ -242,10 +280,11 @@ pub fn add_item(
     inventory: &Arc<Mutex<HashMap<ItemType, f32>>>,
     item: ItemType,
     amount: f32,
-) {
+) -> f32 {
     let mut inventory = inventory.lock().unwrap();
     let current = inventory.entry(item).or_insert(0.0);
     *current += amount;
+    *current
 }
 
 // Returns (removed, remaining)
@@ -365,6 +404,29 @@ pub fn handle_slot_click(
     ));
     if remaining == 0.0 {
         slot.item.take();
+    }
+}
+
+pub fn set_slots(
+    mut slot_query: Query<&mut Slot>,
+    inventory_query: Query<&Inventory, Changed<Inventory>>,
+) {
+    for inventory in inventory_query.iter() {
+        let (width, height) = inventory.dimensions;
+        let items = filter_items(
+            &inventory.items,
+            inventory.filter.clone(),
+            (width * height) as usize,
+            inventory.page,
+        );
+        for (index, slot_entity) in inventory.slots.iter().enumerate() {
+            let mut slot = slot_query.get_mut(*slot_entity).unwrap();
+            if let Some(item) = items.get(index as usize) {
+                slot.item = Some(item.r#type.clone());
+            } else {
+                slot.item = None;
+            }
+        }
     }
 }
 

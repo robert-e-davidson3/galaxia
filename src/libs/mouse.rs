@@ -257,10 +257,10 @@ fn manage_click_indicator(
         return; // not pressed long enough to show indicator
     }
     let progress = (elapsed / mouse_state.long_click_threshold).min(1.0);
+    let position = mouse_state.current_position;
 
     if indicator_query.iter().count() == 0 {
         // Create the indicator
-        let position = mouse_state.current_position;
         let shape = shapes::Circle {
             radius: indicator_config.radius,
             center: Vec2::ZERO,
@@ -269,7 +269,9 @@ fn manage_click_indicator(
             ShapeBundle {
                 path: GeometryBuilder::build_as(&shape),
                 spatial: SpatialBundle {
-                    transform: Transform::from_xyz(position.x, position.y, 1.0),
+                    transform: Transform::from_xyz(
+                        position.x, position.y, 100.0,
+                    ),
                     ..default()
                 },
                 ..default()
@@ -281,11 +283,10 @@ fn manage_click_indicator(
     } else {
         // Update the indicator
         for entity in indicator_query.iter() {
-            let pos = mouse_state.current_position;
             // Update position
             commands
                 .entity(entity)
-                .insert(Transform::from_xyz(pos.x, pos.y, 1.0));
+                .insert(Transform::from_xyz(position.x, position.y, 100.0));
             // Update color
             if progress >= 1.0 {
                 commands
