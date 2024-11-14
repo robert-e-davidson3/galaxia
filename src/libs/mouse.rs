@@ -3,10 +3,21 @@ use bevy_prototype_lyon::prelude::*;
 
 use crate::libs::*;
 
+// MouseState process looks like:
+// 0. Position starts at (0,0) until the second frame.
+// 1. Unpressed. Position is always tracked.
+//    Request for click type returns Invalid.
+// 2. Mouse is "just_pressed" -> start tracking time
+// 2. Each frame, update time and position
+// 4. Request for click type returns Short or Long.
+// 5. Mouse is "just_released" -> stop tracking time
+// 6. For one more frame, request for click type returns Short or Long
+// 7. After one frame, request for click type returns Invalid.
 #[derive(Resource, Default)]
 pub struct MouseState {
     pub long_click_threshold: f32,
-    pub left_button_press_start: Option<f32>,
+    pub start_time: Option<f32>,
+    pub drag_time: f32,
     pub start_position: Option<Vec2>,
     pub current_position: Vec2,
     pub just_pressed: bool,
@@ -17,7 +28,8 @@ impl MouseState {
     pub fn new(long_click_threshold: f32) -> Self {
         Self {
             long_click_threshold,
-            left_button_press_start: None,
+            start_time: None,
+            drag_time: 0.0,
             start_position: None,
             current_position: Vec2::ZERO,
             just_pressed: false,
@@ -25,46 +37,53 @@ impl MouseState {
         }
     }
 
+    pub fn get_click_type(&self) -> ClickType {
+        if self.start_time.is_none() {
+            return ClickType::Invalid;
+        }
+        if self.drag_time >= self.long_click_threshold {
+            ClickType::Long
+        } else {
+            ClickType::Short
+        }
+    }
+
     pub fn dragging(&self) -> bool {
         self.start_position.is_some()
     }
 
-    pub fn start_press(&mut self, time: f32, position: Vec2) {
-        self.left_button_press_start = Some(time);
-        self.start_position = Some(position);
+    pub fn update_state(&mut self, position: Vec2, elapsed_seconds: f32) {
         self.current_position = position;
-    }
-
-    pub fn update_position(&mut self, position: Vec2) {
-        self.current_position = position;
-    }
-
-    pub fn end_press(&mut self, current_time: f32) -> ClickType {
-        let start_time = self.left_button_press_start.take();
-        self.start_position.take();
-        self.current_position = Vec2::ZERO;
-        self.evaluate_click_type(current_time, start_time)
-    }
-
-    pub fn get_click_type(&self, current_time: f32) -> ClickType {
-        self.evaluate_click_type(current_time, self.left_button_press_start)
-    }
-
-    fn evaluate_click_type(
-        &self,
-        current_time: f32,
-        start_time: Option<f32>,
-    ) -> ClickType {
-        if let Some(start_time) = start_time {
-            let duration = current_time - start_time;
-            if duration >= self.long_click_threshold {
-                ClickType::Long
-            } else {
-                ClickType::Short
+        match self.start_time {
+            Some(start_time) => {
+                self.drag_time = elapsed_seconds - start_time;
             }
-        } else {
-            ClickType::Invalid
+            _ => {}
         }
+    }
+
+    pub fn start_press(&mut self, time: f32) {
+        self.start_time = Some(time);
+        self.start_position = Some(self.current_position);
+        self.just_pressed = true;
+        self.just_released = false;
+    }
+
+    pub fn still_pressed(&mut self) {
+        self.just_pressed = false;
+        self.just_released = false;
+    }
+
+    pub fn end_press(&mut self) {
+        self.just_pressed = false;
+        self.just_released = true;
+    }
+
+    pub fn unpressed(&mut self) {
+        self.start_time.take();
+        self.start_position.take();
+        self.drag_time = 0.0;
+        self.just_released = false;
     }
 }
 
@@ -83,24 +102,17 @@ pub fn update_mouse_state(
     mut mouse_state: ResMut<MouseState>,
 ) {
     if let Some(position) = get_mouse_position(&camera_query, &window_query) {
-        mouse_state.update_position(position);
+        mouse_state.update_state(position, time.elapsed_seconds());
     }
 
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        mouse_state.just_pressed = true;
-        mouse_state.just_released = false;
-        if let Some(click_position) =
-            get_mouse_position(&camera_query, &window_query)
-        {
-            mouse_state.start_press(time.elapsed_seconds(), click_position);
-        }
+        mouse_state.start_press(time.elapsed_seconds());
     } else if mouse_button_input.just_released(MouseButton::Left) {
-        mouse_state.just_released = true;
-        mouse_state.just_pressed = false;
-        mouse_state.end_press(time.elapsed_seconds());
+        mouse_state.end_press();
+    } else if mouse_state.just_released {
+        mouse_state.unpressed();
     } else {
-        mouse_state.just_pressed = false;
-        mouse_state.just_released = false;
+        mouse_state.still_pressed();
     }
 }
 
@@ -251,8 +263,8 @@ fn manage_click_indicator(
         return;
     }
 
-    let elapsed = time.elapsed_seconds()
-        - mouse_state.left_button_press_start.unwrap_or(0.0);
+    let elapsed =
+        time.elapsed_seconds() - mouse_state.start_time.unwrap_or(0.0);
     if elapsed < mouse_state.long_click_threshold / 5.0 {
         return; // not pressed long enough to show indicator
     }

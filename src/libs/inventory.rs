@@ -324,12 +324,11 @@ pub fn handle_slot_click(
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mouse_state: Res<MouseState>,
-    time: Res<Time>,
     inventory_query: Query<&Inventory>,
     minigame_query: Query<(&Minigame, &GlobalTransform)>,
     mut slot_query: Query<(&mut Slot, &GlobalTransform, &RectangularArea)>,
 ) {
-    if !mouse_state.just_pressed {
+    if !mouse_state.just_released {
         return;
     }
     let click_position = mouse_state.current_position;
@@ -351,13 +350,11 @@ pub fn handle_slot_click(
         minigame_query.get(inventory.owner).unwrap();
 
     let amount: f32 = match inventory.items.lock().unwrap().get(&item_type) {
-        Some(amount) => {
-            match mouse_state.get_click_type(time.elapsed_seconds()) {
-                ClickType::Short => amount.min(1.0),
-                ClickType::Long => *amount,
-                ClickType::Invalid => return,
-            }
-        }
+        Some(amount) => match mouse_state.get_click_type() {
+            ClickType::Short => amount.min(1.0),
+            ClickType::Long => *amount,
+            ClickType::Invalid => return,
+        },
         None => return,
     };
     let (removed, remaining) = remove_item(&inventory.items, item_type, amount);

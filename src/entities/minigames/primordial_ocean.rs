@@ -207,23 +207,15 @@ pub fn update(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
     mouse_state: Res<MouseState>,
-    time: Res<Time>,
-    camera_query: Query<(&Camera, &GlobalTransform)>,
-    window_query: Query<&Window>,
     minigame_query: Query<(&GlobalTransform, &RectangularArea), With<Minigame>>,
     mut ocean_query: Query<(&Ocean, &GlobalTransform, &CircularArea)>,
     leveling_up_query: Query<&LevelingUp, With<Minigame>>,
 ) {
-    let click_position = match get_click_release_position(
-        camera_query,
-        window_query,
-        mouse_button_input,
-    ) {
-        Some(position) => position,
-        None => return,
-    };
+    if !mouse_state.just_released {
+        return;
+    }
+    let click_position = mouse_state.current_position;
 
     for (ocean, ocean_transform, ocean_area) in ocean_query.iter_mut() {
         let minigame_entity = ocean.minigame;
@@ -238,7 +230,7 @@ pub fn update(
         {
             let (minigame_transform, minigame_area) =
                 minigame_query.get(minigame_entity).unwrap();
-            let click_type = mouse_state.get_click_type(time.elapsed_seconds());
+            let click_type = mouse_state.get_click_type();
             let (form, material) = match click_type {
                 ClickType::Short => {
                     (PhysicalItemForm::Liquid, PhysicalItemMaterial::SaltWater)

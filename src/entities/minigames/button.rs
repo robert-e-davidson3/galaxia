@@ -138,11 +138,7 @@ pub fn update(
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     clickable_query: Query<(&ClickMeButton, &GlobalTransform, &CircularArea)>,
-    camera_query: Query<(&Camera, &GlobalTransform)>,
-    windows: Query<&Window>,
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
     mouse_state: Res<MouseState>,
-    time: Res<Time>,
     mut minigame_query: Query<(
         &mut Minigame,
         &GlobalTransform,
@@ -151,14 +147,10 @@ pub fn update(
     mut text_query: Query<&mut Text>,
     leveling_up_query: Query<&LevelingUp>,
 ) {
-    let click_position = match get_click_release_position(
-        camera_query,
-        windows,
-        mouse_button_input,
-    ) {
-        Some(world_position) => world_position,
-        None => return,
-    };
+    if !mouse_state.just_released {
+        return;
+    }
+    let click_position = mouse_state.current_position;
 
     for (button, global_transform, area) in clickable_query.iter() {
         if area.is_within(
@@ -188,7 +180,7 @@ pub fn update(
                 commands.entity(button.game).insert(LevelingUp);
             }
 
-            let click_type = mouse_state.get_click_type(time.elapsed_seconds());
+            let click_type = mouse_state.get_click_type();
             let variant = match click_type {
                 ClickType::Short => 0,
                 ClickType::Long => 1,
