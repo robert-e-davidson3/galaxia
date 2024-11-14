@@ -234,7 +234,7 @@ impl SlotBundle {
         Transform::from_translation(Vec3::new(
             delta_x + (slot_pos.0 as f32 * slot_size.x),
             delta_y + (slot_pos.1 as f32 * slot_size.y),
-            1.0,
+            2.0,
         ))
     }
 
@@ -399,8 +399,13 @@ pub fn handle_slot_click(
 pub fn set_slots(
     mut slot_query: Query<&mut Slot>,
     inventory_query: Query<&Inventory, Changed<Inventory>>,
+    leveling_query: Query<&LevelingUp>,
 ) {
     for inventory in inventory_query.iter() {
+        if leveling_query.get(inventory.owner).is_ok() {
+            continue;
+        }
+
         let (width, height) = inventory.dimensions;
         let items = filter_items(
             &inventory.items,
