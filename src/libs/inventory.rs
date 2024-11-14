@@ -125,39 +125,32 @@ impl SlotBundle {
         inventory_area: RectangularArea,
     ) -> Self {
         let area = RectangularArea::new(slot_size.x, slot_size.y);
-        match slot.item {
-            Some(item) => SlotBundle {
-                slot,
-                area,
-                sprite: SpriteBundle {
-                    sprite: Self::present_sprite(&slot_size),
-                    texture: Self::get_texture(
-                        images,
-                        generated_image_assets,
-                        &item,
-                    ),
-                    transform: Self::slot_transform(
-                        slot_size,
-                        slot_position,
-                        inventory_area,
-                    ),
-                    ..default()
-                },
+        let sprite = match slot.item {
+            Some(item) => SpriteBundle {
+                sprite: Self::present_sprite(&slot_size),
+                texture: Self::get_texture(
+                    images,
+                    generated_image_assets,
+                    &item,
+                ),
+                transform: Self::slot_transform(
+                    slot_size,
+                    slot_position,
+                    inventory_area,
+                ),
+                ..default()
             },
-            None => SlotBundle {
-                slot,
-                area,
-                sprite: SpriteBundle {
-                    sprite: Self::missing_sprite(),
-                    transform: Self::slot_transform(
-                        slot_size,
-                        slot_position,
-                        inventory_area,
-                    ),
-                    ..default()
-                },
+            None => SpriteBundle {
+                sprite: Self::missing_sprite(),
+                transform: Self::slot_transform(
+                    slot_size,
+                    slot_position,
+                    inventory_area,
+                ),
+                ..default()
             },
-        }
+        };
+        SlotBundle { slot, area, sprite }
     }
 
     // Spawns the background as well as the slot.
