@@ -77,14 +77,10 @@ impl ChestMinigame {
         &mut self,
         parent: &mut ChildBuilder,
         _asset_server: &AssetServer,
-        images: &mut Assets<Image>,
-        generated_image_assets: &mut image_gen::GeneratedImageAssets,
     ) {
         // TODO draw background chest, barrels, etc
         let inventory = InventoryBundle::spawn(
             parent,
-            images,
-            generated_image_assets,
             Inventory::new(
                 parent.parent_entity(),
                 Vec::new(),
@@ -290,7 +286,6 @@ struct ScrollButton {
 
 // TODO on search, update slots (add this to inventory module)?
 
-// TODO update slots
 pub fn ingest_resource_fixed_update(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,

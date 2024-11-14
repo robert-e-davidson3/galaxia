@@ -29,8 +29,6 @@ impl InventoryBundle {
 
     pub fn spawn(
         parent: &mut ChildBuilder,
-        images: &mut Assets<Image>,
-        generated_image_assets: &mut image_gen::GeneratedImageAssets,
         mut inventory: Inventory,
         position: Vec2,
         inventory_size: Vec2,
@@ -58,8 +56,6 @@ impl InventoryBundle {
                     for x in 0..width {
                         let slot_entity = SlotBundle::spawn(
                             parent,
-                            images,
-                            generated_image_assets,
                             Slot {
                                 inventory: inventory_entity,
                                 item: items
@@ -117,38 +113,20 @@ pub struct SlotBundle {
 
 impl SlotBundle {
     pub fn new(
-        images: &mut Assets<Image>,
-        generated_image_assets: &mut image_gen::GeneratedImageAssets,
         slot: Slot,
         slot_position: (u32, u32),
         slot_size: Vec2,
         inventory_area: RectangularArea,
     ) -> Self {
         let area = RectangularArea::new(slot_size.x, slot_size.y);
-        let sprite = match &slot.item {
-            Some(item) => SpriteBundle {
-                sprite: Self::present_sprite(&slot_size),
-                texture: Self::get_texture(
-                    images,
-                    generated_image_assets,
-                    item,
-                ),
-                transform: Self::slot_transform(
-                    slot_size,
-                    slot_position,
-                    inventory_area,
-                ),
-                ..default()
-            },
-            None => SpriteBundle {
-                sprite: Self::missing_sprite(),
-                transform: Self::slot_transform(
-                    slot_size,
-                    slot_position,
-                    inventory_area,
-                ),
-                ..default()
-            },
+        let sprite = SpriteBundle {
+            sprite: Self::missing_sprite(),
+            transform: Self::slot_transform(
+                slot_size,
+                slot_position,
+                inventory_area,
+            ),
+            ..default()
         };
         SlotBundle { slot, area, sprite }
     }
@@ -156,8 +134,6 @@ impl SlotBundle {
     // Spawns the background as well as the slot.
     pub fn spawn(
         parent: &mut ChildBuilder,
-        images: &mut Assets<Image>,
-        generated_image_assets: &mut image_gen::GeneratedImageAssets,
         slot: Slot,
         slot_position: (u32, u32),
         slot_size: Vec2,
@@ -165,8 +141,6 @@ impl SlotBundle {
     ) -> Entity {
         parent
             .spawn(SlotBundle::new(
-                images,
-                generated_image_assets,
                 slot,
                 slot_position,
                 slot_size,
@@ -179,6 +153,9 @@ impl SlotBundle {
                         custom_size: Some(slot_size * 0.9),
                         ..default()
                     },
+                    transform: Transform::from_translation(Vec3::new(
+                        0.0, 0.0, -1.0,
+                    )),
                     ..default()
                 });
             })

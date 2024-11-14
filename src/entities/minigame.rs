@@ -128,12 +128,7 @@ impl Minigame {
                     Minigame::Button(m) => m.spawn(parent),
                     Minigame::Rune(m) => m.spawn(parent),
                     Minigame::PrimordialOcean(m) => m.spawn(parent),
-                    Minigame::Chest(m) => m.spawn(
-                        parent,
-                        asset_server,
-                        images,
-                        generated_image_assets,
-                    ),
+                    Minigame::Chest(m) => m.spawn(parent, asset_server),
                     Minigame::BallBreaker(m) => {
                         m.spawn(parent, random, asset_server)
                     }
