@@ -109,8 +109,9 @@ impl Minigame {
         let name = self.name();
         let description = self.description();
         let level = self.level();
+        let mut new_minigame = self.clone();
         let entity = commands
-            .spawn(MinigameBundle::new(self.clone(), transform))
+            .spawn_empty()
             .with_children(|parent| {
                 spawn_minigame_container(
                     parent,
@@ -123,7 +124,7 @@ impl Minigame {
                     parent.parent_entity(),
                     area,
                 ));
-                match self {
+                match &mut new_minigame {
                     Minigame::Button(m) => m.spawn(parent),
                     Minigame::Rune(m) => m.spawn(parent),
                     Minigame::PrimordialOcean(m) => m.spawn(parent),
@@ -140,6 +141,9 @@ impl Minigame {
                 };
             })
             .id();
+        commands
+            .entity(entity)
+            .insert(MinigameBundle::new(new_minigame, transform));
 
         entity
     }

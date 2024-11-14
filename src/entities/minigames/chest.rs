@@ -18,12 +18,13 @@ const ITEMS_PER_ROW: u32 = 5;
 const VISIBLE_ROWS: u32 = 3;
 const SCROLL_BUTTON_WIDTH: f32 = 20.0;
 
-#[derive(Debug, Clone, Default, Component)]
+#[derive(Debug, Clone, Component)]
 pub struct ChestMinigame {
     pub level: u8,
     pub scroll_offset: usize,
     pub filter: String,
-    pub inventory: Arc<Mutex<HashMap<ItemType, f32>>>,
+    pub items: Arc<Mutex<HashMap<ItemType, f32>>>,
+    pub inventory: Option<Entity>,
 }
 
 impl ChestMinigame {
@@ -32,7 +33,8 @@ impl ChestMinigame {
             level,
             scroll_offset: 0,
             filter: String::new(),
-            inventory: Arc::new(Mutex::new(HashMap::new())),
+            items: Arc::new(Mutex::new(HashMap::new())),
+            inventory: None,
         }
     }
 
@@ -72,14 +74,14 @@ impl ChestMinigame {
     }
 
     pub fn spawn(
-        &self,
+        &mut self,
         parent: &mut ChildBuilder,
         _asset_server: &AssetServer,
         images: &mut Assets<Image>,
         generated_image_assets: &mut image_gen::GeneratedImageAssets,
     ) {
         // TODO draw background chest, barrels, etc
-        InventoryBundle::spawn(
+        let inventory = InventoryBundle::spawn(
             parent,
             images,
             generated_image_assets,
@@ -87,11 +89,12 @@ impl ChestMinigame {
                 parent.parent_entity(),
                 Vec::new(),
                 (ITEMS_PER_ROW, VISIBLE_ROWS),
-                &self.inventory,
+                &self.items,
             ),
             Vec2::ZERO,
             self.area().into(),
         );
+        self.inventory = Some(inventory);
     }
 
     //
@@ -103,7 +106,7 @@ impl ChestMinigame {
     }
 
     pub fn total_stored(&self) -> f32 {
-        self.inventory.lock().unwrap().values().sum()
+        self.items.lock().unwrap().values().sum()
     }
 
     pub fn can_accept(&self, item: &Item) -> bool {
@@ -217,10 +220,10 @@ impl ChestMinigame {
             _ => return false, // should not happen
         };
 
-        add_item(&self.inventory, item.r#type, amount);
+        add_item(&self.items, item.r#type, amount);
 
         // Check if we need to level up
-        total_stored(&self.inventory) >= self.capacity()
+        total_stored(&self.items) >= self.capacity()
     }
 }
 
@@ -294,6 +297,7 @@ pub fn ingest_resource_fixed_update(
     mut minigame_query: Query<&mut Minigame>,
     aura_query: Query<&MinigameAura>,
     item_query: Query<&Item>,
+    mut inventory_query: Query<&mut Inventory>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
@@ -329,9 +333,18 @@ pub fn ingest_resource_fixed_update(
             continue;
         }
 
-        add_item(&minigame.inventory, item.r#type, item.amount);
+        // add item
+        match minigame.inventory {
+            Some(inventory_entity) => {
+                let mut inventory =
+                    inventory_query.get_mut(inventory_entity).unwrap();
+                inventory.page = inventory.page; // mark inventory as changed
+                add_item(&inventory.items, item.r#type, item.amount);
+            }
+            None => panic!("Minigame has no inventory"),
+        }
 
-        if total_stored(&minigame.inventory) >= minigame.capacity() {
+        if total_stored(&minigame.items) >= minigame.capacity() {
             commands.entity(aura.minigame).insert(LevelingUp);
         }
 

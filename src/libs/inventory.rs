@@ -34,7 +34,7 @@ impl InventoryBundle {
         mut inventory: Inventory,
         position: Vec2,
         inventory_size: Vec2,
-    ) {
+    ) -> Entity {
         let (width, height) = inventory.dimensions;
         let slot_size = Vec2::new(
             inventory_size.x / width as f32,
@@ -65,8 +65,6 @@ impl InventoryBundle {
                                 item: items
                                     .get(item_index)
                                     .map(|item| item.r#type),
-                                x,
-                                y,
                             },
                             (x, y),
                             slot_size,
@@ -77,7 +75,8 @@ impl InventoryBundle {
                     }
                 }
             })
-            .insert(InventoryBundle::new(inventory, position));
+            .insert(InventoryBundle::new(inventory, position))
+            .id()
     }
 }
 
@@ -272,8 +271,6 @@ impl SlotBundle {
 pub struct Slot {
     pub inventory: Entity,
     pub item: Option<ItemType>,
-    pub x: u32,
-    pub y: u32,
 }
 
 pub fn add_item(
