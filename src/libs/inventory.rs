@@ -111,12 +111,11 @@ impl Inventory {
 #[derive(Debug, Clone, Bundle)]
 pub struct SlotBundle {
     pub slot: Slot,
-    pub sprite: SpriteBundle,
     pub area: RectangularArea,
+    pub sprite: SpriteBundle,
 }
 
 impl SlotBundle {
-    // TODO adjust slot positions to center on inventory
     pub fn new(
         images: &mut Assets<Image>,
         generated_image_assets: &mut image_gen::GeneratedImageAssets,
@@ -129,6 +128,7 @@ impl SlotBundle {
         match slot.item {
             Some(item) => SlotBundle {
                 slot,
+                area,
                 sprite: SpriteBundle {
                     sprite: Self::present_sprite(&slot_size),
                     texture: Self::get_texture(
@@ -143,10 +143,10 @@ impl SlotBundle {
                     ),
                     ..default()
                 },
-                area,
             },
             None => SlotBundle {
                 slot,
+                area,
                 sprite: SpriteBundle {
                     sprite: Self::missing_sprite(),
                     transform: Self::slot_transform(
@@ -156,7 +156,6 @@ impl SlotBundle {
                     ),
                     ..default()
                 },
-                area,
             },
         }
     }
