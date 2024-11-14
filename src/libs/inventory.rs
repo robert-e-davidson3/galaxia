@@ -125,13 +125,13 @@ impl SlotBundle {
         inventory_area: RectangularArea,
     ) -> Self {
         let area = RectangularArea::new(slot_size.x, slot_size.y);
-        let sprite = match slot.item {
+        let sprite = match &slot.item {
             Some(item) => SpriteBundle {
                 sprite: Self::present_sprite(&slot_size),
                 texture: Self::get_texture(
                     images,
                     generated_image_assets,
-                    &item,
+                    item,
                 ),
                 transform: Self::slot_transform(
                     slot_size,
