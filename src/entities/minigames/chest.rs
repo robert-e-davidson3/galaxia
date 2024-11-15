@@ -7,6 +7,8 @@ use bevy_rapier2d::prelude::*;
 use crate::entities::*;
 use crate::libs::*;
 
+pub const ID: &str = "chest";
+
 pub const NAME: &str = "chest";
 pub const NAME_WITH_BAGS: &str = "chest with bags";
 pub const NAME_WITH_BARRELS: &str = "barrels and chest with bags";

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::mem::{discriminant, Discriminant};
 
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
@@ -40,6 +39,34 @@ pub enum Minigame {
 }
 
 impl Minigame {
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            button::ID => {
+                Some(Minigame::Button(button::ButtonMinigame::default()))
+            }
+            primordial_ocean::ID => Some(Minigame::PrimordialOcean(
+                primordial_ocean::PrimordialOceanMinigame::default(),
+            )),
+            rune::ID => Some(Minigame::Rune(rune::RuneMinigame::default())),
+            chest::ID => Some(Minigame::Chest(chest::ChestMinigame::default())),
+            ball_breaker::ID => Some(Minigame::BallBreaker(
+                ball_breaker::BallBreakerMinigame::default(),
+            )),
+            _ => None,
+        }
+    }
+
+    pub fn id(&self) -> &str {
+        match self {
+            Minigame::Button(_) => button::ID,
+            Minigame::PrimordialOcean(_) => primordial_ocean::ID,
+            Minigame::Rune(_) => rune::ID,
+            Minigame::Chest(_) => chest::ID,
+            Minigame::BallBreaker(_) => ball_breaker::ID,
+            Minigame::Tree(_) => tree::ID,
+        }
+    }
+
     pub fn name(&self) -> &str {
         match self {
             Minigame::Button(m) => m.name(),
@@ -169,16 +196,28 @@ pub fn levelup(
             &mut images,
             &mut generated_image_assets,
         );
+        // Update minigame level
         minigames.set_level(&new_minigame);
-        for m in minigames.unlocked_by(&new_minigame) {
-            Minigame(m).spawn(
-                &mut commands,
-                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-                &mut random,
-                &asset_server,
-                &mut images,
-                &mut generated_image_assets,
-            );
+        // Unlock minigames
+        for id in minigames.to_unlock(&minigame.id().into()) {
+            println!("Unlocking minigame: {:?}", id);
+            match Minigame::from_id(&id) {
+                Some(unlocked_minigame) => {
+                    let pos = minigames.position(&id);
+                    let entity = unlocked_minigame.spawn(
+                        &mut commands,
+                        Transform::from_translation(Vec3::new(
+                            pos.x, pos.y, 0.0,
+                        )),
+                        &mut random,
+                        &asset_server,
+                        &mut images,
+                        &mut generated_image_assets,
+                    );
+                    minigames.set_entity(&id, entity);
+                }
+                None => {}
+            }
         }
     }
 }
@@ -319,108 +358,139 @@ pub fn spawn_minigame_buttons(
 }
 
 #[derive(Debug, Clone, Default, Resource)]
-pub struct MinigamesResource {
-    pub levels: HashMap<Discriminant<Minigame>, u8>,
-    pub unlocked: HashMap<Discriminant<Minigame>, Entity>,
-    pub prerequisites: HashMap<Discriminant<Minigame>, Vec<Prerequisite>>,
-}
+pub struct MinigamesResource(
+    HashMap<String, (Option<Entity>, u8, Vec2, Vec<Prerequisite>)>,
+);
 
 impl MinigamesResource {
+    pub fn insert(
+        &mut self,
+        id: &str,
+        position: Vec2,
+        prerequisites: Vec<Prerequisite>,
+    ) {
+        self.0.insert(id.into(), (None, 0, position, prerequisites));
+    }
+
     pub fn set_level(&mut self, minigame: &Minigame) {
-        self.levels.insert(discriminant(minigame), minigame.level());
+        self.0.get_mut(minigame.id()).map(|(_, level, _, _)| {
+            *level += 1;
+        });
+    }
+
+    pub fn level(&self, minigame: &String) -> u8 {
+        self.0
+            .get(minigame)
+            .map(|(_, level, _, _)| *level)
+            .unwrap_or(0)
+    }
+
+    pub fn set_entity(&mut self, minigame: &String, entity: Entity) {
+        self.0.get_mut(minigame).map(|(e, _, _, _)| {
+            *e = Some(entity);
+        });
+    }
+
+    pub fn entity(&self, minigame: &String) -> Option<Entity> {
+        self.0
+            .get(minigame)
+            .map(|(entity, _, _, _)| *entity)
+            .unwrap_or(None)
+    }
+
+    pub fn is_unlocked(&self, minigame: &String) -> bool {
+        self.entity(minigame).is_some()
+    }
+
+    pub fn position(&self, minigame: &String) -> Vec2 {
+        self.0
+            .get(minigame)
+            .map(|(_, _, position, _)| *position)
+            .unwrap_or_default()
+    }
+
+    pub fn prerequisites(&self, minigame: &String) -> Vec<Prerequisite> {
+        self.0
+            .get(minigame)
+            .map(|(_, _, _, prerequisites)| prerequisites.clone())
+            .unwrap_or_default()
     }
 
     // Given the leveled-up minigame, return minigames to unlock.
     // Only returns minigames that are not already unlocked.
-    pub fn to_unlock(
-        &self,
-        minigame: &Minigame,
-    ) -> Vec<Discriminant<Minigame>> {
+    pub fn to_unlock(&self, minigame: &String) -> Vec<String> {
+        println!("Checking unlocks from {}", minigame);
         self.unlocked_by(minigame)
             .iter()
-            .filter(|minigame| !self.unlocked.contains_key(minigame))
-            .filter(|minigame| self.is_unlocked(*minigame))
-            .map(|minigame| *minigame)
+            .filter(|minigame| self.needs_to_unlock(minigame))
+            .cloned()
             .collect()
     }
 
+    pub fn needs_to_unlock(&self, minigame: &String) -> bool {
+        println!("Checking unlock for {}", minigame);
+        if self.is_unlocked(minigame) {
+            return false;
+        }
+        self.prerequisites(minigame).iter().all(|prerequisite| {
+            println!(
+                "Checking prerequisite for {}: {} at level {}",
+                minigame, prerequisite.minigame, prerequisite.level
+            );
+            self.is_unlocked(&prerequisite.minigame)
+                || self.level(&prerequisite.minigame) >= prerequisite.level
+        })
+    }
+
     // Reverse-lookup for prerequisites
-    fn unlocked_by(&self, minigame: &Minigame) -> Vec<Discriminant<Minigame>> {
-        self.prerequisites
+    fn unlocked_by(&self, minigame: &String) -> Vec<String> {
+        self.0
             .iter()
-            .filter_map(|(key, prerequisites)| {
-                if prerequisites.iter().any(|prerequisite| {
-                    prerequisite.minigame == discriminant(minigame)
-                }) {
-                    Some(*key)
+            .filter_map(|(key, (_, _, _, prerequisites))| {
+                if prerequisites
+                    .iter()
+                    .any(|prerequisite| prerequisite.minigame == *minigame)
+                {
+                    Some(key.clone())
                 } else {
                     None
                 }
             })
             .collect()
     }
-
-    fn is_unlocked(&self, minigame: &Discriminant<Minigame>) -> bool {
-        self.prerequisites
-            .get(&minigame)
-            .map_or(true, |prerequisites| {
-                prerequisites.iter().all(|prerequisite| {
-                    self.levels
-                        .get(&prerequisite.minigame)
-                        .map_or(false, |level| *level >= prerequisite.level)
-                })
-            })
-    }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Prerequisite {
-    pub minigame: Discriminant<Minigame>,
+    pub minigame: String,
     pub level: u8,
 }
 
 pub fn setup_minigame_unlocks(mut unlocks: ResMut<MinigamesResource>) {
-    unlocks.prerequisites.insert(
-        discriminant(&Minigame::Button(button::ButtonMinigame { ..default() })),
-        Vec::new(),
-    );
-    unlocks.prerequisites.insert(
-        discriminant(&Minigame::PrimordialOcean(
-            primordial_ocean::PrimordialOceanMinigame { ..default() },
-        )),
-        Vec::new(),
-    );
-    unlocks.prerequisites.insert(
-        discriminant(&Minigame::Rune(rune::RuneMinigame { ..default() })),
-        Vec::new(),
-    );
+    unlocks.insert(button::ID, Vec2::new(0.0, 200.0), Vec::new());
+    unlocks.insert(primordial_ocean::ID, Vec2::new(200.0, -200.0), Vec::new());
+    unlocks.insert(rune::ID, Vec2::new(-200.0, -200.0), Vec::new());
 
-    unlocks.prerequisites.insert(
-        discriminant(&Minigame::Chest(chest::ChestMinigame { ..default() })),
+    unlocks.insert(
+        chest::ID,
+        Vec2::new(300.0, 150.0),
         vec![
             Prerequisite {
-                minigame: discriminant(&Minigame::Button(
-                    button::ButtonMinigame { ..default() },
-                )),
-                level: 5,
+                minigame: button::ID.into(),
+                level: 1,
             },
             Prerequisite {
-                minigame: discriminant(&Minigame::PrimordialOcean(
-                    primordial_ocean::PrimordialOceanMinigame { ..default() },
-                )),
-                level: 5,
+                minigame: primordial_ocean::ID.into(),
+                level: 1,
             },
         ],
     );
-    unlocks.prerequisites.insert(
-        discriminant(&Minigame::BallBreaker(
-            ball_breaker::BallBreakerMinigame { ..default() },
-        )),
+    unlocks.insert(
+        ball_breaker::ID,
+        Vec2::new(0.0, 500.0),
         vec![Prerequisite {
-            minigame: discriminant(&Minigame::Button(button::ButtonMinigame {
-                ..default()
-            })),
-            level: 10,
+            minigame: button::ID.into(),
+            level: 1,
         }],
     );
 }

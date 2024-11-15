@@ -15,6 +15,8 @@ use crate::libs::*;
 // When all blocks are broken, the player wins. This gives them a copy of the
 // minigame to use or deploy.
 
+pub const ID: &str = "ball_breaker";
+
 pub const NAME: &str = "ball breaker";
 pub const DESCRIPTION: &str = "Throw balls to break blocks!";
 

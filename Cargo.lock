@@ -4398,6 +4398,7 @@ dependencies = [
  "int-enum",
  "libnoise",
  "ndarray",
+ "once_cell",
  "perlin_noise",
  "rapier2d 0.22.0",
  "serde",

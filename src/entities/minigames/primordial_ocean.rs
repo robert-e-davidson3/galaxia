@@ -6,6 +6,8 @@ use std::collections::HashSet;
 use crate::entities::*;
 use crate::libs::*;
 
+pub const ID: &str = "primordial_ocean";
+
 pub const NAME: &str = "Primordial Ocean";
 pub const DESCRIPTION: &str = "Infinitely deep, the source of water and mud.";
 

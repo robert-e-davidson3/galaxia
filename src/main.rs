@@ -104,12 +104,13 @@ fn main() {
 
 fn setup_board(
     mut commands: Commands,
+    mut minigames: ResMut<MinigamesResource>,
     asset_server: Res<AssetServer>,
     mut random: ResMut<random::Random>,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
 ) {
-    let mut spawn = |minigame: Minigame, transform: Transform| {
+    let mut spawn = |minigame: Minigame, transform: Transform| -> Entity {
         minigame.spawn(
             &mut commands,
             transform,
@@ -117,41 +118,32 @@ fn setup_board(
             &asset_server,
             &mut images,
             &mut generated_image_assets,
-        );
+        )
     };
 
-    spawn(
-        Minigame::Button(entities::minigames::button::ButtonMinigame {
-            ..default()
-        }),
-        Transform::from_xyz(0.0, 400.0, 0.0),
-    );
-    spawn(
-        Minigame::PrimordialOcean(
-            entities::minigames::primordial_ocean::PrimordialOceanMinigame::new(
-                0.0,
-            ),
+    minigames.set_entity(
+        &entities::minigames::button::ID.into(),
+        spawn(
+            Minigame::Button(minigames::button::ButtonMinigame { ..default() }),
+            Transform::from_xyz(0.0, 200.0, 0.0),
         ),
-        Transform::from_xyz(400.0, -300.0, 0.0),
     );
-    spawn(
-        Minigame::Rune(entities::minigames::rune::RuneMinigame::new(0)),
-        Transform::from_xyz(-400.0, -300.0, 0.0),
+    minigames.set_entity(
+        &minigames::primordial_ocean::ID.into(),
+        spawn(
+            Minigame::PrimordialOcean(
+                minigames::primordial_ocean::PrimordialOceanMinigame::new(0.0),
+            ),
+            Transform::from_xyz(200.0, -200.0, 0.0),
+        ),
     );
-    spawn(
-        Minigame::Chest(entities::minigames::chest::ChestMinigame::new(0)),
-        Transform::from_xyz(400.0, 400.0, 0.0),
+    minigames.set_entity(
+        &entities::minigames::rune::ID.into(),
+        spawn(
+            Minigame::Rune(entities::minigames::rune::RuneMinigame::new(0)),
+            Transform::from_xyz(-200.0, -200.0, 0.0),
+        ),
     );
-    // spawn(
-    //     Minigame::BallBreaker(
-    //         entities::minigames::ball_breaker::BallBreakerMinigame::new(0),
-    //     ),
-    //     Transform::from_xyz(400.0, 400.0, 0.0),
-    // );
-    // spawn(
-    //     Minigame::Tree(entities::minigames::tree::TreeMinigame::new(0)),
-    //     Transform::from_xyz(-400.0, 400.0, 0.0),
-    // );
 }
 
 fn exit_system(

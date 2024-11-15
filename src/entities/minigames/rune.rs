@@ -5,6 +5,8 @@ use crate::entities::*;
 use crate::item::rune::*;
 use crate::libs::*;
 
+pub const ID: &str = "rune";
+
 pub const NAME: &str = "rune";
 pub const DESCRIPTION: &str = "Draw runes!";
 
@@ -18,12 +20,18 @@ const PIXEL_AREA: RectangularArea = RectangularArea {
 const PIXEL_ON_COLOR: Color = Color::srgb(0.0, 0.0, 0.0);
 const PIXEL_OFF_COLOR: Color = Color::srgb(1.0, 1.0, 1.0);
 
-#[derive(Debug, Clone, Default, Component)]
+#[derive(Debug, Clone, Component)]
 pub struct RuneMinigame {
     pub level: u8,
     pub highest_level_rune: Option<Rune>,
     pub pixels: Vec<Vec<bool>>,
     pub erasing: bool,
+}
+
+impl Default for RuneMinigame {
+    fn default() -> Self {
+        Self::new(0)
+    }
 }
 
 impl RuneMinigame {

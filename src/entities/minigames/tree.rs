@@ -3,6 +3,8 @@ use bevy::prelude::*;
 use crate::entities::*;
 use crate::libs::*;
 
+pub const ID: &str = "tree";
+
 pub const NAME: &str = "Tree";
 pub const DESCRIPTION: &str = "Pick fruits from the tree!";
 const AREA: RectangularArea = RectangularArea {

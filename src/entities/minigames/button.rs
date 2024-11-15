@@ -4,6 +4,8 @@ use bevy_prototype_lyon::prelude::*;
 use crate::entities::*;
 use crate::libs::*;
 
+pub const ID: &str = "button";
+
 pub const NAME: &str = "Button";
 pub const DESCRIPTION: &str = "Click the button, get clicks!";
 const AREA: RectangularArea = RectangularArea {
@@ -28,6 +30,7 @@ impl ButtonMinigame {
     //
     // COMMON
     //
+
     pub fn name(&self) -> &str {
         NAME
     }
