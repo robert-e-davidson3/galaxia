@@ -25,7 +25,15 @@ fn main() {
             FramepacePlugin {},
             ClickIndicatorPlugin,
         ))
-        .add_systems(Startup, (setup_board, setup_player, setup_camera))
+        .add_systems(
+            Startup,
+            (
+                setup_minigame_unlocks,
+                setup_board,
+                setup_player,
+                setup_camera,
+            ),
+        )
         .add_systems(
             Update,
             (
@@ -89,6 +97,7 @@ fn main() {
         })
         .insert_resource(random::Random::new(42))
         .insert_resource(entities::minigame::Engaged { game: None })
+        .init_resource::<MinigamesResource>()
         .init_resource::<image_gen::GeneratedImageAssets>()
         .run();
 }

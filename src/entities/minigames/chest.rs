@@ -18,7 +18,7 @@ const ITEMS_PER_ROW: u32 = 5;
 const VISIBLE_ROWS: u32 = 3;
 const SCROLL_BUTTON_WIDTH: f32 = 20.0;
 
-#[derive(Debug, Clone, Component)]
+#[derive(Debug, Clone, Default, Component)]
 pub struct ChestMinigame {
     pub level: u8,
     pub scroll_offset: usize,
