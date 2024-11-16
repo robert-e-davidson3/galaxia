@@ -218,6 +218,10 @@ pub enum ItemType {
 }
 
 impl ItemType {
+    pub fn to_item(&self, amount: f32) -> Item {
+        Item::new(*self, amount)
+    }
+
     pub fn uid(&self) -> String {
         self.identifier().uid()
     }

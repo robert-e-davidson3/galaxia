@@ -36,6 +36,7 @@ pub enum Minigame {
     Chest(chest::ChestMinigame),
     Battery(battery::BatteryMinigame),
     BallBreaker(ball_breaker::BallBreakerMinigame),
+    Life(life::LifeMinigame),
     Tree(tree::TreeMinigame),
 }
 
@@ -56,6 +57,8 @@ impl Minigame {
             ball_breaker::ID => Some(Minigame::BallBreaker(
                 ball_breaker::BallBreakerMinigame::default(),
             )),
+            life::ID => Some(Minigame::Life(life::LifeMinigame::default())),
+            tree::ID => Some(Minigame::Tree(tree::TreeMinigame::default())),
             _ => None,
         }
     }
@@ -68,6 +71,7 @@ impl Minigame {
             Minigame::Chest(_) => chest::ID,
             Minigame::Battery(_) => battery::ID,
             Minigame::BallBreaker(_) => ball_breaker::ID,
+            Minigame::Life(_) => life::ID,
             Minigame::Tree(_) => tree::ID,
         }
     }
@@ -80,6 +84,7 @@ impl Minigame {
             Minigame::Chest(m) => m.name(),
             Minigame::Battery(m) => m.name(),
             Minigame::BallBreaker(m) => m.name(),
+            Minigame::Life(m) => m.name(),
             Minigame::Tree(m) => m.name(),
         }
     }
@@ -92,6 +97,7 @@ impl Minigame {
             Minigame::Chest(m) => m.description(),
             Minigame::Battery(m) => m.description(),
             Minigame::BallBreaker(m) => m.description(),
+            Minigame::Life(m) => m.description(),
             Minigame::Tree(m) => m.description(),
         }
     }
@@ -104,6 +110,7 @@ impl Minigame {
             Minigame::Chest(_) => chest::POSITION,
             Minigame::Battery(_) => battery::POSITION,
             Minigame::BallBreaker(_) => ball_breaker::POSITION,
+            Minigame::Life(_) => life::POSITION,
             Minigame::Tree(_) => tree::POSITION,
         }
     }
@@ -116,6 +123,7 @@ impl Minigame {
             Minigame::Chest(m) => m.area(),
             Minigame::Battery(m) => m.area(),
             Minigame::BallBreaker(m) => m.area(),
+            Minigame::Life(m) => m.area(),
             Minigame::Tree(m) => m.area(),
         }
     }
@@ -129,6 +137,7 @@ impl Minigame {
             Minigame::Chest(m) => m.level(),
             Minigame::Battery(m) => m.level(),
             Minigame::BallBreaker(m) => m.level(),
+            Minigame::Life(m) => m.level(),
             Minigame::Tree(m) => m.level(),
         }
     }
@@ -144,6 +153,7 @@ impl Minigame {
             Minigame::Chest(m) => Minigame::Chest(m.levelup()),
             Minigame::Battery(m) => Minigame::Battery(m.levelup()),
             Minigame::BallBreaker(m) => Minigame::BallBreaker(m.levelup()),
+            Minigame::Life(m) => Minigame::Life(m.levelup()),
             Minigame::Tree(m) => Minigame::Tree(m.levelup()),
         }
     }
@@ -185,6 +195,7 @@ impl Minigame {
                     Minigame::BallBreaker(m) => {
                         m.spawn(parent, random, asset_server)
                     }
+                    Minigame::Life(m) => m.spawn(parent),
                     Minigame::Tree(m) => m.spawn(parent, asset_server),
                 };
             })

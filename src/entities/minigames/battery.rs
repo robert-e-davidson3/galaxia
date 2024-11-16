@@ -8,7 +8,7 @@ use crate::entities::*;
 use crate::libs::*;
 
 pub const ID: &str = "battery";
-pub const POSITION: Vec2 = Vec2::new(0.0, -200.0);
+pub const POSITION: Vec2 = Vec2::new(0.0, -300.0);
 
 pub const NAME_FIRST: &str = "spring";
 pub const NAME_SECOND: &str = "spring and battery";
