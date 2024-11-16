@@ -189,10 +189,10 @@ impl Minigame {
                 };
             })
             .id();
+        // TODO somehow clear everything from this space first
         commands
             .entity(entity)
             .insert(MinigameBundle::new(new_minigame, transform));
-
         entity
     }
 }
