@@ -4,43 +4,38 @@ use bevy_prototype_lyon::prelude::*;
 use crate::entities::*;
 use crate::libs::*;
 
-pub const ID: &str = "life";
+pub const ID: &str = "land";
 pub const POSITION: Vec2 = Vec2::new(-600.0, -600.0);
 
-pub const NAME: &str = "Life";
-pub const DESCRIPTION: &str = "Conway's Game of Life";
+pub const NAME: &str = "Land";
+pub const DESCRIPTION: &str = "Conway's Game of Land";
 
 const MIN_WIDTH: f32 = 100.0;
 const MIN_HEIGHT: f32 = 100.0;
-const CELL_SIZE: f32 = 25.0;
-const CELL_AREA: RectangularArea = RectangularArea {
-    width: CELL_SIZE,
-    height: CELL_SIZE,
-};
 
 #[derive(Debug, Clone, Component)]
-pub struct LifeMinigame {
-    pub level: u8,
-    pub extracted: f32,
+pub struct LandMinigame {
+    pub level: u8, // equivalent to max achieved complexity
+    pub max_achieved_complexity: u8, // used for levelup
     pub energy: f32,
     pub cells: Vec<Vec<Option<ItemType>>>,
 }
 
-impl Default for LifeMinigame {
+impl Default for LandMinigame {
     fn default() -> Self {
-        Self::new(0.0, 0.0)
+        Self::new(0, 0.0)
     }
 }
 
-impl LifeMinigame {
-    pub fn new(extracted: f32, energy: f32) -> Self {
-        let level = Self::level_by_extracted(extracted);
+impl LandMinigame {
+    pub fn new(max_achieved_complexity: u8, energy: f32) -> Self {
+        let level = max_achieved_complexity;
         let blocks_per_row = Self::_blocks_per_row(level) as usize;
         let blocks_per_column = Self::_blocks_per_column(level) as usize;
         let cells = vec![vec![None; blocks_per_row]; blocks_per_column];
         Self {
             level,
-            extracted,
+            max_achieved_complexity,
             energy,
             cells,
         }
@@ -63,9 +58,8 @@ impl LifeMinigame {
         let blocks_per_row = self.blocks_per_row();
         let blocks_per_column = self.blocks_per_column();
         RectangularArea {
-            width: BUFFER + MIN_WIDTH.max(CELL_SIZE * blocks_per_row as f32),
-            height: BUFFER
-                + MIN_HEIGHT.max(CELL_SIZE * blocks_per_column as f32),
+            width: BUFFER + MIN_WIDTH.max(blocks_per_row as f32),
+            height: BUFFER + MIN_HEIGHT.max(blocks_per_column as f32),
         }
     }
 
@@ -74,7 +68,7 @@ impl LifeMinigame {
     }
 
     pub fn levelup(&self) -> Self {
-        Self::new(self.extracted, self.energy)
+        Self::new(self.level, self.energy)
     }
 
     pub fn spawn(&self, parent: &mut ChildBuilder) {
@@ -107,7 +101,7 @@ impl LifeMinigame {
     // SPECIFIC
     //
 
-    pub fn level_by_extracted(extracted: f32) -> u8 {
+    pub fn level_by_complexity(extracted: f32) -> u8 {
         if extracted == 0.0 {
             0
         } else {
@@ -184,19 +178,19 @@ pub struct CellBundle {
 impl CellBundle {
     pub fn new(x: u8, y: u8, cols: u8, rows: u8) -> Self {
         let t_y = rows - y; // top to bottom
-        let dx = -CELL_SIZE * ((cols - 1) as f32 / 2.0);
-        let dy = -CELL_SIZE * ((rows + 1) as f32 / 2.0);
+        let dx = -1.0 * ((cols - 1) as f32 / 2.0);
+        let dy = -1.0 * ((rows + 1) as f32 / 2.0);
         Self {
             cell: Cell { x, y },
             toggleable: Toggleable::new(),
             sprite: SpriteBundle {
                 sprite: Sprite {
-                    custom_size: Some(CELL_AREA.into()),
+                    custom_size: Some(Vec2::new(1.0, 1.0)),
                     ..default()
                 },
                 transform: Transform::from_xyz(
-                    x as f32 * CELL_SIZE + dx,
-                    t_y as f32 * CELL_SIZE + dy,
+                    x as f32 + dx,
+                    y as f32 + dy,
                     0.0,
                 ),
                 ..default()
@@ -232,7 +226,7 @@ pub struct Cell {
     pub y: u8,
 }
 
-// Cell was clicked.
+// Cell was clicked so emit that cell's item, if any.
 pub fn cell_update(
     mut commands: Commands,
     mouse_state: Res<MouseState>,
@@ -262,7 +256,7 @@ pub fn cell_update(
         if leveling_up_query.get(minigame_entity).is_ok() {
             continue;
         }
-        if CELL_AREA.is_within(
+        if RectangularArea::new(1.0, 1.0).is_within(
             mouse_position,
             cell_global_transform.translation().truncate(),
         ) {
@@ -299,7 +293,8 @@ pub fn cell_update(
     }
 }
 
-// Run the Game of Life rules on the cells.
+// Run minigame simulation according to its rules.
+// Life grows, etc.
 // Only when minigame has stored energy.
 pub fn evolve_fixed_update(
     mut commands: Commands,
@@ -319,6 +314,7 @@ pub fn evolve_fixed_update(
 }
 
 // TODO ingestion of items - fills a random cell
-//      exception is energy of any kind, which enables fixed_update to run
-
+//      exception:energy of any kind, which enables fixed_update to run
+//      exception: abstraction mostly doesn't make sense here
+//      exception: some mana probably does not make sense here
 pub fn ingest_fixed_update() {}
