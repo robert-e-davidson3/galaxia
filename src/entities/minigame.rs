@@ -223,7 +223,6 @@ pub fn levelup(
         minigames.set_level(&new_minigame);
         // Unlock minigames
         for id in minigames.to_unlock(&minigame.id().into()) {
-            println!("Unlocking minigame: {:?}", id);
             match Minigame::from_id(&id) {
                 Some(unlocked_minigame) => {
                     let pos = unlocked_minigame.position();
@@ -350,15 +349,7 @@ pub fn spawn_minigame_name(
     area: &RectangularArea,
 ) {
     // set font size so it fits in the space
-    println!(
-        "name: {}, len: {}, width: {}, ratio: {}",
-        name,
-        name.len(),
-        area.width,
-        area.width / name.len() as f32
-    );
     let font_size = (area.width / name.len() as f32).clamp(10.0, 24.0);
-
     parent.spawn(Text2dBundle {
         text: Text {
             sections: vec![TextSection {
@@ -444,7 +435,6 @@ impl MinigamesResource {
     // Given the leveled-up minigame, return minigames to unlock.
     // Only returns minigames that are not already unlocked.
     pub fn to_unlock(&self, minigame: &String) -> Vec<String> {
-        println!("Checking unlocks from {}", minigame);
         self.unlocked_by(minigame)
             .iter()
             .filter(|minigame| self.needs_to_unlock(minigame))
@@ -453,15 +443,10 @@ impl MinigamesResource {
     }
 
     pub fn needs_to_unlock(&self, minigame: &String) -> bool {
-        println!("Checking unlock for {}", minigame);
         if self.is_unlocked(minigame) {
             return false;
         }
         self.prerequisites(minigame).iter().all(|prerequisite| {
-            println!(
-                "Checking prerequisite for {}: {} at level {}",
-                minigame, prerequisite.minigame, prerequisite.level
-            );
             self.is_unlocked(&prerequisite.minigame)
                 || self.level(&prerequisite.minigame) >= prerequisite.level
         })
