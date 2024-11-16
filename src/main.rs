@@ -63,6 +63,7 @@ fn main() {
                 minigames::primordial_ocean::ingest_resource_fixed_update,
                 minigames::rune::fixed_update,
                 minigames::chest::ingest_resource_fixed_update,
+                minigames::battery::ingest_resource_fixed_update,
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::hit_block_fixed_update,
                 minigames::ball_breaker::ingest_resource_fixed_update,

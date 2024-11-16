@@ -316,6 +316,73 @@ pub fn filter_items(
 }
 
 //
+// TEXT ENTRY and SEARCH
+//
+
+const SCROLL_BUTTON_SIZE: f32 = 20.0;
+
+#[derive(Bundle)]
+struct SearchBoxBundle {
+    text_box: TextBox,
+    sprite: SpriteBundle,
+}
+
+impl SearchBoxBundle {
+    fn new(position: Vec2) -> Self {
+        Self {
+            text_box: TextBox,
+            sprite: SpriteBundle {
+                sprite: Sprite {
+                    color: Color::WHITE,
+                    custom_size: Some(Vec2::new(200.0, 30.0)),
+                    ..default()
+                },
+                transform: Transform::from_xyz(position.x, position.y, 0.0),
+                ..default()
+            },
+        }
+    }
+}
+
+#[derive(Component)]
+struct TextBox;
+
+#[derive(Bundle)]
+struct ScrollButtonBundle {
+    button: ScrollButton,
+    sprite: SpriteBundle,
+}
+
+impl ScrollButtonBundle {
+    fn new(asset_server: &AssetServer, left: bool, position: Vec2) -> Self {
+        Self {
+            button: ScrollButton { left },
+            sprite: SpriteBundle {
+                texture: asset_server.load(if left {
+                    "left_arrow.png"
+                } else {
+                    "right_arrow.png"
+                }),
+                transform: Transform::from_xyz(position.x, position.y, 0.0),
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(
+                        SCROLL_BUTTON_SIZE,
+                        SCROLL_BUTTON_SIZE,
+                    )),
+                    ..default()
+                },
+                ..default()
+            },
+        }
+    }
+}
+
+#[derive(Component)]
+struct ScrollButton {
+    left: bool,
+}
+
+//
 // SYSTEMS
 //
 

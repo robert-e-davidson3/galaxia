@@ -7,37 +7,37 @@ use bevy_rapier2d::prelude::*;
 use crate::entities::*;
 use crate::libs::*;
 
-pub const ID: &str = "chest";
-pub const POSITION: Vec2 = Vec2::new(300.0, 150.0);
+pub const ID: &str = "battery";
+pub const POSITION: Vec2 = Vec2::new(0.0, -200.0);
 
-pub const NAME: &str = "chest";
-pub const NAME_WITH_BAGS: &str = "chest with bags";
-pub const NAME_WITH_BARRELS: &str = "barrels and chest with bags";
-pub const NAME_WITH_TANKS: &str = "tanks, barrels, and chest with bags";
-pub const DESCRIPTION: &str = "Store your items!";
+pub const NAME_FIRST: &str = "spring";
+pub const NAME_SECOND: &str = "spring and battery";
+pub const NAME_THIRD: &str = "spring, battery, heat stone";
+pub const NAME_FOURTH: &str = "tesseract";
+pub const DESCRIPTION: &str = "Store your energy!";
 
 const STORAGE_SIZE: f32 = 50.0;
-const ITEMS_PER_ROW: u32 = 5;
+const ITEMS_PER_ROW: u32 = 3;
 const VISIBLE_ROWS: u32 = 3;
 
 #[derive(Debug, Clone, Default, Component)]
-pub struct ChestMinigame {
+pub struct BatteryMinigame {
     pub level: u8,
     pub items: Arc<Mutex<HashMap<ItemType, f32>>>,
     pub inventory: Option<Entity>,
 }
 
-impl ChestMinigame {
+impl BatteryMinigame {
     //
     // COMMON
     //
 
     pub fn name(&self) -> &str {
         match self.level {
-            0..=4 => NAME,
-            5..=9 => NAME_WITH_BAGS,
-            10..=19 => NAME_WITH_BARRELS,
-            _ => NAME_WITH_TANKS,
+            0..=9 => NAME_FIRST,
+            10..=19 => NAME_SECOND,
+            20..=49 => NAME_THIRD,
+            _ => NAME_FOURTH,
         }
     }
 
@@ -92,48 +92,35 @@ impl ChestMinigame {
     }
 
     pub fn can_accept(&self, item: &Item) -> bool {
-        let physical = match item.r#type {
-            ItemType::Physical(data) => data,
+        let energy = match item.r#type {
+            ItemType::Energy(data) => data,
             _ => return false,
         };
 
         // Level-based restrictions
         match self.level {
-            0..=4 => {
-                // Only solid items
-                matches!(
-                    physical.form,
-                    PhysicalItemForm::Object
-                        | PhysicalItemForm::Lump
-                        | PhysicalItemForm::Block
-                        | PhysicalItemForm::Ball
-                ) // && !physical.material.is_goo() // TODO re-add
-            }
-            5..=9 => {
-                // Add powders and goos
-                matches!(
-                    physical.form,
-                    PhysicalItemForm::Object
-                        | PhysicalItemForm::Lump
-                        | PhysicalItemForm::Block
-                        | PhysicalItemForm::Ball
-                        | PhysicalItemForm::Powder
-                )
+            0..=9 => {
+                // Spring - only kinetic
+                matches!(energy.kind, EnergyKind::Kinetic)
             }
             10..=19 => {
-                // Add liquids
+                // Spring and battery - kinetic and electric
                 matches!(
-                    physical.form,
-                    PhysicalItemForm::Object
-                        | PhysicalItemForm::Lump
-                        | PhysicalItemForm::Block
-                        | PhysicalItemForm::Ball
-                        | PhysicalItemForm::Powder
-                        | PhysicalItemForm::Liquid
+                    energy.kind,
+                    EnergyKind::Kinetic | EnergyKind::Electric
+                )
+            }
+            20..=49 => {
+                // Spring, battery, heat stone - kinetic, electric, thermal
+                matches!(
+                    energy.kind,
+                    EnergyKind::Kinetic
+                        | EnergyKind::Electric
+                        | EnergyKind::Thermal
                 )
             }
             _ => {
-                // All forms allowed
+                // Tesseract - all
                 true
             }
         }
@@ -172,7 +159,7 @@ pub fn ingest_resource_fixed_update(
         };
         let minigame = match minigame_query.get_mut(aura.minigame) {
             Ok(x) => match x.into_inner() {
-                Minigame::Chest(m) => m,
+                Minigame::Battery(m) => m,
                 _ => continue,
             },
             Err(_) => continue,

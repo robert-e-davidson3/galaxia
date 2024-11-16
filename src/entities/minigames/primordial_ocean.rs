@@ -7,11 +7,12 @@ use crate::entities::*;
 use crate::libs::*;
 
 pub const ID: &str = "primordial_ocean";
+pub const POSITION: Vec2 = Vec2::new(250.0, -200.0);
 
 pub const NAME: &str = "Primordial Ocean";
 pub const DESCRIPTION: &str = "Infinitely deep, the source of water and mud.";
 
-const BASE_SIZE: f32 = 120.0;
+const BASE_SIZE: f32 = 60.0;
 const MAX_SIZE_MULTIPLIER: f32 = 2.0;
 
 #[derive(Debug, Clone, Component)]

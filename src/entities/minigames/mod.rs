@@ -1,4 +1,5 @@
 pub mod ball_breaker;
+pub mod battery;
 pub mod button;
 pub mod chest;
 pub mod primordial_ocean;

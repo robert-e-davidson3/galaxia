@@ -6,6 +6,7 @@ use crate::item::rune::*;
 use crate::libs::*;
 
 pub const ID: &str = "rune";
+pub const POSITION: Vec2 = Vec2::new(-250.0, -200.0);
 
 pub const NAME: &str = "rune";
 pub const DESCRIPTION: &str = "Draw runes!";

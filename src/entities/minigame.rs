@@ -34,6 +34,7 @@ pub enum Minigame {
     PrimordialOcean(primordial_ocean::PrimordialOceanMinigame),
     Rune(rune::RuneMinigame),
     Chest(chest::ChestMinigame),
+    Battery(battery::BatteryMinigame),
     BallBreaker(ball_breaker::BallBreakerMinigame),
     Tree(tree::TreeMinigame),
 }
@@ -49,6 +50,9 @@ impl Minigame {
             )),
             rune::ID => Some(Minigame::Rune(rune::RuneMinigame::default())),
             chest::ID => Some(Minigame::Chest(chest::ChestMinigame::default())),
+            battery::ID => {
+                Some(Minigame::Battery(battery::BatteryMinigame::default()))
+            }
             ball_breaker::ID => Some(Minigame::BallBreaker(
                 ball_breaker::BallBreakerMinigame::default(),
             )),
@@ -62,6 +66,7 @@ impl Minigame {
             Minigame::PrimordialOcean(_) => primordial_ocean::ID,
             Minigame::Rune(_) => rune::ID,
             Minigame::Chest(_) => chest::ID,
+            Minigame::Battery(_) => battery::ID,
             Minigame::BallBreaker(_) => ball_breaker::ID,
             Minigame::Tree(_) => tree::ID,
         }
@@ -73,6 +78,7 @@ impl Minigame {
             Minigame::PrimordialOcean(m) => m.name(),
             Minigame::Rune(m) => m.name(),
             Minigame::Chest(m) => m.name(),
+            Minigame::Battery(m) => m.name(),
             Minigame::BallBreaker(m) => m.name(),
             Minigame::Tree(m) => m.name(),
         }
@@ -84,8 +90,21 @@ impl Minigame {
             Minigame::PrimordialOcean(m) => m.description(),
             Minigame::Rune(m) => m.description(),
             Minigame::Chest(m) => m.description(),
+            Minigame::Battery(m) => m.description(),
             Minigame::BallBreaker(m) => m.description(),
             Minigame::Tree(m) => m.description(),
+        }
+    }
+
+    pub fn position(&self) -> Vec2 {
+        match self {
+            Minigame::Button(_) => button::POSITION,
+            Minigame::PrimordialOcean(_) => primordial_ocean::POSITION,
+            Minigame::Rune(_) => rune::POSITION,
+            Minigame::Chest(_) => chest::POSITION,
+            Minigame::Battery(_) => battery::POSITION,
+            Minigame::BallBreaker(_) => ball_breaker::POSITION,
+            Minigame::Tree(_) => tree::POSITION,
         }
     }
 
@@ -95,6 +114,7 @@ impl Minigame {
             Minigame::PrimordialOcean(m) => m.area(),
             Minigame::Rune(m) => m.area(),
             Minigame::Chest(m) => m.area(),
+            Minigame::Battery(m) => m.area(),
             Minigame::BallBreaker(m) => m.area(),
             Minigame::Tree(m) => m.area(),
         }
@@ -107,6 +127,7 @@ impl Minigame {
             Minigame::PrimordialOcean(m) => m.level(),
             Minigame::Rune(m) => m.level(),
             Minigame::Chest(m) => m.level(),
+            Minigame::Battery(m) => m.level(),
             Minigame::BallBreaker(m) => m.level(),
             Minigame::Tree(m) => m.level(),
         }
@@ -121,6 +142,7 @@ impl Minigame {
             }
             Minigame::Rune(m) => Minigame::Rune(m.levelup()),
             Minigame::Chest(m) => Minigame::Chest(m.levelup()),
+            Minigame::Battery(m) => Minigame::Battery(m.levelup()),
             Minigame::BallBreaker(m) => Minigame::BallBreaker(m.levelup()),
             Minigame::Tree(m) => Minigame::Tree(m.levelup()),
         }
@@ -159,6 +181,7 @@ impl Minigame {
                     Minigame::Rune(m) => m.spawn(parent),
                     Minigame::PrimordialOcean(m) => m.spawn(parent),
                     Minigame::Chest(m) => m.spawn(parent, asset_server),
+                    Minigame::Battery(m) => m.spawn(parent, asset_server),
                     Minigame::BallBreaker(m) => {
                         m.spawn(parent, random, asset_server)
                     }
@@ -203,7 +226,7 @@ pub fn levelup(
             println!("Unlocking minigame: {:?}", id);
             match Minigame::from_id(&id) {
                 Some(unlocked_minigame) => {
-                    let pos = minigames.position(&id);
+                    let pos = unlocked_minigame.position();
                     let entity = unlocked_minigame.spawn(
                         &mut commands,
                         Transform::from_translation(Vec3::new(
@@ -310,7 +333,7 @@ pub fn spawn_minigame_container(
                 Fill::color(Color::WHITE),
                 Stroke::new(Color::BLACK, WALL_THICKNESS),
             ));
-            spawn_minigame_name(parent, name);
+            spawn_minigame_name(parent, name, &area);
             spawn_minigame_buttons(
                 parent,
                 meta_area,
@@ -321,13 +344,27 @@ pub fn spawn_minigame_container(
         });
 }
 
-pub fn spawn_minigame_name(parent: &mut ChildBuilder, name: &str) {
+pub fn spawn_minigame_name(
+    parent: &mut ChildBuilder,
+    name: &str,
+    area: &RectangularArea,
+) {
+    // set font size so it fits in the space
+    println!(
+        "name: {}, len: {}, width: {}, ratio: {}",
+        name,
+        name.len(),
+        area.width,
+        area.width / name.len() as f32
+    );
+    let font_size = (area.width / name.len() as f32).clamp(10.0, 24.0);
+
     parent.spawn(Text2dBundle {
         text: Text {
             sections: vec![TextSection {
                 value: name.into(),
                 style: TextStyle {
-                    font_size: 24.0,
+                    font_size,
                     color: Color::BLACK,
                     ..default()
                 },
@@ -359,21 +396,16 @@ pub fn spawn_minigame_buttons(
 
 #[derive(Debug, Clone, Default, Resource)]
 pub struct MinigamesResource(
-    HashMap<String, (Option<Entity>, u8, Vec2, Vec<Prerequisite>)>,
+    HashMap<String, (Option<Entity>, u8, Vec<Prerequisite>)>,
 );
 
 impl MinigamesResource {
-    pub fn insert(
-        &mut self,
-        id: &str,
-        position: Vec2,
-        prerequisites: Vec<Prerequisite>,
-    ) {
-        self.0.insert(id.into(), (None, 0, position, prerequisites));
+    pub fn insert(&mut self, id: &str, prerequisites: Vec<Prerequisite>) {
+        self.0.insert(id.into(), (None, 0, prerequisites));
     }
 
     pub fn set_level(&mut self, minigame: &Minigame) {
-        self.0.get_mut(minigame.id()).map(|(_, level, _, _)| {
+        self.0.get_mut(minigame.id()).map(|(_, level, _)| {
             *level += 1;
         });
     }
@@ -381,12 +413,12 @@ impl MinigamesResource {
     pub fn level(&self, minigame: &String) -> u8 {
         self.0
             .get(minigame)
-            .map(|(_, level, _, _)| *level)
+            .map(|(_, level, _)| *level)
             .unwrap_or(0)
     }
 
     pub fn set_entity(&mut self, minigame: &String, entity: Entity) {
-        self.0.get_mut(minigame).map(|(e, _, _, _)| {
+        self.0.get_mut(minigame).map(|(e, _, _)| {
             *e = Some(entity);
         });
     }
@@ -394,7 +426,7 @@ impl MinigamesResource {
     pub fn entity(&self, minigame: &String) -> Option<Entity> {
         self.0
             .get(minigame)
-            .map(|(entity, _, _, _)| *entity)
+            .map(|(entity, _, _)| *entity)
             .unwrap_or(None)
     }
 
@@ -402,17 +434,10 @@ impl MinigamesResource {
         self.entity(minigame).is_some()
     }
 
-    pub fn position(&self, minigame: &String) -> Vec2 {
-        self.0
-            .get(minigame)
-            .map(|(_, _, position, _)| *position)
-            .unwrap_or_default()
-    }
-
     pub fn prerequisites(&self, minigame: &String) -> Vec<Prerequisite> {
         self.0
             .get(minigame)
-            .map(|(_, _, _, prerequisites)| prerequisites.clone())
+            .map(|(_, _, prerequisites)| prerequisites.clone())
             .unwrap_or_default()
     }
 
@@ -446,7 +471,7 @@ impl MinigamesResource {
     fn unlocked_by(&self, minigame: &String) -> Vec<String> {
         self.0
             .iter()
-            .filter_map(|(key, (_, _, _, prerequisites))| {
+            .filter_map(|(key, (_, _, prerequisites))| {
                 if prerequisites
                     .iter()
                     .any(|prerequisite| prerequisite.minigame == *minigame)
@@ -467,13 +492,12 @@ pub struct Prerequisite {
 }
 
 pub fn setup_minigame_unlocks(mut unlocks: ResMut<MinigamesResource>) {
-    unlocks.insert(button::ID, Vec2::new(0.0, 200.0), Vec::new());
-    unlocks.insert(primordial_ocean::ID, Vec2::new(200.0, -200.0), Vec::new());
-    unlocks.insert(rune::ID, Vec2::new(-200.0, -200.0), Vec::new());
+    unlocks.insert(button::ID, Vec::new());
+    unlocks.insert(primordial_ocean::ID, Vec::new());
+    unlocks.insert(rune::ID, Vec::new());
 
     unlocks.insert(
         chest::ID,
-        Vec2::new(300.0, 150.0),
         vec![
             Prerequisite {
                 minigame: button::ID.into(),
@@ -486,8 +510,20 @@ pub fn setup_minigame_unlocks(mut unlocks: ResMut<MinigamesResource>) {
         ],
     );
     unlocks.insert(
+        battery::ID,
+        vec![
+            Prerequisite {
+                minigame: rune::ID.into(),
+                level: 1,
+            },
+            Prerequisite {
+                minigame: primordial_ocean::ID.into(),
+                level: 1,
+            },
+        ],
+    );
+    unlocks.insert(
         ball_breaker::ID,
-        Vec2::new(0.0, 500.0),
         vec![Prerequisite {
             minigame: button::ID.into(),
             level: 1,

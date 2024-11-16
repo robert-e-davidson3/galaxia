@@ -4,6 +4,7 @@ use crate::entities::*;
 use crate::libs::*;
 
 pub const ID: &str = "tree";
+pub const POSITION: Vec2 = Vec2::ZERO; // TODO
 
 pub const NAME: &str = "Tree";
 pub const DESCRIPTION: &str = "Pick fruits from the tree!";

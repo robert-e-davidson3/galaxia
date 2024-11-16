@@ -5,6 +5,7 @@ use crate::entities::*;
 use crate::libs::*;
 
 pub const ID: &str = "button";
+pub const POSITION: Vec2 = Vec2::new(0.0, -200.0);
 
 pub const NAME: &str = "Button";
 pub const DESCRIPTION: &str = "Click the button, get clicks!";
