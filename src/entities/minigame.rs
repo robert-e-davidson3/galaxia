@@ -201,6 +201,7 @@ impl Minigame {
             })
             .id();
         // TODO somehow clear everything from this space first
+        //      or at game setup, spawn blanks in all minigame spaces
         commands
             .entity(entity)
             .insert(MinigameBundle::new(new_minigame, transform));
