@@ -1,3 +1,5 @@
+#![allow(warnings)]
+
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 

@@ -1,8 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
 
 use crate::entities::*;
 use crate::libs::*;

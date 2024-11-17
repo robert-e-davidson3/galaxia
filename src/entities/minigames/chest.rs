@@ -1,8 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
 
 use crate::entities::*;
 use crate::libs::*;
@@ -161,67 +160,5 @@ impl ChestMinigame {
                 true
             }
         }
-    }
-}
-
-pub fn ingest_resource_fixed_update(
-    mut commands: Commands,
-    mut collision_events: EventReader<CollisionEvent>,
-    mut minigame_query: Query<&mut Minigame>,
-    aura_query: Query<&MinigameAura>,
-    item_query: Query<&Item>,
-    mut inventory_query: Query<&mut Inventory>,
-) {
-    let mut ingested: HashSet<Entity> = HashSet::new();
-    for event in collision_events.read() {
-        let (item_entity, aura_entity, item) = match event {
-            CollisionEvent::Started(e1, e2, _) => match item_query.get(*e1) {
-                Ok(item) => (*e1, *e2, item),
-                Err(_) => match item_query.get(*e2) {
-                    Ok(item) => (*e2, *e1, item),
-                    Err(_) => continue,
-                },
-            },
-            _ => continue,
-        };
-
-        if ingested.contains(&item_entity) {
-            continue;
-        }
-
-        // Get the minigame
-        let aura = match aura_query.get(aura_entity) {
-            Ok(x) => x,
-            Err(_) => continue,
-        };
-        let minigame = match minigame_query.get_mut(aura.minigame) {
-            Ok(x) => match x.into_inner() {
-                Minigame::Chest(m) => m,
-                _ => continue,
-            },
-            Err(_) => continue,
-        };
-
-        if !minigame.can_accept(&item) {
-            continue;
-        }
-
-        // add item
-        match minigame.inventory {
-            Some(inventory_entity) => {
-                let mut inventory =
-                    inventory_query.get_mut(inventory_entity).unwrap();
-                inventory.page = inventory.page; // mark inventory as changed
-                add_item(&inventory.items, item.r#type, item.amount);
-            }
-            None => panic!("Minigame has no inventory"),
-        }
-
-        if total_stored(&minigame.items) >= minigame.capacity() {
-            commands.entity(aura.minigame).insert(LevelingUp);
-        }
-
-        commands.entity(item_entity).despawn();
-        ingested.insert(item_entity);
     }
 }

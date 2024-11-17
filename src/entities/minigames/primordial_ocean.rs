@@ -1,7 +1,5 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
-use bevy_rapier2d::prelude::*;
-use std::collections::HashSet;
 
 use crate::entities::*;
 use crate::libs::*;
@@ -152,77 +150,6 @@ impl OceanBundle {
 #[derive(Debug, Clone, Component)]
 pub struct Ocean {
     pub minigame: Entity,
-}
-
-pub fn ingest_resource_fixed_update(
-    mut commands: Commands,
-    mut collision_events: EventReader<CollisionEvent>,
-    mut minigame_query: Query<(Entity, &mut Minigame)>,
-    aura_query: Query<&MinigameAura>,
-    item_query: Query<&Item>,
-    leveling_up_query: Query<&LevelingUp, With<Minigame>>,
-) {
-    let mut ingested: HashSet<Entity> = HashSet::new();
-    for event in collision_events.read() {
-        // only care about collision start
-        let (a, b) = match event {
-            CollisionEvent::Started(a, b, _flags) => (a, b),
-            _ => continue,
-        };
-
-        // only care about collisions of resources
-        let (&item_entity, aura_entity, item) = match item_query.get(*a) {
-            Ok(item) => (a, b, item),
-            Err(_) => match item_query.get(*b) {
-                Ok(item) => (b, a, item),
-                Err(_) => continue,
-            },
-        };
-
-        // already handled
-        if ingested.contains(&item_entity) {
-            continue;
-        }
-
-        // only certain resources can be ingested
-        if !PrimordialOceanMinigame::item_is_valid(item) {
-            continue;
-        }
-
-        // only care about collisions of resources with minigame auras
-        let aura = match aura_query.get(*aura_entity) {
-            Ok(x) => x,
-            Err(_) => continue,
-        };
-
-        // Skip if currently leveling up
-        if leveling_up_query.get(aura.minigame).is_ok() {
-            continue;
-        }
-
-        // Get minigame state
-        let (minigame_entity, minigame) =
-            match minigame_query.get_mut(aura.minigame) {
-                Ok(x) => x,
-                Err(_) => continue,
-            };
-        let minigame = match minigame.into_inner() {
-            Minigame::PrimordialOcean(minigame) => minigame,
-            _ => continue,
-        };
-
-        // Mark as ingested and remove the item
-        commands.entity(item_entity).despawn_recursive();
-        ingested.insert(item_entity);
-
-        // Track the collected water
-        minigame.salt_water_collected += item.amount;
-
-        // Check for level up
-        if minigame.should_level_up() {
-            commands.entity(minigame_entity).insert(LevelingUp);
-        }
-    }
 }
 
 pub fn update(
