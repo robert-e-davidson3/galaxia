@@ -25,6 +25,8 @@ pub struct ItemBundle {
     pub active_events: ActiveEvents,
 }
 
+// TODO fn for altering item components when amount changes
+//      IIRC can simply insert components on the entity and they overwrite them
 impl ItemBundle {
     pub fn new(
         images: &mut ResMut<Assets<Image>>,

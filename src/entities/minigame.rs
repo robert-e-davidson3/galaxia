@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
+use crate::entities::item::{Item, ItemBundle};
 use crate::libs::*;
 use crate::minigames::*;
 
@@ -216,6 +217,41 @@ impl Minigame {
             .entity(entity)
             .insert(MinigameBundle::new(new_minigame, transform));
         entity
+    }
+
+    // Returns how much of the item was ingested.
+    // 0.0 if none was ingested
+    pub fn ingest_item(
+        &mut self,
+        commands: &mut Commands,
+        images: &mut Assets<Image>,
+        generated_image_assets: &mut image_gen::GeneratedImageAssets,
+        minigame_entity: Entity,
+        item: &Item,
+    ) -> f32 {
+        match self {
+            Minigame::Button(m) => m.ingest_item(),
+            Minigame::PrimordialOcean(m) => {
+                m.ingest_item(commands, minigame_entity, item)
+            }
+            Minigame::Rune(m) => m.ingest_item(),
+            Minigame::Chest(m) => {
+                m.ingest_item(commands, minigame_entity, item)
+            }
+            Minigame::Battery(m) => {
+                m.ingest_item(commands, minigame_entity, item)
+            }
+            Minigame::BallBreaker(m) => m.ingest_item(
+                commands,
+                images,
+                generated_image_assets,
+                minigame_entity,
+                item,
+            ),
+            Minigame::Land(m) => m.ingest_item(item),
+            Minigame::Life(m) => m.ingest_item(item),
+            Minigame::Tree(m) => m.ingest_item(),
+        }
     }
 }
 
@@ -741,4 +777,85 @@ pub fn spawn_minigame_bounds(parent: &mut ChildBuilder, area: RectangularArea) {
                 WALL_THICKNESS,
             ));
         });
+}
+
+pub fn ingest_item(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
+    mut collision_events: EventReader<CollisionEvent>,
+    mut minigame_query: Query<&mut Minigame>,
+    aura_query: Query<&MinigameAura>,
+    item_query: Query<(&Item, &Transform, &Velocity)>,
+) {
+    let mut ingested: HashSet<Entity> = HashSet::new();
+    for event in collision_events.read() {
+        let (item_entity, aura_entity, item, item_transform, item_velocity) =
+            match event {
+                CollisionEvent::Started(e1, e2, _) => match item_query.get(*e1)
+                {
+                    Ok((item, transform, velocity)) => {
+                        (*e1, *e2, item, transform, velocity)
+                    }
+                    Err(_) => match item_query.get(*e2) {
+                        Ok((item, transform, velocity)) => {
+                            (*e2, *e1, item, transform, velocity)
+                        }
+                        Err(_) => continue,
+                    },
+                },
+                _ => continue,
+            };
+
+        if ingested.contains(&item_entity) {
+            continue;
+        }
+
+        // Get the minigame
+        let aura = match aura_query.get(aura_entity) {
+            Ok(x) => x,
+            Err(_) => continue,
+        };
+        let minigame: &mut Minigame =
+            match minigame_query.get_mut(aura.minigame) {
+                Ok(x) => x.into_inner(),
+                Err(_) => continue,
+            };
+
+        // TODO should skip if minigame is leveling up?
+
+        let ingested_amount = minigame.ingest_item(
+            &mut commands,
+            &mut images,
+            &mut generated_image_assets,
+            aura.minigame,
+            &item,
+        );
+
+        if ingested_amount == 0.0 {
+            continue;
+        }
+        ingested.insert(item_entity);
+        // Always despawn - respawn later if needed
+        commands.entity(item_entity).despawn_recursive();
+
+        let remainder = item.amount - ingested_amount;
+        if remainder == 0.0 {
+            continue; // nothing more to do
+        } else if remainder < 0.0 {
+            println!("Error: Ingested more than item amount for minigame={}, item={}", minigame.name(), item.name());
+        }
+
+        // Spawn a new item with the remainder
+        commands.spawn(ItemBundle::new(
+            &mut images,
+            &mut generated_image_assets,
+            Item {
+                amount: remainder,
+                ..*item
+            },
+            *item_transform,
+            *item_velocity,
+        ));
+    }
 }

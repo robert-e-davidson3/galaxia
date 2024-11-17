@@ -76,6 +76,10 @@ impl TreeMinigame {
         });
     }
 
+    pub fn ingest_item(&mut self) -> f32 {
+        0.0 // does not ingest items
+    }
+
     //
     // SPECIFIC
     //

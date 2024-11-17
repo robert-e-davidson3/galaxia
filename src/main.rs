@@ -1,3 +1,5 @@
+#![allow(warnings)]
+
 mod entities;
 mod libs;
 
@@ -60,13 +62,10 @@ fn main() {
             FixedUpdate,
             (
                 minigame::levelup,
-                minigames::primordial_ocean::ingest_resource_fixed_update,
+                minigame::ingest_item,
                 minigames::rune::fixed_update,
-                minigames::chest::ingest_resource_fixed_update,
-                minigames::battery::ingest_resource_fixed_update,
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::hit_block_fixed_update,
-                minigames::ball_breaker::ingest_resource_fixed_update,
                 item::teleport_distant_loose_items,
                 item::combine_loose_items,
             ),

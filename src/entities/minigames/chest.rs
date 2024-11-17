@@ -83,6 +83,30 @@ impl ChestMinigame {
         self.inventory = Some(inventory);
     }
 
+    pub fn ingest_item(
+        &mut self,
+        commands: &mut Commands,
+        minigame_entity: Entity,
+        item: &Item,
+    ) -> f32 {
+        let added = if self.can_accept(item) {
+            add_item(&self.items, item.r#type, item.amount);
+            item.amount
+        } else {
+            return 0.0; // Reject the item
+        };
+
+        // Poke Inventory so it redraws
+        mark_component_changed::<Inventory>(commands, self.inventory.unwrap());
+
+        // Level up if needed
+        if total_stored(&self.items) > self.capacity() {
+            commands.entity(minigame_entity).insert(LevelingUp);
+        }
+
+        added
+    }
+
     //
     // SPECIFIC
     //

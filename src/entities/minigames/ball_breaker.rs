@@ -107,6 +107,41 @@ impl BallBreakerMinigame {
         // TODO empty out balls as loose items
     }
 
+    pub fn ingest_item(
+        &mut self,
+        commands: &mut Commands,
+        images: &mut Assets<Image>,
+        generated_image_assets: &mut image_gen::GeneratedImageAssets,
+        minigame_entity: Entity,
+        item: &Item,
+    ) -> f32 {
+        // Need at least 1.0 to form a ball
+        if item.amount < 1.0 {
+            return 0.0;
+        }
+
+        let item = match Self::item_is_valid(item) {
+            Some(item) => item,
+            None => return 0.0,
+        };
+
+        let material = item.material;
+        self.add_ball(material);
+        // TODO verify this works since its parent is minigame instead of aura
+        commands.entity(minigame_entity).with_children(|parent| {
+            parent.spawn(BallBundle::new(
+                images,
+                generated_image_assets,
+                material,
+                minigame_entity,
+                self.blocks_per_column(),
+                self.blocks_per_row(),
+            ));
+        });
+
+        1.0 // Ball uses 1.0 of the item
+    }
+
     //
     // SPECIFIC
     //
@@ -127,10 +162,10 @@ impl BallBreakerMinigame {
         7 + (level as u32 / 10)
     }
 
-    pub fn item_is_valid(item: &Item) -> bool {
+    pub fn item_is_valid(item: &Item) -> Option<PhysicalItem> {
         let physical = match item.r#type {
             ItemType::Physical(data) => data,
-            _ => return false,
+            _ => return None,
         };
 
         match physical.material {
@@ -148,8 +183,8 @@ impl BallBreakerMinigame {
             | PhysicalItemMaterial::Diamond
             | PhysicalItemMaterial::Amethyst
             | PhysicalItemMaterial::FreshWater
-            | PhysicalItemMaterial::Moss => true,
-            _ => false,
+            | PhysicalItemMaterial::Moss => Some(physical),
+            _ => None,
         }
     }
 
@@ -317,7 +352,7 @@ pub struct BallBundle {
 
 impl BallBundle {
     pub fn new(
-        images: &mut ResMut<Assets<Image>>,
+        images: &mut Assets<Image>,
         generated_image_assets: &mut image_gen::GeneratedImageAssets,
         material: PhysicalItemMaterial,
         minigame: Entity,
@@ -585,96 +620,5 @@ pub fn hit_block_fixed_update(
                 minigame_area,
             ));
         }
-    }
-}
-
-pub fn ingest_resource_fixed_update(
-    mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-    mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
-    mut collision_events: EventReader<CollisionEvent>,
-    mut minigame_query: Query<&mut Minigame>,
-    aura_query: Query<&MinigameAura>,
-    mut item_query: Query<&mut Item>,
-) {
-    let mut ingested: HashSet<Entity> = HashSet::new();
-    for event in collision_events.read() {
-        // only care about collision start
-        let (a, b) = match event {
-            CollisionEvent::Started(a, b, _flags) => (a, b),
-            _ => continue,
-        };
-
-        // only care about collisions of resources
-        let (item_entity, aura_entity, mut item) = match item_query.get_mut(*a)
-        {
-            Ok(item) => (a, b, item),
-            Err(_) => match item_query.get_mut(*b) {
-                Ok(item) => (b, a, item),
-                Err(_) => continue,
-            },
-        };
-
-        // already handled
-        if ingested.contains(&item_entity) {
-            continue;
-        }
-
-        // only certain resources can be ingested
-        if !BallBreakerMinigame::item_is_valid(&item) {
-            continue;
-        }
-
-        // need enough resource to form ball
-        if item.amount < 1.0 {
-            continue;
-        }
-
-        // only care about collisions of resources with minigame auras
-        let aura = match aura_query.get(*aura_entity) {
-            Ok(x) => x,
-            Err(_) => continue,
-        };
-        // only applies to ball breaker minigame
-        let minigame = match minigame_query.get_mut(aura.minigame) {
-            Ok(x) => x,
-            Err(_) => continue,
-        };
-        let minigame = match minigame.into_inner() {
-            Minigame::BallBreaker(m) => m,
-            _ => continue,
-        };
-
-        // too small to form ball
-        if item.amount < 1.0 {
-            continue;
-        }
-
-        ingested.insert(*item_entity);
-
-        // deplete item
-        item.amount -= 1.0;
-
-        // item is destroyed
-        if item.amount == 0.0 {
-            commands.entity(*item_entity).despawn_recursive();
-        }
-
-        // add ball to minigame
-        let material = match item.r#type {
-            ItemType::Physical(x) => x.material,
-            _ => continue,
-        };
-        commands.entity(*aura_entity).with_children(|parent| {
-            parent.spawn(BallBundle::new(
-                &mut images,
-                &mut generated_image_assets,
-                material,
-                aura.minigame,
-                minigame.blocks_per_column(),
-                minigame.blocks_per_row(),
-            ));
-        });
-        minigame.add_ball(material);
     }
 }

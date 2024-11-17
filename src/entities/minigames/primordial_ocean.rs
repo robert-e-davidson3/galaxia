@@ -73,6 +73,25 @@ impl PrimordialOceanMinigame {
         parent.spawn(OceanBundle::new(parent.parent_entity(), radius));
     }
 
+    pub fn ingest_item(
+        &mut self,
+        commands: &mut Commands,
+        minigame_entity: Entity,
+        item: &Item,
+    ) -> f32 {
+        if !Self::item_is_valid(item) {
+            return 0.0;
+        }
+
+        self.salt_water_collected += item.amount;
+
+        if self.should_level_up() {
+            commands.entity(minigame_entity).insert(LevelingUp);
+        }
+
+        item.amount
+    }
+
     //
     // SPECIFIC
     //
