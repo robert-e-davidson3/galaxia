@@ -572,6 +572,13 @@ pub fn setup_minigame_unlocks(mut unlocks: ResMut<MinigamesResource>) {
             level: 1,
         }],
     );
+    unlocks.insert(
+        land::ID,
+        vec![Prerequisite {
+            minigame: primordial_ocean::ID.into(),
+            level: 1,
+        }],
+    );
 }
 
 #[derive(Debug, Copy, Clone, Component)]

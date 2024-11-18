@@ -120,8 +120,8 @@ impl Item {
     }
 
     pub fn new_physical(
-        form: PhysicalItemForm,
-        material: PhysicalItemMaterial,
+        form: PhysicalForm,
+        material: PhysicalMaterial,
         amount: f32,
     ) -> Self {
         Self::new(ItemType::Physical(PhysicalItem { form, material }), amount)
@@ -633,8 +633,8 @@ pub enum AbstractItemKind {
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(C)]
 pub struct PhysicalItem {
-    pub form: PhysicalItemForm,
-    pub material: PhysicalItemMaterial,
+    pub form: PhysicalForm,
+    pub material: PhysicalMaterial,
 }
 
 const ITEM_SIZE: u32 = 256; // pixels
@@ -656,9 +656,9 @@ impl PhysicalItem {
             return None;
         }
         if match self.form {
-            PhysicalItemForm::Gas => true,
-            PhysicalItemForm::Liquid => true,
-            PhysicalItemForm::Powder => true,
+            PhysicalForm::Gas => true,
+            PhysicalForm::Liquid => true,
+            PhysicalForm::Powder => true,
             _ => false,
         } {
             Some((self.clone(), self_amount + other_amount))
@@ -669,33 +669,32 @@ impl PhysicalItem {
 
     pub fn draw(&self, rand: &mut WyRand) -> Image {
         match self.form {
-            PhysicalItemForm::Gas => self
+            PhysicalForm::Gas => self
                 .material
                 .palette()
                 .adjust_alpha_looseness(128)
                 .draw_ball(rand, ITEM_SIZE),
-            PhysicalItemForm::Liquid => self
+            PhysicalForm::Liquid => self
                 .material
                 .palette()
                 .adjust_alpha_looseness(32)
                 .draw_ball(rand, ITEM_SIZE),
-            PhysicalItemForm::Powder => {
+            PhysicalForm::Powder => {
                 self.material.palette().draw_powder(rand, ITEM_SIZE)
             }
-            PhysicalItemForm::Object => {
-                let path =
-                    format!("assets/physical/{}.png", self.material.object());
-                load_image(&path)
+            PhysicalForm::Apple => {
+                load_image(&"assets/physical/apple.png".to_string())
             }
-            PhysicalItemForm::Lump => {
+            PhysicalForm::Lump => {
                 self.material.palette().draw_lump(rand, ITEM_SIZE)
             }
-            PhysicalItemForm::Block => {
+            PhysicalForm::Block => {
                 self.material.palette().draw_block(rand, ITEM_SIZE)
             }
-            PhysicalItemForm::Ball => {
+            PhysicalForm::Ball => {
                 self.material.palette().draw_ball(rand, ITEM_SIZE)
             }
+            _ => panic!("Invalid form"),
         }
     }
 
@@ -703,36 +702,34 @@ impl PhysicalItem {
         let noun: &str;
         let adjective: &str;
         match self.form {
-            PhysicalItemForm::Gas => noun = "Gas",
-            PhysicalItemForm::Liquid => noun = "Liquid",
-            PhysicalItemForm::Powder => noun = "Powder",
-            PhysicalItemForm::Object => noun = "Object",
-            PhysicalItemForm::Lump => noun = "Lump",
-            PhysicalItemForm::Block => noun = "Block",
-            PhysicalItemForm::Ball => noun = "Ball",
+            PhysicalForm::Gas => noun = "Gas",
+            PhysicalForm::Liquid => noun = "Liquid",
+            PhysicalForm::Powder => noun = "Powder",
+            PhysicalForm::Lump => noun = "Lump",
+            PhysicalForm::Block => noun = "Block",
+            PhysicalForm::Ball => noun = "Ball",
+            _ => panic!("Invalid form"),
         }
         match self.material {
-            PhysicalItemMaterial::Apple => adjective = "Apple",
-            PhysicalItemMaterial::Lemon => adjective = "Lemon",
-            PhysicalItemMaterial::Lime => adjective = "Lime",
-            PhysicalItemMaterial::Mud => adjective = "Mud",
-            PhysicalItemMaterial::Dirt => adjective = "Dirt",
-            PhysicalItemMaterial::Sandstone => adjective = "Sandstone",
-            PhysicalItemMaterial::Granite => adjective = "Granite",
-            PhysicalItemMaterial::Marble => adjective = "Marble",
-            PhysicalItemMaterial::Obsidian => adjective = "Obsidian",
-            PhysicalItemMaterial::Copper => adjective = "Copper",
-            PhysicalItemMaterial::Tin => adjective = "Tin",
-            PhysicalItemMaterial::Bronze => adjective = "Bronze",
-            PhysicalItemMaterial::Iron => adjective = "Iron",
-            PhysicalItemMaterial::Silver => adjective = "Silver",
-            PhysicalItemMaterial::Gold => adjective = "Gold",
-            PhysicalItemMaterial::Diamond => adjective = "Diamond",
-            PhysicalItemMaterial::Amethyst => adjective = "Amethyst",
-            PhysicalItemMaterial::Moss => adjective = "Moss",
-            PhysicalItemMaterial::Unobtainium => adjective = "Unobtainium",
-            PhysicalItemMaterial::SaltWater => adjective = "Salt Water",
-            PhysicalItemMaterial::FreshWater => adjective = "Fresh Water",
+            PhysicalMaterial::Mud => adjective = "Mud",
+            PhysicalMaterial::Dirt => adjective = "Dirt",
+            PhysicalMaterial::Sandstone => adjective = "Sandstone",
+            PhysicalMaterial::Granite => adjective = "Granite",
+            PhysicalMaterial::Marble => adjective = "Marble",
+            PhysicalMaterial::Obsidian => adjective = "Obsidian",
+            PhysicalMaterial::Copper => adjective = "Copper",
+            PhysicalMaterial::Tin => adjective = "Tin",
+            PhysicalMaterial::Bronze => adjective = "Bronze",
+            PhysicalMaterial::Iron => adjective = "Iron",
+            PhysicalMaterial::Silver => adjective = "Silver",
+            PhysicalMaterial::Gold => adjective = "Gold",
+            PhysicalMaterial::Diamond => adjective = "Diamond",
+            PhysicalMaterial::Amethyst => adjective = "Amethyst",
+            PhysicalMaterial::Moss => adjective = "Moss",
+            PhysicalMaterial::Unobtainium => adjective = "Unobtainium",
+            PhysicalMaterial::SaltWater => adjective = "Salt Water",
+            PhysicalMaterial::FreshWater => adjective = "Fresh Water",
+            _ => panic!("Invalid material"),
         }
         ItemIdentifier {
             domain: "physical".to_string(),
@@ -744,23 +741,49 @@ impl PhysicalItem {
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
-pub enum PhysicalItemForm {
+pub enum PhysicalForm {
     Gas,
     Liquid,
     Powder,
     // solids
-    Object, // generic solid
     Lump,
     Block,
     Ball,
+    // terrain
+    Land,
+    Sea,
+    // generic life
+    Archaea,
+    Bacterium,
+    Algae,
+    Grass,
+    Fern,
+    Bush,
+    Tree,
+    Insect,
+    Fish,
+    Amphibian,
+    Reptile,
+    Mammal,
+    Bird,
+    // specific life
+    Apple,
+    Lemon,
+    Lime,
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u64)]
-pub enum PhysicalItemMaterial {
-    Apple,
-    Lemon,
-    Lime,
+pub enum PhysicalMaterial {
+    // life
+    Seed, // incl egg
+    Baby,
+    Youth,
+    Adult, // generic alive
+    Elder,
+    Corpse, // generic dead
+    Fruit,
+    // minerals
     Mud,
     Dirt,
     Sandstone,
@@ -777,32 +800,34 @@ pub enum PhysicalItemMaterial {
     Amethyst,
     Moss,
     Unobtainium,
+    // liquids
     SaltWater,
     FreshWater,
 }
 
-impl PhysicalItemMaterial {
+impl PhysicalMaterial {
     pub fn is_goo(&self) -> bool {
         match self {
-            PhysicalItemMaterial::Mud => true,
+            PhysicalMaterial::Mud => true,
             _ => false,
         }
     }
 
-    pub fn object(&self) -> &str {
+    pub fn is_water(&self) -> bool {
         match self {
-            PhysicalItemMaterial::Apple => "Apple",
-            _ => panic!("object not implemented for {:?}", self),
+            PhysicalMaterial::SaltWater => true,
+            PhysicalMaterial::FreshWater => true,
+            _ => false,
         }
     }
 
     pub fn palette(&self) -> image_gen::ColorPalette {
         match self {
-            PhysicalItemMaterial::Mud => Self::mud_palette(),
-            PhysicalItemMaterial::Dirt => Self::dirt_palette(),
-            PhysicalItemMaterial::Sandstone => Self::sandstone_palette(),
-            PhysicalItemMaterial::SaltWater => Self::salt_water_palette(),
-            PhysicalItemMaterial::FreshWater => Self::fresh_water_palette(),
+            PhysicalMaterial::Mud => Self::mud_palette(),
+            PhysicalMaterial::Dirt => Self::dirt_palette(),
+            PhysicalMaterial::Sandstone => Self::sandstone_palette(),
+            PhysicalMaterial::SaltWater => Self::salt_water_palette(),
+            PhysicalMaterial::FreshWater => Self::fresh_water_palette(),
             _ => panic!("palette not implemented for {:?}", self),
         }
     }

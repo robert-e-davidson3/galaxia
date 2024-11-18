@@ -26,7 +26,7 @@ pub const BLOCK_SIZE: f32 = 20.0;
 #[derive(Debug, Clone, Default, Component)]
 pub struct BallBreakerMinigame {
     pub level: u8,
-    pub balls: HashMap<PhysicalItemMaterial, u32>,
+    pub balls: HashMap<PhysicalMaterial, u32>,
 }
 
 impl BallBreakerMinigame {
@@ -169,29 +169,26 @@ impl BallBreakerMinigame {
         };
 
         match physical.material {
-            PhysicalItemMaterial::Mud
-            | PhysicalItemMaterial::Dirt
-            | PhysicalItemMaterial::Sandstone
-            | PhysicalItemMaterial::Granite
-            | PhysicalItemMaterial::Marble
-            | PhysicalItemMaterial::Obsidian
-            | PhysicalItemMaterial::Copper
-            | PhysicalItemMaterial::Tin
-            | PhysicalItemMaterial::Iron
-            | PhysicalItemMaterial::Silver
-            | PhysicalItemMaterial::Gold
-            | PhysicalItemMaterial::Diamond
-            | PhysicalItemMaterial::Amethyst
-            | PhysicalItemMaterial::FreshWater
-            | PhysicalItemMaterial::Moss => Some(physical),
+            PhysicalMaterial::Mud
+            | PhysicalMaterial::Dirt
+            | PhysicalMaterial::Sandstone
+            | PhysicalMaterial::Granite
+            | PhysicalMaterial::Marble
+            | PhysicalMaterial::Obsidian
+            | PhysicalMaterial::Copper
+            | PhysicalMaterial::Tin
+            | PhysicalMaterial::Iron
+            | PhysicalMaterial::Silver
+            | PhysicalMaterial::Gold
+            | PhysicalMaterial::Diamond
+            | PhysicalMaterial::Amethyst
+            | PhysicalMaterial::FreshWater
+            | PhysicalMaterial::Moss => Some(physical),
             _ => None,
         }
     }
 
-    pub fn random_material(
-        level: u8,
-        random: &mut Random,
-    ) -> PhysicalItemMaterial {
+    pub fn random_material(level: u8, random: &mut Random) -> PhysicalMaterial {
         let r: u64;
         if level == 0 {
             r = 0;
@@ -200,75 +197,75 @@ impl BallBreakerMinigame {
         }
 
         match r {
-            0 => PhysicalItemMaterial::Mud,
-            1 => PhysicalItemMaterial::Dirt,
-            2 => PhysicalItemMaterial::Sandstone,
-            3 => PhysicalItemMaterial::Granite,
-            4 => PhysicalItemMaterial::Marble,
-            5 => PhysicalItemMaterial::Obsidian,
-            6 => PhysicalItemMaterial::Copper,
-            7 => PhysicalItemMaterial::Tin,
-            8 => PhysicalItemMaterial::Iron,
-            9 => PhysicalItemMaterial::Silver,
-            10 => PhysicalItemMaterial::Gold,
-            11 => PhysicalItemMaterial::Diamond,
-            12 => PhysicalItemMaterial::Amethyst,
-            13 => PhysicalItemMaterial::FreshWater,
-            14 => PhysicalItemMaterial::Moss,
-            _ => PhysicalItemMaterial::Unobtainium,
+            0 => PhysicalMaterial::Mud,
+            1 => PhysicalMaterial::Dirt,
+            2 => PhysicalMaterial::Sandstone,
+            3 => PhysicalMaterial::Granite,
+            4 => PhysicalMaterial::Marble,
+            5 => PhysicalMaterial::Obsidian,
+            6 => PhysicalMaterial::Copper,
+            7 => PhysicalMaterial::Tin,
+            8 => PhysicalMaterial::Iron,
+            9 => PhysicalMaterial::Silver,
+            10 => PhysicalMaterial::Gold,
+            11 => PhysicalMaterial::Diamond,
+            12 => PhysicalMaterial::Amethyst,
+            13 => PhysicalMaterial::FreshWater,
+            14 => PhysicalMaterial::Moss,
+            _ => PhysicalMaterial::Unobtainium,
         }
     }
 
-    pub fn material_toughness(resource: PhysicalItemMaterial) -> u32 {
+    pub fn material_toughness(resource: PhysicalMaterial) -> u32 {
         match resource {
-            PhysicalItemMaterial::Mud => 1,
-            PhysicalItemMaterial::Dirt => 2,
-            PhysicalItemMaterial::Sandstone => 3,
-            PhysicalItemMaterial::Granite => 4,
-            PhysicalItemMaterial::Marble => 4,
-            PhysicalItemMaterial::Obsidian => 2,
-            PhysicalItemMaterial::Copper => 4,
-            PhysicalItemMaterial::Tin => 4,
-            PhysicalItemMaterial::Iron => 8,
-            PhysicalItemMaterial::Silver => 4,
-            PhysicalItemMaterial::Gold => 3,
-            PhysicalItemMaterial::Diamond => 6,
-            PhysicalItemMaterial::Amethyst => 6,
-            PhysicalItemMaterial::FreshWater => 0,
-            PhysicalItemMaterial::Moss => 1,
+            PhysicalMaterial::Mud => 1,
+            PhysicalMaterial::Dirt => 2,
+            PhysicalMaterial::Sandstone => 3,
+            PhysicalMaterial::Granite => 4,
+            PhysicalMaterial::Marble => 4,
+            PhysicalMaterial::Obsidian => 2,
+            PhysicalMaterial::Copper => 4,
+            PhysicalMaterial::Tin => 4,
+            PhysicalMaterial::Iron => 8,
+            PhysicalMaterial::Silver => 4,
+            PhysicalMaterial::Gold => 3,
+            PhysicalMaterial::Diamond => 6,
+            PhysicalMaterial::Amethyst => 6,
+            PhysicalMaterial::FreshWater => 0,
+            PhysicalMaterial::Moss => 1,
             _ => 16,
         }
     }
 
-    pub fn material_damage(resource: PhysicalItemMaterial) -> u32 {
+    pub fn material_damage(resource: PhysicalMaterial) -> u32 {
         match resource {
-            PhysicalItemMaterial::Mud => 2,
-            PhysicalItemMaterial::Dirt => 3,
-            PhysicalItemMaterial::Sandstone => 4,
-            PhysicalItemMaterial::Granite => 4,
-            PhysicalItemMaterial::Marble => 4,
-            PhysicalItemMaterial::Obsidian => 6,
-            PhysicalItemMaterial::Copper => 7,
-            PhysicalItemMaterial::Tin => 7,
-            PhysicalItemMaterial::Bronze => 8, // must be forged from copper and tin
-            PhysicalItemMaterial::Iron => 10,
-            PhysicalItemMaterial::Silver => 4,
-            PhysicalItemMaterial::Gold => 3,
-            PhysicalItemMaterial::Diamond => 11,
-            PhysicalItemMaterial::Amethyst => 4,
-            PhysicalItemMaterial::FreshWater => 1,
-            PhysicalItemMaterial::Moss => 0,
+            PhysicalMaterial::Mud => 2,
+            PhysicalMaterial::Dirt => 3,
+            PhysicalMaterial::Sandstone => 4,
+            PhysicalMaterial::Granite => 4,
+            PhysicalMaterial::Marble => 4,
+            PhysicalMaterial::Obsidian => 6,
+            PhysicalMaterial::Copper => 7,
+            PhysicalMaterial::Tin => 7,
+            PhysicalMaterial::Bronze => 8, // must be forged from copper and tin
+            PhysicalMaterial::Iron => 10,
+            PhysicalMaterial::Silver => 4,
+            PhysicalMaterial::Gold => 3,
+            PhysicalMaterial::Diamond => 11,
+            PhysicalMaterial::Amethyst => 4,
+            PhysicalMaterial::FreshWater => 1,
+            PhysicalMaterial::Moss => 0,
             _ => 16,
         }
     }
 
     // counts ball material
-    pub fn add_ball(&mut self, material: PhysicalItemMaterial) {
+    pub fn add_ball(&mut self, material: PhysicalMaterial) {
         *self.balls.entry(material).or_insert(0) += 1;
     }
 
     // decrements ball material
-    pub fn remove_ball(&mut self, material: PhysicalItemMaterial) {
+    pub fn remove_ball(&mut self, material: PhysicalMaterial) {
         if let Entry::Occupied(mut entry) = self.balls.entry(material) {
             let count = entry.get_mut();
             if *count > 0 {
@@ -290,7 +287,7 @@ pub struct BlockBundle {
 impl BlockBundle {
     pub fn new(
         asset_server: &AssetServer,
-        material: PhysicalItemMaterial,
+        material: PhysicalMaterial,
         blocks_per_column: u32,
         blocks_per_row: u32,
         x: u32,
@@ -308,7 +305,7 @@ impl BlockBundle {
             block: Block { material },
             sprite: SpriteBundle {
                 texture: asset_server.load(
-                    Item::new_physical(PhysicalItemForm::Block, material, 1.0)
+                    Item::new_physical(PhysicalForm::Block, material, 1.0)
                         .asset(),
                 ),
                 transform: Transform::from_xyz(x, y, 0.0),
@@ -330,7 +327,7 @@ impl BlockBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct Block {
-    pub material: PhysicalItemMaterial,
+    pub material: PhysicalMaterial,
 }
 
 #[derive(Debug, Clone, Bundle)]
@@ -354,7 +351,7 @@ impl BallBundle {
     pub fn new(
         images: &mut Assets<Image>,
         generated_image_assets: &mut image_gen::GeneratedImageAssets,
-        material: PhysicalItemMaterial,
+        material: PhysicalMaterial,
         minigame: Entity,
         blocks_per_column: u32,
         blocks_per_row: u32,
@@ -364,7 +361,7 @@ impl BallBundle {
         let area = CircularArea {
             radius: BLOCK_SIZE / 2.0,
         };
-        let item = Item::new_physical(PhysicalItemForm::Ball, material, 1.0);
+        let item = Item::new_physical(PhysicalForm::Ball, material, 1.0);
         let texture: Handle<Image> =
             match generated_image_assets.get(&item.uid()) {
                 Some(image) => image,
@@ -415,7 +412,7 @@ impl BallBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct Ball {
-    pub material: PhysicalItemMaterial,
+    pub material: PhysicalMaterial,
     pub minigame: Entity,
 }
 
@@ -538,7 +535,7 @@ pub fn hit_block_fixed_update(
         // only care about collisions between balls and blocks
         let ball_entity: Entity;
         let block_entity: Entity;
-        let ball_material: PhysicalItemMaterial;
+        let ball_material: PhysicalMaterial;
         let minigame_entity: Entity;
         match ball_query.get(*a) {
             Ok(ball) => {
@@ -558,7 +555,7 @@ pub fn hit_block_fixed_update(
             },
         };
 
-        let block_material: PhysicalItemMaterial =
+        let block_material: PhysicalMaterial =
             match block_query.get(block_entity) {
                 Ok(x) => x.material,
                 Err(_) => continue,
@@ -588,11 +585,7 @@ pub fn hit_block_fixed_update(
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
-                Item::new_physical(
-                    PhysicalItemForm::Powder,
-                    block_material,
-                    1.0,
-                ),
+                Item::new_physical(PhysicalForm::Powder, block_material, 1.0),
                 minigame_global_transform,
                 minigame_area,
             ));
@@ -611,11 +604,7 @@ pub fn hit_block_fixed_update(
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
-                Item::new_physical(
-                    PhysicalItemForm::Powder,
-                    ball_material,
-                    1.0,
-                ),
+                Item::new_physical(PhysicalForm::Powder, ball_material, 1.0),
                 minigame_global_transform,
                 minigame_area,
             ));

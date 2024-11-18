@@ -15,7 +15,7 @@ const AREA: RectangularArea = RectangularArea {
 
 #[derive(Debug, Clone, Component)]
 pub struct TreeMinigame {
-    pub fruit: PhysicalItemMaterial,
+    pub fruit: PhysicalForm,
     pub count: u32,
     pub _lushness: f32,
     pub last_fruit_time: f32,
@@ -25,7 +25,7 @@ pub struct TreeMinigame {
 impl Default for TreeMinigame {
     fn default() -> Self {
         Self {
-            fruit: PhysicalItemMaterial::Apple,
+            fruit: PhysicalForm::Apple,
             count: 0,
             _lushness: 1.0,
             last_fruit_time: 0.0,
@@ -106,19 +106,19 @@ impl UnpickedFruitBundle {
     pub fn new(
         asset_server: &AssetServer,
         minigame: Entity,
-        fruit: PhysicalItemMaterial,
+        fruit: PhysicalForm,
         transform: Transform,
     ) -> Self {
         let area = CircularArea { radius: 8.0 };
         Self {
             unpicked_fruit: UnpickedFruit {
-                material: fruit,
+                form: fruit,
                 minigame,
             },
             area,
             sprite: SpriteBundle {
                 texture: asset_server.load(
-                    Item::new_physical(PhysicalItemForm::Object, fruit, 1.0)
+                    Item::new_physical(fruit, PhysicalMaterial::Fruit, 1.0)
                         .asset(),
                 ),
                 transform: Transform::from_xyz(
@@ -134,7 +134,7 @@ impl UnpickedFruitBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct UnpickedFruit {
-    pub material: PhysicalItemMaterial,
+    pub form: PhysicalForm,
     pub minigame: Entity,
 }
 
@@ -183,8 +183,8 @@ pub fn update(
                     &mut images,
                     &mut generated_image_assets,
                     Item::new_physical(
-                        PhysicalItemForm::Object,
-                        fruit.material,
+                        fruit.form,
+                        PhysicalMaterial::Fruit,
                         1.0,
                     ),
                     minigame_transform,

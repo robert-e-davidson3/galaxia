@@ -7,10 +7,10 @@ use crate::entities::*;
 use crate::libs::*;
 
 pub const ID: &str = "land";
-pub const POSITION: Vec2 = Vec2::new(-600.0, -600.0);
+pub const POSITION: Vec2 = Vec2::new(600.0, -600.0);
 
 pub const NAME: &str = "Land";
-pub const DESCRIPTION: &str = "Conway's Game of Land";
+pub const DESCRIPTION: &str = "Evolve life";
 
 const MIN_WIDTH: f32 = 100.0;
 const MIN_HEIGHT: f32 = 100.0;
@@ -20,7 +20,10 @@ pub struct LandMinigame {
     pub level: u8, // equivalent to max achieved complexity
     pub max_achieved_complexity: u8, // used for levelup
     pub energy: f32,
-    pub cells: Vec<Vec<Option<ItemType>>>,
+    // mud, water, etc. also some kinds of mana
+    pub terrain: Vec<Vec<ItemType>>,
+    // algae, mammals, etc. also some kinds of mana
+    pub life: Vec<Vec<Option<ItemType>>>,
 }
 
 impl Default for LandMinigame {
@@ -32,14 +35,25 @@ impl Default for LandMinigame {
 impl LandMinigame {
     pub fn new(max_achieved_complexity: u8, energy: f32) -> Self {
         let level = max_achieved_complexity;
-        let blocks_per_row = Self::_blocks_per_row(level) as usize;
-        let blocks_per_column = Self::_blocks_per_column(level) as usize;
-        let cells = vec![vec![None; blocks_per_row]; blocks_per_column];
+        let default_terrain = ItemType::Physical(PhysicalItem {
+            form: PhysicalForm::Land,
+            material: PhysicalMaterial::Mud,
+        });
+        let terrain =
+            vec![
+                vec![default_terrain; Self::width_in_cells(level) as usize];
+                Self::height_in_cells(level) as usize
+            ];
+        let life = vec![
+            vec![None; Self::width_in_cells(level) as usize];
+            Self::height_in_cells(level) as usize
+        ];
         Self {
             level,
             max_achieved_complexity,
             energy,
-            cells,
+            terrain,
+            life,
         }
     }
 
@@ -57,12 +71,20 @@ impl LandMinigame {
 
     pub fn area(&self) -> RectangularArea {
         const BUFFER: f32 = 20.0;
-        let blocks_per_row = self.blocks_per_row();
-        let blocks_per_column = self.blocks_per_column();
         RectangularArea {
-            width: BUFFER + MIN_WIDTH.max(blocks_per_row as f32),
-            height: BUFFER + MIN_HEIGHT.max(blocks_per_column as f32),
+            width: BUFFER
+                + MIN_WIDTH.max(Self::width_in_cells(self.level) as f32),
+            height: BUFFER
+                + MIN_HEIGHT.max(Self::height_in_cells(self.level) as f32),
         }
+    }
+
+    pub fn width_in_cells(level: u8) -> u32 {
+        4 * level as u32
+    }
+
+    pub fn height_in_cells(level: u8) -> u32 {
+        4 * level as u32
     }
 
     pub fn level(&self) -> u8 {
@@ -74,9 +96,7 @@ impl LandMinigame {
     }
 
     pub fn spawn(&self, parent: &mut ChildBuilder) {
-        let (area, blocks_per_row, blocks_per_column) =
-            (self.area(), self.blocks_per_row(), self.blocks_per_column());
-
+        let area = self.area();
         let _background = parent.spawn(SpriteBundle {
             sprite: Sprite {
                 color: Color::srgb(0.5, 0.5, 0.5),
@@ -87,20 +107,49 @@ impl LandMinigame {
             ..default()
         });
 
-        for y in 0..blocks_per_column {
-            for x in 0..blocks_per_row {
+        for y in 0..area.height as u32 {
+            for x in 0..area.width as u32 {
                 parent.spawn(CellBundle::new(
                     x,
                     y,
-                    blocks_per_row,
-                    blocks_per_column,
+                    area.width as u32,
+                    area.height as u32,
                 ));
             }
         }
     }
 
-    pub fn ingest_item(&mut self, _: &Item) -> f32 {
-        0.0 // does not ingest items
+    pub fn ingest_item(&mut self, item: &Item) -> f32 {
+        match item.r#type {
+            ItemType::Energy(energy) => {
+                self.energy += item.amount;
+                item.amount
+            }
+            ItemType::Physical(physical) => {
+                match physical.form {
+                    PhysicalForm::Liquid | PhysicalForm::Lump => {
+                        if item.amount > 1.0 {
+                            // TODO
+                            // 1. get random cell
+                            // 2. if cell is empty, fill it with item
+                            // 3. if cell is not empty, replace it with item and emit old item
+
+                            1.0
+                        } else {
+                            0.0
+                        }
+                    }
+                    _ => 0.0,
+                }
+            }
+            _ => 0.0,
+        }
+
+        // TODO ingestion of items - fills a random cell
+        //      exception:energy of any kind, which enables fixed_update to run
+        //      exception: abstraction mostly doesn't make sense here
+        //      exception: some mana probably does not make sense here
+        //      if random cell already has an item, replace it and emit the old item
     }
 
     //
@@ -115,62 +164,147 @@ impl LandMinigame {
         }
     }
 
-    pub fn blocks_per_row(&self) -> u8 {
-        Self::_blocks_per_row(self.level)
-    }
-
-    pub fn blocks_per_column(&self) -> u8 {
-        Self::_blocks_per_column(self.level)
-    }
-
-    // level -> blocks_per_row
-    // 0 -> 1
-    // 1 -> 1
-    // 2 -> 2
-    fn _blocks_per_row(level: u8) -> u8 {
-        if level % 2 == 0 {
-            1 + level / 2
-        } else {
-            2 + level / 2
-        }
-    }
-
-    // level -> blocks_per_column
-    // 0 -> 1
-    // 1 -> 2
-    // 2 -> 2
-    fn _blocks_per_column(level: u8) -> u8 {
-        1 + level / 2
-    }
-
-    pub fn set_cell(&mut self, x: u8, y: u8, value: Option<ItemType>) {
+    pub fn set_terrain_cell(&mut self, x: u32, y: u32, value: ItemType) {
         let (x, y) = (x as usize, y as usize);
-        if y >= self.cells.len() {
+        if y >= self.terrain.len() {
             return;
         }
-        if x >= self.cells[y].len() {
+        if x >= self.terrain[y].len() {
             return;
         }
-        self.cells[y][x] = value.clone();
+        self.terrain[y][x] = value.clone();
     }
 
-    pub fn get_cell(&self, x: u8, y: u8) -> Option<ItemType> {
+    pub fn get_terrain_cell(&self, x: u32, y: u32) -> ItemType {
         let (x, y) = (x as usize, y as usize);
-        if y >= self.cells.len() {
-            return None;
-        }
-        if x >= self.cells[y].len() {
-            return None;
-        }
-        self.cells[y][x]
+        self.terrain[y][x]
     }
 
-    pub fn clear(&mut self) {
-        for row in self.cells.iter_mut() {
-            for cell in row.iter_mut() {
-                *cell = None;
+    // returns the item that was replaced
+    pub fn set_life_cell(
+        &mut self,
+        x: u32,
+        y: u32,
+        value: Option<ItemType>,
+    ) -> Option<ItemType> {
+        let (x, y) = (x as usize, y as usize);
+        let old = self.life[y][x].clone();
+        self.life[y][x] = value;
+        old
+    }
+
+    pub fn get_life_cell(&self, x: u32, y: u32) -> Option<ItemType> {
+        let (x, y) = (x as usize, y as usize);
+        self.life[y][x]
+    }
+
+    // Run the simulation.
+    // Note that this has a bias towards the top-left corner due to the order
+    // of iteration.
+    pub fn evolve(&mut self, rand: &mut Random) {
+        let mut life_exists = false;
+        let bounds = (self.life[0].len() as u32, self.life.len() as u32);
+        for y in 0..bounds.0 as usize {
+            for x in 0..bounds.1 as usize {
+                let mut cell = match self.life[y][x] {
+                    Some(cell) => cell,
+                    None => {
+                        continue;
+                    }
+                };
+                life_exists = true;
+                match cell {
+                    ItemType::Physical(cell) => {
+                        match cell.form {
+                            PhysicalForm::Archaea => {
+                                // TODO
+                                // 1. if current cell is not water, die
+                                // 2. get random direction
+                                // 3. if cell is empty of life but has water, make a copy there
+                                match self.get_terrain_cell(x as u32, y as u32)
+                                {
+                                    ItemType::Physical(terrain) => {
+                                        if !terrain.material.is_water() {
+                                            self.set_life_cell(
+                                                x as u32, y as u32, None,
+                                            );
+                                        }
+                                    }
+                                    _ => {
+                                        // mana is inhospitable
+                                        self.set_life_cell(
+                                            x as u32, y as u32, None,
+                                        );
+                                    }
+                                }
+                                let (nx, ny) = Self::random_direction(
+                                    rand,
+                                    (x as u32, y as u32),
+                                    bounds,
+                                );
+                                match self
+                                    .get_terrain_cell(nx as u32, ny as u32)
+                                {
+                                    ItemType::Physical(terrain) => {
+                                        if terrain.material.is_water() {
+                                            match self.get_life_cell(
+                                                nx as u32, ny as u32,
+                                            ) {
+                                                Some(_) => {}
+                                                None => {
+                                                    self.set_life_cell(
+                                                        nx as u32,
+                                                        ny as u32,
+                                                        Some(ItemType::Physical(
+                                                            PhysicalItem {
+                                                                form: PhysicalForm::Archaea,
+                                                                material: PhysicalMaterial::Adult,
+                                                            },
+                                                        )),
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    ItemType::Mana(cell) => {
+                        // TODO
+                    }
+                    _ => {}
+                }
             }
         }
+
+        if !life_exists {
+            // TODO stick archaea on a random water-terrain cell
+        }
+    }
+
+    fn random_direction(
+        rand: &mut Random,
+        here: (u32, u32),
+        bounds: (u32, u32),
+    ) -> (i32, i32) {
+        (
+            Self::random_1d(rand, here.0, bounds.0) as i32,
+            Self::random_1d(rand, here.1, bounds.1) as i32,
+        )
+    }
+
+    fn random_1d(rand: &mut Random, here: u32, bounds: u32) -> u32 {
+        let mut x = here + (rand.next() as u32 % 3);
+        if x > 0 {
+            x -= 1 // only go negative if possible
+        }
+        if x >= bounds {
+            x = bounds - 1
+        }
+        x
     }
 }
 
@@ -182,7 +316,7 @@ pub struct CellBundle {
 }
 
 impl CellBundle {
-    pub fn new(x: u8, y: u8, cols: u8, rows: u8) -> Self {
+    pub fn new(x: u32, y: u32, cols: u32, rows: u32) -> Self {
         let t_y = rows - y; // top to bottom
         let dx = -1.0 * ((cols - 1) as f32 / 2.0);
         let dy = -1.0 * ((rows + 1) as f32 / 2.0);
@@ -228,8 +362,8 @@ impl CellBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct Cell {
-    pub x: u8,
-    pub y: u8,
+    pub x: u32,
+    pub y: u32,
 }
 
 // Cell was clicked so emit that cell's item, if any.
@@ -272,22 +406,16 @@ pub fn cell_update(
                     Err(_) => continue,
                 };
             let minigame = match minigame.into_inner() {
-                Minigame::Life(minigame) => minigame,
+                Minigame::Land(minigame) => minigame,
                 _ => continue,
             };
 
-            // Only "on" cells do something when clicked
-            let item_type = match minigame.get_cell(cell.x, cell.y) {
+            // Clear cell and emit item, if present.
+            // Otherwise, do nothing.
+            let item_type = match minigame.set_life_cell(cell.x, cell.y, None) {
                 Some(c) => c,
                 None => continue,
             };
-
-            // Clear cell
-            minigame.set_cell(cell.x, cell.y, None);
-            CellBundle::turn_off(cell_entity, &mut cell_draw_query);
-            // Record extraction
-            minigame.extracted += 1.0;
-            // Emit item
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
@@ -295,6 +423,8 @@ pub fn cell_update(
                 minigame_transform,
                 minigame_area,
             ));
+
+            CellBundle::turn_off(cell_entity, &mut cell_draw_query);
         }
     }
 }
@@ -304,23 +434,23 @@ pub fn cell_update(
 // Only when minigame has stored energy.
 pub fn evolve_fixed_update(
     mut commands: Commands,
+    mut rand: ResMut<Random>,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     time: Res<Time>,
-    mut minigame_query: Query<(
-        &mut Minigame,
-        &GlobalTransform,
-        &RectangularArea,
-    )>,
-    leveling_up_query: Query<&LevelingUp, With<Minigame>>,
+    mut minigame_query: Query<(&mut Minigame, Entity), Changed<Minigame>>,
     cell_query: Query<(Entity, &Parent)>,
     mut fill_query: Query<&mut Fill, With<Cell>>,
 ) {
-    return; // TODO
+    for (mut minigame, minigame_entity) in minigame_query.iter_mut() {
+        let minigame = match minigame.into_inner() {
+            Minigame::Land(minigame) => minigame,
+            _ => continue,
+        };
+        if minigame.energy < 1.0 {
+            continue;
+        }
+        minigame.evolve(&mut rand);
+        minigame.energy -= 1.0;
+    }
 }
-
-// TODO ingestion of items - fills a random cell
-//      exception:energy of any kind, which enables fixed_update to run
-//      exception: abstraction mostly doesn't make sense here
-//      exception: some mana probably does not make sense here
-pub fn ingest_fixed_update() {}

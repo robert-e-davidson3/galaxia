@@ -117,7 +117,7 @@ impl PrimordialOceanMinigame {
             _ => return false,
         };
 
-        matches!(physical.material, PhysicalItemMaterial::SaltWater)
+        matches!(physical.material, PhysicalMaterial::SaltWater)
     }
 }
 
@@ -182,11 +182,9 @@ pub fn update(
             let click_type = mouse_state.get_click_type();
             let (form, material) = match click_type {
                 ClickType::Short => {
-                    (PhysicalItemForm::Liquid, PhysicalItemMaterial::SaltWater)
+                    (PhysicalForm::Liquid, PhysicalMaterial::SaltWater)
                 }
-                ClickType::Long => {
-                    (PhysicalItemForm::Lump, PhysicalItemMaterial::Mud)
-                }
+                ClickType::Long => (PhysicalForm::Lump, PhysicalMaterial::Mud),
                 ClickType::Invalid => {
                     println!("unexpected: invalid click type");
                     continue;

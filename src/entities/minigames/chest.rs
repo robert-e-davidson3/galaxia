@@ -126,33 +126,27 @@ impl ChestMinigame {
                 // Only solid items
                 matches!(
                     physical.form,
-                    PhysicalItemForm::Object
-                        | PhysicalItemForm::Lump
-                        | PhysicalItemForm::Block
-                        | PhysicalItemForm::Ball
+                    |PhysicalForm::Lump| PhysicalForm::Block
+                        | PhysicalForm::Ball
                 ) // && !physical.material.is_goo() // TODO re-add
             }
             5..=9 => {
                 // Add powders and goos
                 matches!(
                     physical.form,
-                    PhysicalItemForm::Object
-                        | PhysicalItemForm::Lump
-                        | PhysicalItemForm::Block
-                        | PhysicalItemForm::Ball
-                        | PhysicalItemForm::Powder
+                    |PhysicalForm::Lump| PhysicalForm::Block
+                        | PhysicalForm::Ball
+                        | PhysicalForm::Powder
                 )
             }
             10..=19 => {
                 // Add liquids
                 matches!(
                     physical.form,
-                    PhysicalItemForm::Object
-                        | PhysicalItemForm::Lump
-                        | PhysicalItemForm::Block
-                        | PhysicalItemForm::Ball
-                        | PhysicalItemForm::Powder
-                        | PhysicalItemForm::Liquid
+                    |PhysicalForm::Lump| PhysicalForm::Block
+                        | PhysicalForm::Ball
+                        | PhysicalForm::Powder
+                        | PhysicalForm::Liquid
                 )
             }
             _ => {
