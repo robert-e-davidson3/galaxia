@@ -36,6 +36,7 @@ pub enum Minigame {
     Rune(rune::RuneMinigame),
     Chest(chest::ChestMinigame),
     Battery(battery::BatteryMinigame),
+    Foundry(foundry::FoundryMinigame),
     BallBreaker(ball_breaker::BallBreakerMinigame),
     Land(land::LandMinigame),
     Life(life::LifeMinigame),
@@ -56,6 +57,9 @@ impl Minigame {
             battery::ID => {
                 Some(Minigame::Battery(battery::BatteryMinigame::default()))
             }
+            foundry::ID => {
+                Some(Minigame::Foundry(foundry::FoundryMinigame::default()))
+            }
             ball_breaker::ID => Some(Minigame::BallBreaker(
                 ball_breaker::BallBreakerMinigame::default(),
             )),
@@ -73,6 +77,7 @@ impl Minigame {
             Minigame::Rune(_) => rune::ID,
             Minigame::Chest(_) => chest::ID,
             Minigame::Battery(_) => battery::ID,
+            Minigame::Foundry(_) => foundry::ID,
             Minigame::BallBreaker(_) => ball_breaker::ID,
             Minigame::Land(_) => land::ID,
             Minigame::Life(_) => life::ID,
@@ -87,6 +92,7 @@ impl Minigame {
             Minigame::Rune(m) => m.name(),
             Minigame::Chest(m) => m.name(),
             Minigame::Battery(m) => m.name(),
+            Minigame::Foundry(m) => m.name(),
             Minigame::BallBreaker(m) => m.name(),
             Minigame::Land(m) => m.name(),
             Minigame::Life(m) => m.name(),
@@ -101,6 +107,7 @@ impl Minigame {
             Minigame::Rune(m) => m.description(),
             Minigame::Chest(m) => m.description(),
             Minigame::Battery(m) => m.description(),
+            Minigame::Foundry(m) => m.description(),
             Minigame::BallBreaker(m) => m.description(),
             Minigame::Land(m) => m.description(),
             Minigame::Life(m) => m.description(),
@@ -115,6 +122,7 @@ impl Minigame {
             Minigame::Rune(_) => rune::POSITION,
             Minigame::Chest(_) => chest::POSITION,
             Minigame::Battery(_) => battery::POSITION,
+            Minigame::Foundry(_) => foundry::POSITION,
             Minigame::BallBreaker(_) => ball_breaker::POSITION,
             Minigame::Land(_) => land::POSITION,
             Minigame::Life(_) => life::POSITION,
@@ -129,6 +137,7 @@ impl Minigame {
             Minigame::Rune(m) => m.area(),
             Minigame::Chest(m) => m.area(),
             Minigame::Battery(m) => m.area(),
+            Minigame::Foundry(m) => m.area(),
             Minigame::BallBreaker(m) => m.area(),
             Minigame::Land(m) => m.area(),
             Minigame::Life(m) => m.area(),
@@ -144,6 +153,7 @@ impl Minigame {
             Minigame::Rune(m) => m.level(),
             Minigame::Chest(m) => m.level(),
             Minigame::Battery(m) => m.level(),
+            Minigame::Foundry(m) => m.level(),
             Minigame::BallBreaker(m) => m.level(),
             Minigame::Land(m) => m.level(),
             Minigame::Life(m) => m.level(),
@@ -161,6 +171,7 @@ impl Minigame {
             Minigame::Rune(m) => Minigame::Rune(m.levelup()),
             Minigame::Chest(m) => Minigame::Chest(m.levelup()),
             Minigame::Battery(m) => Minigame::Battery(m.levelup()),
+            Minigame::Foundry(m) => Minigame::Foundry(m.levelup()),
             Minigame::BallBreaker(m) => Minigame::BallBreaker(m.levelup()),
             Minigame::Land(m) => Minigame::Land(m.levelup()),
             Minigame::Life(m) => Minigame::Life(m.levelup()),
@@ -202,6 +213,7 @@ impl Minigame {
                     Minigame::PrimordialOcean(m) => m.spawn(parent),
                     Minigame::Chest(m) => m.spawn(parent, asset_server),
                     Minigame::Battery(m) => m.spawn(parent, asset_server),
+                    Minigame::Foundry(m) => m.spawn(parent),
                     Minigame::BallBreaker(m) => {
                         m.spawn(parent, random, asset_server)
                     }
@@ -244,6 +256,7 @@ impl Minigame {
             Minigame::Battery(m) => {
                 m.ingest_item(commands, minigame_entity, item)
             }
+            Minigame::Foundry(m) => m.ingest_item(item),
             Minigame::BallBreaker(m) => m.ingest_item(
                 commands,
                 images,
@@ -577,7 +590,7 @@ pub fn setup_minigame_unlocks(mut unlocks: ResMut<MinigamesResource>) {
         ],
     );
     unlocks.insert(
-        ball_breaker::ID,
+        foundry::ID,
         vec![Prerequisite {
             minigame: button::ID.into(),
             level: 1,
@@ -587,6 +600,14 @@ pub fn setup_minigame_unlocks(mut unlocks: ResMut<MinigamesResource>) {
         land::ID,
         vec![Prerequisite {
             minigame: primordial_ocean::ID.into(),
+            level: 1,
+        }],
+    );
+
+    unlocks.insert(
+        ball_breaker::ID,
+        vec![Prerequisite {
+            minigame: foundry::ID.into(),
             level: 1,
         }],
     );

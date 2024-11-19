@@ -2,6 +2,7 @@ pub mod ball_breaker;
 pub mod battery;
 pub mod button;
 pub mod chest;
+pub mod foundry;
 pub mod land;
 pub mod life;
 pub mod primordial_ocean;

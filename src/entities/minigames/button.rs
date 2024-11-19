@@ -200,7 +200,7 @@ pub fn update(
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
-                Item::new_abstract(AbstractItemKind::Click, variant, 1.0),
+                Item::new_abstract(AbstractKind::Click, variant, 1.0),
                 minigame_transform,
                 minigame_area,
             ));

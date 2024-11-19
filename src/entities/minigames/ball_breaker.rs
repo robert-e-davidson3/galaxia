@@ -16,7 +16,7 @@ use crate::libs::*;
 // minigame to use or deploy.
 
 pub const ID: &str = "ball_breaker";
-pub const POSITION: Vec2 = Vec2::new(0.0, 500.0);
+pub const POSITION: Vec2 = Vec2::new(0.0, 900.0);
 
 pub const NAME: &str = "ball breaker";
 pub const DESCRIPTION: &str = "Throw balls to break blocks!";

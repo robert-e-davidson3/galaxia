@@ -111,11 +111,7 @@ impl Item {
         self.identifier().uid()
     }
 
-    pub fn new_abstract(
-        kind: AbstractItemKind,
-        variant: u8,
-        amount: f32,
-    ) -> Self {
+    pub fn new_abstract(kind: AbstractKind, variant: u8, amount: f32) -> Self {
         Self::new(ItemType::Abstract(AbstractItem { kind, variant }), amount)
     }
 
@@ -285,7 +281,7 @@ impl ItemIdentifier {
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(C)]
 pub struct AbstractItem {
-    pub kind: AbstractItemKind,
+    pub kind: AbstractKind,
     pub variant: u8,
 }
 
@@ -305,23 +301,21 @@ impl AbstractItem {
 
     pub fn draw(&self, _rand: &mut WyRand) -> Image {
         match self.kind {
-            AbstractItemKind::Click => {
+            AbstractKind::Click => {
                 let path = format!("assets/abstract/{}.png", self.object());
                 load_image(&path)
             }
-            AbstractItemKind::Rune => {
-                match rune::Rune::try_from(self.variant) {
-                    Ok(rune) => image_gen::draw_rune(rune),
-                    Err(_) => panic!("Invalid rune variant {}", self.variant),
-                }
-            }
+            AbstractKind::Rune => match rune::Rune::try_from(self.variant) {
+                Ok(rune) => image_gen::draw_rune(rune),
+                Err(_) => panic!("Invalid rune variant {}", self.variant),
+            },
             _ => panic!("Invalid abstract item kind {:?}", self.kind),
         }
     }
 
     pub fn object(&self) -> &str {
         match self.kind {
-            AbstractItemKind::Click => match self.variant {
+            AbstractKind::Click => match self.variant {
                 0 => "ShortClick",
                 1 => "LongClick",
                 _ => panic!(
@@ -329,21 +323,19 @@ impl AbstractItem {
                     self.variant
                 ),
             },
-            AbstractItemKind::Rune => {
-                match rune::Rune::try_from(self.variant) {
-                    Ok(rune::Rune::InclusiveSelf) => "RuneInclusiveSelf",
-                    Ok(rune::Rune::Connector) => "RuneConnector",
-                    Ok(rune::Rune::ExclusiveSelf) => "Exclusive Self",
-                    Ok(rune::Rune::Shelter) => "Shelter",
-                    Ok(rune::Rune::InclusiveOther) => "Inclusive Other",
-                    Ok(rune::Rune::Force) => "Force",
-                    Ok(rune::Rune::ExclusiveOther) => "Exclusive Other",
-                    Err(_) => panic!(
-                        "Invalid abstract item variant {} for rune",
-                        self.variant
-                    ),
-                }
-            }
+            AbstractKind::Rune => match rune::Rune::try_from(self.variant) {
+                Ok(rune::Rune::InclusiveSelf) => "RuneInclusiveSelf",
+                Ok(rune::Rune::Connector) => "RuneConnector",
+                Ok(rune::Rune::ExclusiveSelf) => "Exclusive Self",
+                Ok(rune::Rune::Shelter) => "Shelter",
+                Ok(rune::Rune::InclusiveOther) => "Inclusive Other",
+                Ok(rune::Rune::Force) => "Force",
+                Ok(rune::Rune::ExclusiveOther) => "Exclusive Other",
+                Err(_) => panic!(
+                    "Invalid abstract item variant {} for rune",
+                    self.variant
+                ),
+            },
             _ => panic!("Material {:?} not implemented", self),
         }
     }
@@ -352,7 +344,7 @@ impl AbstractItem {
         let noun: &str;
         let adjective: &str;
         match self.kind {
-            AbstractItemKind::Click => {
+            AbstractKind::Click => {
                 noun = "Click";
                 match self.variant {
                     0 => adjective = "Short",
@@ -363,11 +355,11 @@ impl AbstractItem {
                     ),
                 }
             }
-            AbstractItemKind::XP => {
+            AbstractKind::XP => {
                 noun = "XP";
                 adjective = "";
             }
-            AbstractItemKind::Rune => {
+            AbstractKind::Rune => {
                 noun = "rune";
                 match rune::Rune::try_from(self.variant) {
                     Ok(rune::Rune::InclusiveSelf) => {
@@ -624,7 +616,7 @@ pub mod rune {
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u8)]
-pub enum AbstractItemKind {
+pub enum AbstractKind {
     Click,
     XP,
     Rune,
@@ -770,6 +762,7 @@ pub enum PhysicalForm {
     Lump,
     Block,
     Ball,
+    Ore,
     // terrain
     Land,
     Sea,
@@ -869,6 +862,18 @@ impl PhysicalMaterial {
         match self {
             PhysicalMaterial::SaltWater => true,
             PhysicalMaterial::FreshWater => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_metal(&self) -> bool {
+        match self {
+            PhysicalMaterial::Copper
+            | PhysicalMaterial::Tin
+            | PhysicalMaterial::Bronze
+            | PhysicalMaterial::Iron
+            | PhysicalMaterial::Silver
+            | PhysicalMaterial::Gold => true,
             _ => false,
         }
     }
@@ -1006,11 +1011,23 @@ impl EnergyItem {
     }
 
     pub fn draw(&self, _rand: &mut WyRand) -> Image {
-        panic!("EnergyItem::draw not implemented");
+        load_image(&format!("assets/energy/{}.png", self.identifier().noun))
     }
 
     pub fn identifier(&self) -> ItemIdentifier {
-        panic!("EnergyItem::identifier not implemented");
+        let noun = match self.kind {
+            EnergyKind::Kinetic => "kinetic",
+            EnergyKind::Potential => "potential",
+            EnergyKind::Thermal => "thermal",
+            EnergyKind::Electric => "electric",
+            EnergyKind::Magnetic => "magnetic",
+            EnergyKind::Radiant => "radiant",
+        };
+        ItemIdentifier {
+            domain: "energy".to_string(),
+            noun: noun.to_string(),
+            adjective: "".to_string(),
+        }
     }
 }
 

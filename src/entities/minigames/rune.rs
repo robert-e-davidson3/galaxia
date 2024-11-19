@@ -412,7 +412,7 @@ pub fn fixed_update(
                         &mut images,
                         &mut generated_image_assets,
                         Item::new_abstract(
-                            AbstractItemKind::Rune,
+                            AbstractKind::Rune,
                             rune as u8,
                             1.0,
                         ),

@@ -66,6 +66,7 @@ fn main() {
                 minigames::rune::fixed_update,
                 minigames::tree::fixed_update,
                 minigames::ball_breaker::hit_block_fixed_update,
+                minigames::foundry::cook_fixed_update,
                 item::teleport_distant_loose_items,
                 item::combine_loose_items,
             ),
