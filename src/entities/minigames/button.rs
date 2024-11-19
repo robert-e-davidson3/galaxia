@@ -10,8 +10,8 @@ pub const POSITION: Vec2 = Vec2::new(0.0, -200.0);
 pub const NAME: &str = "Button";
 pub const DESCRIPTION: &str = "Click the button, get clicks!";
 const AREA: RectangularArea = RectangularArea {
-    width: 200.0,
-    height: 220.0,
+    width: 120.0,
+    height: 140.0,
 };
 
 #[derive(Debug, Default, Clone, Component)]
@@ -101,31 +101,32 @@ fn spawn_text(parent: &mut ChildBuilder, initial_clicks: u64) -> Entity {
             text: Text::from_section(
                 format!("Clicks: {}", initial_clicks),
                 TextStyle {
-                    font_size: 24.0,
+                    font_size: 20.0,
                     color: Color::BLACK,
                     ..default()
                 },
             ),
-            transform: Transform::from_xyz(0.0, 100.0, 0.0),
+            transform: Transform::from_xyz(0.0, 58.0, 0.0),
             ..default()
         })
         .id()
 }
 
 fn spawn_button(parent: &mut ChildBuilder, text: Entity) {
+    let radius = AREA.width / 2.0 - 5.0;
     parent.spawn((
         ClickMeButton {
             game: parent.parent_entity(),
             text,
         },
-        CircularArea { radius: 90.0 },
+        CircularArea { radius },
         ShapeBundle {
             path: GeometryBuilder::build_as(&shapes::Circle {
-                radius: 90.0,
+                radius,
                 ..default()
             }),
             spatial: SpatialBundle {
-                transform: Transform::from_xyz(0.0, -18.0, 0.0),
+                transform: Transform::from_xyz(0.0, -10.0, 0.0),
                 ..default()
             },
             ..default()

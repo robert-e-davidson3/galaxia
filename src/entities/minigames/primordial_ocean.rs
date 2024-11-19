@@ -131,6 +131,7 @@ pub struct OceanBundle {
 
 impl OceanBundle {
     pub fn new(minigame: Entity, radius: f32) -> Self {
+        let radius = radius - 5.0;
         let area = CircularArea::new(radius);
         Self {
             ocean: Ocean { minigame },
