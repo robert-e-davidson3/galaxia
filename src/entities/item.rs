@@ -29,8 +29,8 @@ pub struct ItemBundle {
 //      IIRC can simply insert components on the entity and they overwrite them
 impl ItemBundle {
     pub fn new(
-        images: &mut ResMut<Assets<Image>>,
-        generated_image_assets: &mut ResMut<image_gen::GeneratedImageAssets>,
+        images: &mut Assets<Image>,
+        generated_image_assets: &mut image_gen::GeneratedImageAssets,
         item: Item,
         transform: Transform,
         velocity: Velocity,
@@ -75,8 +75,8 @@ impl ItemBundle {
     }
 
     pub fn new_from_minigame(
-        images: &mut ResMut<Assets<Image>>,
-        generated_image_assets: &mut ResMut<image_gen::GeneratedImageAssets>,
+        images: &mut Assets<Image>,
+        generated_image_assets: &mut image_gen::GeneratedImageAssets,
         item: Item,
         minigame_global_transform: &GlobalTransform,
         minigame_area: &RectangularArea,
@@ -682,9 +682,6 @@ impl PhysicalItem {
             PhysicalForm::Powder => {
                 self.material.palette().draw_powder(rand, ITEM_SIZE)
             }
-            PhysicalForm::Apple => {
-                load_image(&"assets/physical/apple.png".to_string())
-            }
             PhysicalForm::Lump => {
                 self.material.palette().draw_lump(rand, ITEM_SIZE)
             }
@@ -694,7 +691,19 @@ impl PhysicalItem {
             PhysicalForm::Ball => {
                 self.material.palette().draw_ball(rand, ITEM_SIZE)
             }
-            _ => panic!("Invalid form"),
+            PhysicalForm::Land => {
+                self.material.palette().draw_block(rand, ITEM_SIZE)
+            }
+            PhysicalForm::Sea => {
+                self.material.palette().draw_block(rand, ITEM_SIZE)
+            }
+            PhysicalForm::Archaea => {
+                self.form.palette().draw_lump(rand, ITEM_SIZE)
+            }
+            PhysicalForm::Apple => {
+                load_image(&"assets/physical/apple.png".to_string())
+            }
+            _ => panic!("Invalid form {:?}", self.form),
         }
     }
 
@@ -708,9 +717,21 @@ impl PhysicalItem {
             PhysicalForm::Lump => noun = "Lump",
             PhysicalForm::Block => noun = "Block",
             PhysicalForm::Ball => noun = "Ball",
-            _ => panic!("Invalid form"),
+            PhysicalForm::Land => noun = "Land",
+            PhysicalForm::Sea => noun = "Sea",
+            PhysicalForm::Archaea => noun = "Archaea",
+            _ => panic!("Invalid form {:?}", self.form),
         }
         match self.material {
+            // life
+            PhysicalMaterial::Seed => adjective = "Seed",
+            PhysicalMaterial::Baby => adjective = "Baby",
+            PhysicalMaterial::Youth => adjective = "Youth",
+            PhysicalMaterial::Adult => adjective = "Adult",
+            PhysicalMaterial::Elder => adjective = "Elder",
+            PhysicalMaterial::Corpse => adjective = "Corpse",
+            PhysicalMaterial::Fruit => adjective = "Fruit",
+            // minerals
             PhysicalMaterial::Mud => adjective = "Mud",
             PhysicalMaterial::Dirt => adjective = "Dirt",
             PhysicalMaterial::Sandstone => adjective = "Sandstone",
@@ -726,10 +747,10 @@ impl PhysicalItem {
             PhysicalMaterial::Diamond => adjective = "Diamond",
             PhysicalMaterial::Amethyst => adjective = "Amethyst",
             PhysicalMaterial::Moss => adjective = "Moss",
-            PhysicalMaterial::Unobtainium => adjective = "Unobtainium",
+            // liquids
             PhysicalMaterial::SaltWater => adjective = "Salt Water",
             PhysicalMaterial::FreshWater => adjective = "Fresh Water",
-            _ => panic!("Invalid material"),
+            _ => panic!("Invalid material {:?}", self.material),
         }
         ItemIdentifier {
             domain: "physical".to_string(),
@@ -772,6 +793,33 @@ pub enum PhysicalForm {
     Lime,
 }
 
+impl PhysicalForm {
+    pub fn palette(&self) -> image_gen::ColorPalette {
+        match self {
+            PhysicalForm::Archaea => Self::archaea_palette(),
+            _ => panic!("Invalid form {:?}", self),
+        }
+    }
+
+    //
+    // Palettes
+    //
+
+    fn archaea_palette() -> image_gen::ColorPalette {
+        let mut palette = image_gen::ColorPalette::new();
+        palette.add_colorant(image_gen::Colorant {
+            red: 0,
+            green: 10,
+            blue: 0,
+            alpha: 200,
+            weight: 1,
+            looseness: 10,
+            alpha_looseness: 10,
+        });
+        palette
+    }
+}
+
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 #[repr(u64)]
 pub enum PhysicalMaterial {
@@ -806,6 +854,10 @@ pub enum PhysicalMaterial {
 }
 
 impl PhysicalMaterial {
+    //
+    // Types
+    //
+
     pub fn is_goo(&self) -> bool {
         match self {
             PhysicalMaterial::Mud => true,
@@ -820,6 +872,10 @@ impl PhysicalMaterial {
             _ => false,
         }
     }
+
+    //
+    // Palettes
+    //
 
     pub fn palette(&self) -> image_gen::ColorPalette {
         match self {

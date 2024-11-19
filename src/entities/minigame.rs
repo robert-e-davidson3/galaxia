@@ -224,9 +224,12 @@ impl Minigame {
     pub fn ingest_item(
         &mut self,
         commands: &mut Commands,
+        rand: &mut Random,
         images: &mut Assets<Image>,
         generated_image_assets: &mut image_gen::GeneratedImageAssets,
         minigame_entity: Entity,
+        minigame_transform: &GlobalTransform,
+        minigame_area: &RectangularArea,
         item: &Item,
     ) -> f32 {
         match self {
@@ -248,7 +251,15 @@ impl Minigame {
                 minigame_entity,
                 item,
             ),
-            Minigame::Land(m) => m.ingest_item(item),
+            Minigame::Land(m) => m.ingest_item(
+                commands,
+                rand,
+                images,
+                generated_image_assets,
+                minigame_transform,
+                minigame_area,
+                item,
+            ),
             Minigame::Life(m) => m.ingest_item(item),
             Minigame::Tree(m) => m.ingest_item(),
         }
@@ -788,10 +799,15 @@ pub fn spawn_minigame_bounds(parent: &mut ChildBuilder, area: RectangularArea) {
 
 pub fn ingest_item(
     mut commands: Commands,
+    mut random: ResMut<Random>,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut collision_events: EventReader<CollisionEvent>,
-    mut minigame_query: Query<&mut Minigame>,
+    mut minigame_query: Query<(
+        &mut Minigame,
+        &GlobalTransform,
+        &RectangularArea,
+    )>,
     aura_query: Query<&MinigameAura>,
     item_query: Query<(&Item, &Transform, &Velocity)>,
 ) {
@@ -823,9 +839,9 @@ pub fn ingest_item(
             Ok(x) => x,
             Err(_) => continue,
         };
-        let minigame: &mut Minigame =
+        let (minigame, minigame_transform, minigame_area) =
             match minigame_query.get_mut(aura.minigame) {
-                Ok(x) => x.into_inner(),
+                Ok((m, t, a)) => (m.into_inner(), t, a),
                 Err(_) => continue,
             };
 
@@ -833,9 +849,12 @@ pub fn ingest_item(
 
         let ingested_amount = minigame.ingest_item(
             &mut commands,
+            &mut random,
             &mut images,
             &mut generated_image_assets,
             aura.minigame,
+            minigame_transform,
+            minigame_area,
             &item,
         );
 

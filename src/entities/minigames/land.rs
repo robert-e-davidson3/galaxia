@@ -119,37 +119,43 @@ impl LandMinigame {
         }
     }
 
-    pub fn ingest_item(&mut self, item: &Item) -> f32 {
+    pub fn ingest_item(
+        &mut self,
+        commands: &mut Commands,
+        rand: &mut Random,
+        images: &mut Assets<Image>,
+        generated_image_assets: &mut image_gen::GeneratedImageAssets,
+        minigame_transform: &GlobalTransform,
+        minigame_area: &RectangularArea,
+        item: &Item,
+    ) -> f32 {
         match item.r#type {
             ItemType::Energy(energy) => {
                 self.energy += item.amount;
                 item.amount
             }
-            ItemType::Physical(physical) => {
-                match physical.form {
-                    PhysicalForm::Liquid | PhysicalForm::Lump => {
-                        if item.amount > 1.0 {
-                            // TODO
-                            // 1. get random cell
-                            // 2. if cell is empty, fill it with item
-                            // 3. if cell is not empty, replace it with item and emit old item
+            ItemType::Physical(physical) => match physical.form {
+                PhysicalForm::Liquid | PhysicalForm::Lump => {
+                    if item.amount > 1.0 {
+                        let (x, y) = self.random_coordinate(rand);
+                        let old = self.set_terrain_cell(x, y, item.r#type);
+                        commands.spawn(ItemBundle::new_from_minigame(
+                            images,
+                            generated_image_assets,
+                            Item::new(item.r#type, item.amount - 1.0),
+                            minigame_transform,
+                            minigame_area,
+                        ));
 
-                            1.0
-                        } else {
-                            0.0
-                        }
+                        1.0
+                    } else {
+                        0.0
                     }
-                    _ => 0.0,
                 }
-            }
+                _ => 0.0,
+            },
             _ => 0.0,
         }
-
-        // TODO ingestion of items - fills a random cell
-        //      exception:energy of any kind, which enables fixed_update to run
-        //      exception: abstraction mostly doesn't make sense here
-        //      exception: some mana probably does not make sense here
-        //      if random cell already has an item, replace it and emit the old item
     }
 
     //
@@ -164,15 +170,16 @@ impl LandMinigame {
         }
     }
 
-    pub fn set_terrain_cell(&mut self, x: u32, y: u32, value: ItemType) {
+    pub fn set_terrain_cell(
+        &mut self,
+        x: u32,
+        y: u32,
+        value: ItemType,
+    ) -> ItemType {
         let (x, y) = (x as usize, y as usize);
-        if y >= self.terrain.len() {
-            return;
-        }
-        if x >= self.terrain[y].len() {
-            return;
-        }
-        self.terrain[y][x] = value.clone();
+        let old = self.terrain[y][x];
+        self.terrain[y][x] = value;
+        old
     }
 
     pub fn get_terrain_cell(&self, x: u32, y: u32) -> ItemType {
@@ -237,10 +244,9 @@ impl LandMinigame {
                                         );
                                     }
                                 }
-                                let (nx, ny) = Self::random_direction(
+                                let (nx, ny) = self.random_neighbor(
                                     rand,
                                     (x as u32, y as u32),
-                                    bounds,
                                 );
                                 match self
                                     .get_terrain_cell(nx as u32, ny as u32)
@@ -285,11 +291,23 @@ impl LandMinigame {
         }
     }
 
-    fn random_direction(
+    fn random_coordinate(&self, rand: &mut Random) -> (u32, u32) {
+        let bound_x = self.life[0].len() as u32;
+        let bound_y = self.life.len() as u32;
+        (
+            (rand.next() as u32) % bound_x,
+            (rand.next() as u32) % bound_y,
+        )
+    }
+
+    // Returns a random neighbor of the given cell.
+    // Can return itself.
+    fn random_neighbor(
+        &self,
         rand: &mut Random,
         here: (u32, u32),
-        bounds: (u32, u32),
     ) -> (i32, i32) {
+        let bounds = (self.life[0].len() as u32, self.life.len() as u32);
         (
             Self::random_1d(rand, here.0, bounds.0) as i32,
             Self::random_1d(rand, here.1, bounds.1) as i32,
