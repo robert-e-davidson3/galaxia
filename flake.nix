@@ -22,6 +22,7 @@
         nativeBuildInputs = with pkgs; [
           rustVersion
           pkg-config
+          zsh
         ];
 
         buildInputs = with pkgs; [
@@ -54,6 +55,7 @@
           shellHook = ''
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath buildInputs}:$LD_LIBRARY_PATH
             export PKG_CONFIG_PATH=${pkgs.lib.makeSearchPath "lib/pkgconfig" buildInputs}:$PKG_CONFIG_PATH
+            exec zsh
           '';
         };
       });
