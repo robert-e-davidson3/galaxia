@@ -46,35 +46,8 @@
           darwin.apple_sdk.frameworks.AudioUnit
         ];
 
-        rustPlatform = pkgs.makeRustPlatform {
-          cargo = rustVersion;
-          rustc = rustVersion;
-        };
-
       in
       {
-        packages.default = rustPlatform.buildRustPackage {
-          pname = "galaxia";
-          version = "0.1.0";
-
-          src = ./.;
-
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-          };
-
-          inherit nativeBuildInputs buildInputs;
-
-          # Set environment variables for graphics libraries
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
-          
-          meta = with pkgs.lib; {
-            description = "A Rust game built with Bevy";
-            license = licenses.mit;
-            maintainers = [ ];
-          };
-        };
-
         devShells.default = pkgs.mkShell {
           inherit buildInputs nativeBuildInputs;
           
