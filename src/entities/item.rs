@@ -93,6 +93,45 @@ impl ItemBundle {
             Velocity::linear(Vec2::new(70.0, -70.0)),
         )
     }
+
+    pub fn eject_from_minigame(
+        commands: &mut Commands,
+        item_entity: Entity,
+        minigame_global_transform: &GlobalTransform,
+        minigame_area: &RectangularArea,
+    ) {
+        let transform = Transform::from_translation(
+            minigame_global_transform.translation()
+                + minigame_area.dimensions3() / 1.5,
+        );
+        let velocity = Velocity::linear(Vec2::new(70.0, -70.0));
+        commands.entity(item_entity).insert((transform, velocity));
+    }
+
+    /// Clear items from a minigame area by ejecting them outside
+    pub fn clear_minigame_area(
+        commands: &mut Commands,
+        minigame_global_transform: &GlobalTransform,
+        minigame_area: &RectangularArea,
+        item_query: &Query<
+            (&Transform, Entity),
+            (With<Item>, Without<LevelingUp>),
+        >,
+    ) {
+        let minigame_pos = minigame_global_transform.translation().truncate();
+
+        for (item_transform, item_entity) in item_query.iter() {
+            let item_pos = item_transform.translation.truncate();
+            if minigame_area.is_within(item_pos, minigame_pos) {
+                Self::eject_from_minigame(
+                    commands,
+                    item_entity,
+                    minigame_global_transform,
+                    minigame_area,
+                );
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Component)]

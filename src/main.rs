@@ -12,7 +12,6 @@ use bevy_rapier2d::prelude::*;
 use entities::*;
 use libs::*;
 
-
 fn main() {
     App::new()
         .add_plugins((
@@ -106,6 +105,7 @@ fn setup_board(
     mut random: ResMut<random::Random>,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
+    item_query: Query<(&Transform, Entity), (With<Item>, Without<LevelingUp>)>,
 ) {
     let mut spawn = |minigame: Minigame, transform: Transform| -> Entity {
         minigame.spawn(
@@ -115,6 +115,7 @@ fn setup_board(
             &asset_server,
             &mut images,
             &mut generated_image_assets,
+            &item_query,
         )
     };
 

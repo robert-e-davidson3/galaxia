@@ -187,8 +187,20 @@ impl Minigame {
         asset_server: &AssetServer,
         _images: &mut Assets<Image>,
         _generated_image_assets: &mut image_gen::GeneratedImageAssets,
+        item_query: &Query<
+            (&Transform, Entity),
+            (With<Item>, Without<LevelingUp>),
+        >,
     ) -> Entity {
+        // Clear any items that would be inside the minigame area
         let area = self.area();
+        let global_transform = GlobalTransform::from(transform);
+        ItemBundle::clear_minigame_area(
+            commands,
+            &global_transform,
+            &area,
+            item_query,
+        );
         let name = self.name();
         let description = self.description();
         let level = self.level();
@@ -223,8 +235,6 @@ impl Minigame {
                 };
             })
             .id();
-        // TODO somehow clear everything from this space first
-        //      or at game setup, spawn blanks in all minigame spaces
         commands
             .entity(entity)
             .insert(MinigameBundle::new(new_minigame, transform));
@@ -288,11 +298,27 @@ pub fn levelup(
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut minigames: ResMut<MinigamesResource>,
-    mut query: Query<(&mut Minigame, &Transform, Entity), With<LevelingUp>>,
+    mut query: Query<
+        (
+            &mut Minigame,
+            &Transform,
+            &GlobalTransform,
+            &RectangularArea,
+            Entity,
+        ),
+        With<LevelingUp>,
+    >,
+    item_query: Query<(&Transform, Entity), (With<Item>, Without<LevelingUp>)>,
 ) {
-    for (minigame, transform, entity) in query.iter_mut() {
+    for (minigame, transform, global_transform, area, entity) in
+        query.iter_mut()
+    {
         let new_minigame = minigame.levelup();
+        let minigame_area = new_minigame.area();
+
+        // Despawn the old minigame
         commands.entity(entity).despawn_recursive();
+
         new_minigame.spawn(
             &mut commands,
             *transform,
@@ -300,6 +326,7 @@ pub fn levelup(
             &asset_server,
             &mut images,
             &mut generated_image_assets,
+            &item_query,
         );
         // Update minigame level
         minigames.set_level(&new_minigame);
@@ -317,6 +344,7 @@ pub fn levelup(
                         &asset_server,
                         &mut images,
                         &mut generated_image_assets,
+                        &item_query,
                     );
                     minigames.set_entity(&id, entity);
                 }
@@ -831,6 +859,7 @@ pub fn ingest_item(
     )>,
     aura_query: Query<&MinigameAura>,
     item_query: Query<(&Item, &Transform, &Velocity)>,
+    leveling_up_query: Query<&LevelingUp>,
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
@@ -866,7 +895,10 @@ pub fn ingest_item(
                 Err(_) => continue,
             };
 
-        // TODO should skip if minigame is leveling up?
+        // Skip if minigame is leveling up to prevent conflicts
+        if leveling_up_query.get(aura.minigame).is_ok() {
+            continue;
+        }
 
         let ingested_amount = minigame.ingest_item(
             &mut commands,

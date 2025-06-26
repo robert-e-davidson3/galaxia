@@ -411,11 +411,7 @@ pub fn fixed_update(
                     commands.spawn(ItemBundle::new_from_minigame(
                         &mut images,
                         &mut generated_image_assets,
-                        Item::new_abstract(
-                            AbstractKind::Rune,
-                            rune as u8,
-                            1.0,
-                        ),
+                        Item::new_abstract(AbstractKind::Rune, rune as u8, 1.0),
                         minigame_transform,
                         minigame_area,
                     ));
