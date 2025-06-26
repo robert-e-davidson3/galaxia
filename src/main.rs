@@ -12,10 +12,6 @@ use bevy_rapier2d::prelude::*;
 use entities::*;
 use libs::*;
 
-#[derive(Copy, Clone, Component)]
-pub union MiniganeUnion {
-    pub button: Button,
-}
 
 fn main() {
     App::new()
