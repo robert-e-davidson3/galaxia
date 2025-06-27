@@ -2,11 +2,6 @@
 
 ## High Priority Tasks (Critical)
 
-### 1. Fix compilation issues and ensure project builds cleanly
-- Run `cargo check` and `cargo build` to identify compilation errors
-- Address any missing dependencies or type errors
-- Ensure the project compiles without warnings
-
 ### 2. Address critical TODOs in minigame lifecycle system
 - **File**: `src/entities/minigame.rs:226` - Clear space before spawning minigames
 - **File**: `src/entities/minigame.rs:869` - Handle minigame leveling up conflicts

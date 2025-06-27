@@ -4,7 +4,8 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use crate::entities::item::{Item, ItemBundle};
+use crate::entities::item::{Item, ItemBundle, Stuck};
+use crate::entities::player::Player;
 use crate::libs::*;
 use crate::minigames::*;
 
@@ -145,6 +146,15 @@ impl Minigame {
         }
     }
 
+    // The area including the header aka meta area.
+    pub fn area_with_header(&self) -> RectangularArea {
+        let area = self.area();
+        RectangularArea {
+            width: area.width,
+            height: area.height + META_HEIGHT,
+        }
+    }
+
     // The level the minigame currently has.
     pub fn level(&self) -> u8 {
         match self {
@@ -188,19 +198,20 @@ impl Minigame {
         _images: &mut Assets<Image>,
         _generated_image_assets: &mut image_gen::GeneratedImageAssets,
         item_query: &Query<
-            (&Transform, Entity),
-            (With<Item>, Without<LevelingUp>),
+            (&Transform, &CircularArea, Entity),
+            (With<Item>, Without<Stuck>),
         >,
+        player_query: &Query<(&Transform, &CircularArea, Entity), With<Player>>,
     ) -> Entity {
-        // Clear any items that would be inside the minigame area
-        let area = self.area();
-        let global_transform = GlobalTransform::from(transform);
-        ItemBundle::clear_minigame_area(
+        Self::clear_clutter(
+            self,
             commands,
-            &global_transform,
-            &area,
+            &transform,
             item_query,
+            player_query,
         );
+
+        let area = self.area();
         let name = self.name();
         let description = self.description();
         let level = self.level();
@@ -287,6 +298,70 @@ impl Minigame {
             Minigame::Tree(m) => m.ingest_item(),
         }
     }
+
+    // Clear items and players from the minigame area.
+    pub fn clear_clutter(
+        &self,
+        commands: &mut Commands,
+        minigame_transform: &Transform,
+        item_query: &Query<
+            (&Transform, &CircularArea, Entity),
+            (With<Item>, Without<Stuck>),
+        >,
+        player_query: &Query<(&Transform, &CircularArea, Entity), With<Player>>,
+    ) {
+        let minigame_area = PositionedArea {
+            position: minigame_transform.translation.truncate(),
+            area: Area::Rectangular(self.area_with_header()),
+        };
+        for (&item_transform, &item_area, item_entity) in item_query.iter() {
+            Self::clear_one_clutter(
+                commands,
+                &minigame_area,
+                &PositionedArea {
+                    position: item_transform.translation.truncate(),
+                    area: Area::Circular(item_area),
+                },
+                item_area.radius,
+                item_entity,
+            );
+        }
+
+        for (&player_transform, &player_area, player_entity) in
+            player_query.iter()
+        {
+            Self::clear_one_clutter(
+                commands,
+                &minigame_area,
+                &PositionedArea {
+                    position: player_transform.translation.truncate(),
+                    area: Area::Circular(player_area),
+                },
+                // Double max item radius to account for holding items on both sides
+                (player_area.radius + (Item::MAX_RADIUS * 2.0)),
+                player_entity,
+            );
+        }
+    }
+
+    // Clears one entity from the area, moving it to the nearest edge.
+    // Buffer is the radius of the entity, so it does not overlap the edge.
+    fn clear_one_clutter(
+        commands: &mut Commands,
+        minigame_area: &PositionedArea,
+        area: &PositionedArea,
+        buffer: f32,
+        entity: Entity,
+    ) {
+        if minigame_area.overlaps(&area) {
+            commands.entity(entity).insert(Transform::from_translation(
+                minigame_area
+                    .grow(buffer + 1.0) // +1.0 to ensure it is outside
+                    .nearest_edge(area.position)
+                    .extend(0.0),
+            ));
+        }
+    }
 }
 
 // Respawn leveled-up minigames.
@@ -308,17 +383,21 @@ pub fn levelup(
         ),
         With<LevelingUp>,
     >,
-    item_query: Query<(&Transform, Entity), (With<Item>, Without<LevelingUp>)>,
+    item_query: Query<
+        (&Transform, &CircularArea, Entity),
+        (With<Item>, Without<Stuck>),
+    >,
+    player_query: Query<(&Transform, &CircularArea, Entity), With<Player>>,
 ) {
-    for (minigame, transform, global_transform, area, entity) in
+    for (minigame, transform, _minigame_global_transform, _area, entity) in
         query.iter_mut()
     {
         let new_minigame = minigame.levelup();
-        let minigame_area = new_minigame.area();
 
         // Despawn the old minigame
         commands.entity(entity).despawn_recursive();
 
+        // Respawn the minigame
         new_minigame.spawn(
             &mut commands,
             *transform,
@@ -327,6 +406,7 @@ pub fn levelup(
             &mut images,
             &mut generated_image_assets,
             &item_query,
+            &player_query,
         );
         // Update minigame level
         minigames.set_level(&new_minigame);
@@ -345,6 +425,7 @@ pub fn levelup(
                         &mut images,
                         &mut generated_image_assets,
                         &item_query,
+                        &player_query,
                     );
                     minigames.set_entity(&id, entity);
                 }
@@ -410,9 +491,12 @@ pub fn spawn_minigame_container(
     // Prevents player and resources from directly entering the minigame.
     // Necessary because resource speed can allow tunneling.
     parent.spawn((
-        Collider::from(area),
+        Collider::from(area.grow(0.0, META_HEIGHT)),
         CollisionGroups::new(ETHER_GROUP, ether_filter()),
-        SpatialBundle { ..default() },
+        SpatialBundle {
+            transform: Transform::from_xyz(0.0, META_HEIGHT / 2.0, 0.0),
+            ..default()
+        },
     ));
     // Spawn the rest
     parent

@@ -105,7 +105,11 @@ fn setup_board(
     mut random: ResMut<random::Random>,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
-    item_query: Query<(&Transform, Entity), (With<Item>, Without<LevelingUp>)>,
+    item_query: Query<
+        (&Transform, &CircularArea, Entity),
+        (With<Item>, Without<Stuck>),
+    >,
+    player_query: Query<(&Transform, &CircularArea, Entity), With<Player>>,
 ) {
     let mut spawn = |minigame: Minigame, transform: Transform| -> Entity {
         minigame.spawn(
@@ -116,6 +120,7 @@ fn setup_board(
             &mut images,
             &mut generated_image_assets,
             &item_query,
+            &player_query,
         )
     };
 
