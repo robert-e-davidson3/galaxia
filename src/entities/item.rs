@@ -216,13 +216,16 @@ impl Item {
     // Radius is cross-section of a cylinder with volume proportional to amount
     // plus a constant to make it visible.
     // Also <1.0 is much smaller than 1.0 which is much smaller than >1.0.
+    // Max size is double
     pub fn size(&self) -> f32 {
         if self.amount < 1.0 {
             4.0
         } else if self.amount == 1.0 {
             8.0
         } else {
-            9.0 + ((3.0 * self.amount) / (4.0 * std::f32::consts::PI)).cbrt()
+            (18.0f32).min(
+                9.0 + ((3.0 * self.amount) / (4.0 * std::f32::consts::PI)).cbrt()
+            )
         }
     }
 
