@@ -338,3 +338,140 @@ impl From<CircularArea> for RectangularArea {
         RectangularArea::new_square(area.radius * 2.0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::math::Vec2;
+
+    // --- RectangularArea ---
+
+    #[test]
+    fn rect_edges_and_dimensions() {
+        let rect = RectangularArea::new(100.0, 60.0);
+        assert_eq!(rect.left(), -50.0);
+        assert_eq!(rect.right(), 50.0);
+        assert_eq!(rect.top(), 30.0);
+        assert_eq!(rect.bottom(), -30.0);
+        assert_eq!(rect.dimensions(), Vec2::new(100.0, 60.0));
+    }
+
+    #[test]
+    fn rect_is_within() {
+        let rect = RectangularArea::new(10.0, 10.0);
+        let center = Vec2::new(100.0, 100.0);
+        assert!(rect.is_within(Vec2::new(102.0, 97.0), center));
+        // The boundary is inclusive.
+        assert!(rect.is_within(Vec2::new(105.0, 100.0), center));
+        assert!(!rect.is_within(Vec2::new(106.0, 100.0), center));
+    }
+
+    #[test]
+    fn rect_overlaps() {
+        let a = RectangularArea::new(10.0, 10.0);
+        let b = RectangularArea::new(10.0, 10.0);
+        // Offset is the other area's center relative to self's center.
+        assert!(a.overlaps(&b, Vec2::new(8.0, 0.0)));
+        assert!(!a.overlaps(&b, Vec2::new(12.0, 0.0)));
+        // Exactly touching edges still counts as overlap.
+        assert!(a.overlaps(&b, Vec2::new(10.0, 0.0)));
+    }
+
+    #[test]
+    fn rect_grow() {
+        let rect = RectangularArea::new(10.0, 20.0).grow(4.0, 2.0);
+        assert_eq!(rect.width, 14.0);
+        assert_eq!(rect.height, 22.0);
+    }
+
+    #[test]
+    fn rect_clamp_inside_returns_point() {
+        let rect = RectangularArea::new(10.0, 10.0);
+        let p = Vec2::new(2.0, -3.0);
+        assert_eq!(rect.clamp(p, Vec2::ZERO), p);
+    }
+
+    #[test]
+    fn rect_nearest_edge_returns_a_corner_known_limitation() {
+        // Documents CURRENT behavior: nearest_edge on a rectangle snaps to a
+        // corner (and inverts y) instead of the true nearest edge point. See
+        // the TODO on nearest_edge / the "Area nearest-point" board task;
+        // update the expected value when that is fixed.
+        let rect = RectangularArea::new(10.0, 10.0);
+        let lower_right = Vec2::new(3.0, -3.0);
+        let edge = rect.nearest_edge(lower_right, Vec2::ZERO);
+        assert_eq!(edge, Vec2::new(5.0, 5.0));
+    }
+
+    // --- CircularArea ---
+
+    #[test]
+    fn circle_is_within() {
+        let circle = CircularArea::new(5.0);
+        let center = Vec2::new(2.0, 3.0);
+        assert!(circle.is_within(Vec2::new(2.0, 6.0), center));
+        // On the edge counts as within.
+        assert!(circle.is_within(Vec2::new(7.0, 3.0), center));
+        assert!(!circle.is_within(Vec2::new(8.0, 3.0), center));
+    }
+
+    #[test]
+    fn circle_overlaps() {
+        let a = CircularArea::new(5.0);
+        let b = CircularArea::new(5.0);
+        assert!(a.overlaps(&b, Vec2::new(9.0, 0.0)));
+        // Touching (distance == sum of radii) counts as overlap.
+        assert!(a.overlaps(&b, Vec2::new(10.0, 0.0)));
+        assert!(!a.overlaps(&b, Vec2::new(10.5, 0.0)));
+    }
+
+    #[test]
+    fn circle_nearest_edge_projects_onto_circle() {
+        let circle = CircularArea::new(5.0);
+        let edge = circle.nearest_edge(Vec2::new(10.0, 0.0), Vec2::ZERO);
+        assert!(edge.abs_diff_eq(Vec2::new(5.0, 0.0), 1e-4));
+        // A point at the exact center returns an arbitrary edge point.
+        let from_center = circle.nearest_edge(Vec2::ZERO, Vec2::ZERO);
+        assert!(from_center.abs_diff_eq(Vec2::new(5.0, 0.0), 1e-4));
+    }
+
+    #[test]
+    fn circle_clamp() {
+        let circle = CircularArea::new(5.0);
+        let inside = Vec2::new(1.0, 1.0);
+        assert_eq!(circle.clamp(inside, Vec2::ZERO), inside);
+        let clamped = circle.clamp(Vec2::new(20.0, 0.0), Vec2::ZERO);
+        assert!(clamped.abs_diff_eq(Vec2::new(5.0, 0.0), 1e-4));
+    }
+
+    #[test]
+    fn circle_grow_and_dimensions() {
+        let circle = CircularArea::new(5.0).grow(3.0);
+        assert_eq!(circle.radius, 8.0);
+        assert_eq!(circle.dimensions(), Vec2::new(16.0, 16.0));
+    }
+
+    // --- Conversions ---
+
+    #[test]
+    fn rectangular_from_circular_is_bounding_square() {
+        let rect: RectangularArea = CircularArea::new(5.0).into();
+        assert_eq!(rect.width, 10.0);
+        assert_eq!(rect.height, 10.0);
+    }
+
+    #[test]
+    fn circular_from_rectangular_uses_larger_half_dimension() {
+        let circle: CircularArea = RectangularArea::new(100.0, 60.0).into();
+        assert_eq!(circle.radius, 50.0);
+    }
+
+    #[test]
+    fn area_overlaps_mixed_converts_to_rectangular() {
+        let rect = Area::Rectangular(RectangularArea::new(10.0, 10.0));
+        let circle = Area::Circular(CircularArea::new(5.0));
+        // The circle becomes a 10x10 square, matching rect_overlaps.
+        assert!(rect.overlaps(&circle, Vec2::new(8.0, 0.0)));
+        assert!(!rect.overlaps(&circle, Vec2::new(12.0, 0.0)));
+    }
+}
