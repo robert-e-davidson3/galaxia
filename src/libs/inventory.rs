@@ -284,35 +284,24 @@ pub fn filter_items(
     per_page: usize,
     page: usize,
 ) -> Vec<Item> {
-    let mut count = 0;
     let offset = per_page * page;
-    inventory
-        .lock()
-        .unwrap()
+    let filter = filter.to_lowercase();
+    let mut result = Vec::with_capacity(per_page);
+    let inventory = inventory.lock().unwrap();
+    let page_items = inventory
         .iter()
-        .filter_map(|(item_type, amount)| {
-            let matches = item_type
-                .uid()
-                .to_lowercase()
-                .contains(&filter.to_lowercase());
-            if !matches {
-                return None;
-            }
-            count += 1;
-            if count <= offset {
-                return None;
-            }
-            if count > offset + per_page {
-                // TODO rewrite to short-circuit
-                return None;
-            }
-            Some(Item {
-                r#type: item_type.clone(),
-                amount: *amount,
-            })
+        .filter(|(item_type, _)| {
+            item_type.uid().to_lowercase().contains(&filter)
         })
-        .collect()
-    // TODO rewrite to pre-allocate
+        .skip(offset)
+        .take(per_page);
+    for (item_type, amount) in page_items {
+        result.push(Item {
+            r#type: item_type.clone(),
+            amount: *amount,
+        });
+    }
+    result
 }
 
 //
