@@ -1,111 +1,19 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working in this repository.
 
-## Project Overview
+Galaxia is a Rust game built on the Bevy engine: a collection of interconnected minigames bound into one overarching world. It's a vehicle for learning Rust and game design, so favor clear, idiomatic code over clever code.
 
-Galaxia is a Rust-based game built with the Bevy engine featuring multiple interconnected minigames. The project is designed for learning Rust and game design through a collection of mini-games bound together in an overarching game world.
+## Directory layout
 
-## Development Environment
+- `logs/` — One file per day (`YYYY-MM-DD.md`), filled out as work happens. Each entry describes what changed, what was researched, and the _why_ behind decisions. Append-only history; search these when you need context on how something came to be.
+- `references/` — Definitive, current facts about the repo, engine, and conventions. A single narrative per topic, kept up to date. Start with `references/repo-layout.md` (the source map); see also `local-dev.md` (build/run/test), `tech-stack.md` (dependencies), and `code-style.md`. When a fact in a log is now settled, promote it here.
+- `skills/` — Procedures to follow under specific conditions, written so they can be run cold. Start with `skills/add-minigame.md`.
+- `tasks/board.md` — Forward-looking kanban (Now / Next / Backlog). Completed work is recorded in `logs/`, not here — when a task lands, delete it from the board and note it in that day's log.
 
-This project uses Nix for reproducible development environments. The development shell includes:
-- Rust stable with rustfmt and clippy
-- Bevy game engine dependencies (graphics, audio, input)
-- System libraries for Linux/Wayland/X11 support
+## How to work here
 
-### Common Commands
-
-```bash
-# Enter development environment
-nix develop
-
-# Build the project
-cargo build
-
-# Run the game
-cargo run
-
-# Run with optimizations (dev profile uses opt-level = 3)
-cargo run --release
-
-# Format code (max_width = 80 as per rustfmt.toml)
-cargo fmt
-
-# Run linting
-cargo clippy
-
-# Check for compilation errors without building
-cargo check
-```
-
-## Architecture
-
-### Core Structure
-
-The codebase is organized into two main modules:
-
-- **`src/entities/`**: Game entities and minigame implementations
-- **`src/libs/`**: Utility libraries and systems
-
-### Key Systems
-
-1. **Minigame System** (`src/entities/minigame.rs`):
-   - Central enum `Minigame` containing all minigame variants
-   - Minigame lifecycle management (spawn, levelup, item ingestion)
-   - Prerequisites system for unlocking new minigames
-   - Common interface for all minigames (name, description, area, level)
-
-2. **Entity Component System**:
-   - Uses Bevy's ECS architecture
-   - Systems are registered in `main.rs` for Startup, Update, and FixedUpdate
-   - Physics integration with Rapier2D
-
-3. **Minigames** (`src/entities/minigames/`):
-   - Each minigame is a separate module with consistent interface
-   - Examples: button, rune, primordial_ocean, tree, ball_breaker, etc.
-   - Minigames can be unlocked based on prerequisites (other minigames reaching certain levels)
-
-### Core Libraries (`src/libs/`)
-
-- **`camera.rs`**: Camera controls with zoom and player following
-- **`inventory.rs`**: Item management and inventory UI
-- **`mouse.rs`**: Mouse input handling and hover text
-- **`collision.rs`**: Collision detection utilities
-- **`random.rs`**: Deterministic random number generation
-- **`area.rs`**: Spatial area definitions (rectangular, circular)
-
-### Game Flow
-
-1. Player spawns in a world with initial minigames available
-2. Minigames can be engaged by clicking their engage buttons
-3. Items can be collected and fed to minigames
-4. Minigames level up when conditions are met
-5. Leveling up unlocks new minigames based on prerequisites
-6. Physics-based item movement and collision detection
-
-## Adding New Minigames
-
-When adding a new minigame:
-
-1. Create new module in `src/entities/minigames/`
-2. Implement the standard interface (name, description, area, level, spawn, ingest_item, etc.)
-3. Add variant to `Minigame` enum in `src/entities/minigame.rs`
-4. Update all match statements in `minigame.rs`
-5. Add to `setup_minigame_unlocks()` with appropriate prerequisites
-6. Register update systems in `main.rs` if needed
-
-## Key Dependencies
-
-- **Bevy 0.14.1**: Game engine
-- **bevy_rapier2d 0.27.0**: 2D physics
-- **bevy_prototype_lyon 0.12.0**: 2D vector graphics
-- **bevy_framepace 0.17.1**: Frame rate limiting
-- **array2d, grid, ndarray**: Data structures for game grids
-- **serde**: Serialization (for save/load functionality)
-
-## Code Style
-
-- Maximum line width: 80 characters (rustfmt.toml)
-- Standard Rust naming conventions
-- Bevy ECS patterns with Systems, Components, Resources
-- Each minigame follows consistent interface pattern
+- Before non-trivial work, check `references/` for settled facts and `logs/` for recent context. Skim `tasks/board.md` for what's in flight.
+- When you make a decision or learn something non-obvious, write it to today's log. If it's a durable fact (not over-time nuance), also update or create the relevant `references/` file.
+- When you find yourself running the same procedure twice, write it up as a skill.
+- Adding a minigame? Follow `skills/add-minigame.md`.
