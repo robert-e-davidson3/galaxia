@@ -293,11 +293,8 @@ pub fn pixel_update(
     // reset erasing state when mouse is released
     if mouse_state.just_released {
         for minigame in rune_minigame_query.iter_mut() {
-            match minigame.into_inner() {
-                Minigame::Rune(minigame) => {
-                    minigame.erasing = false;
-                }
-                _ => {}
+            if let Minigame::Rune(minigame) = minigame.into_inner() {
+                minigame.erasing = false;
             }
         }
         return;
@@ -330,11 +327,7 @@ pub fn pixel_update(
 
             // set erasing state so player can draw/erase multiple pixels
             if mouse_state.just_pressed {
-                if minigame.get_pixel(pixel.x, pixel.y) {
-                    minigame.erasing = true;
-                } else {
-                    minigame.erasing = false;
-                }
+                minigame.erasing = minigame.get_pixel(pixel.x, pixel.y);
             } else if mouse_state.just_released {
                 minigame.erasing = false;
             }
@@ -396,30 +389,27 @@ pub fn fixed_update(
                 Minigame::Rune(m) => m,
                 _ => continue,
             };
-            match minigame.to_rune() {
-                Some(rune) => {
-                    for (pixel_entity, pixel_parent) in pixel_query.iter() {
-                        if pixel_parent.get() == minigame_entity {
-                            PixelBundle::turn_off(
-                                pixel_entity,
-                                &mut fill_query,
-                            );
-                        }
-                    }
-                    minigame.set_highest_level_rune(rune);
-                    minigame.clear();
-                    commands.spawn(ItemBundle::new_from_minigame(
-                        &mut images,
-                        &mut generated_image_assets,
-                        Item::new_abstract(AbstractKind::Rune, rune as u8, 1.0),
-                        minigame_transform,
-                        minigame_area,
-                    ));
-                    if RuneMinigame::rune_level(&rune) > minigame.level {
-                        commands.entity(minigame_entity).insert(LevelingUp);
+            if let Some(rune) = minigame.to_rune() {
+                for (pixel_entity, pixel_parent) in pixel_query.iter() {
+                    if pixel_parent.get() == minigame_entity {
+                        PixelBundle::turn_off(
+                            pixel_entity,
+                            &mut fill_query,
+                        );
                     }
                 }
-                None => {}
+                minigame.set_highest_level_rune(rune);
+                minigame.clear();
+                commands.spawn(ItemBundle::new_from_minigame(
+                    &mut images,
+                    &mut generated_image_assets,
+                    Item::new_abstract(AbstractKind::Rune, rune as u8, 1.0),
+                    minigame_transform,
+                    minigame_area,
+                ));
+                if RuneMinigame::rune_level(&rune) > minigame.level {
+                    commands.entity(minigame_entity).insert(LevelingUp);
+                }
             }
         }
     }

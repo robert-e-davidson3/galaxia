@@ -167,42 +167,24 @@ impl Item {
             return None;
         }
 
-        match match (self.r#type, other.r#type) {
+        match (self.r#type, other.r#type) {
             (ItemType::Abstract(a), ItemType::Abstract(b)) => {
-                match a.combine(&b, self.amount, other.amount) {
-                    Some((t, a)) => Some((ItemType::Abstract(t), a)),
-                    None => None,
-                }
+                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Abstract(t), a))
             }
             (ItemType::Physical(a), ItemType::Physical(b)) => {
-                match a.combine(&b, self.amount, other.amount) {
-                    Some((t, a)) => Some((ItemType::Physical(t), a)),
-                    None => None,
-                }
+                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Physical(t), a))
             }
             (ItemType::Mana(a), ItemType::Mana(b)) => {
-                match a.combine(&b, self.amount, other.amount) {
-                    Some((t, a)) => Some((ItemType::Mana(t), a)),
-                    None => None,
-                }
+                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Mana(t), a))
             }
             (ItemType::Energy(a), ItemType::Energy(b)) => {
-                match a.combine(&b, self.amount, other.amount) {
-                    Some((t, a)) => Some((ItemType::Energy(t), a)),
-                    None => None,
-                }
+                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Energy(t), a))
             }
             (ItemType::Minigame(a), ItemType::Minigame(b)) => {
-                match a.combine(&b, self.amount, other.amount) {
-                    Some((t, a)) => Some((ItemType::Minigame(t), a)),
-                    None => None,
-                }
+                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Minigame(t), a))
             }
             _ => None, // mismatched types
-        } {
-            Some((r#type, amount)) => Some(Self { r#type, amount }),
-            None => None,
-        }
+        }.map(|(r#type, amount)| Self { r#type, amount })
     }
 
     pub fn name(&self) -> String {
@@ -339,7 +321,7 @@ impl AbstractItem {
         other_amount: f32,
     ) -> Option<(AbstractItem, f32)> {
         if self.kind == other.kind && self.variant == other.variant {
-            Some((self.clone(), self_amount + other_amount))
+            Some((*self, self_amount + other_amount))
         } else {
             None
         }
@@ -620,7 +602,7 @@ pub mod rune {
         }
 
         pixels
-            .into_iter()
+            .iter()
             .map(|row| row[first_col..last_col].to_vec())
             .collect()
     }
@@ -688,7 +670,7 @@ impl PhysicalItem {
             return None;
         }
         if self.material.is_goo() {
-            return Some((self.clone(), self_amount + other_amount));
+            return Some((*self, self_amount + other_amount));
         }
         if self.form != other.form {
             return None;
@@ -699,7 +681,7 @@ impl PhysicalItem {
             PhysicalForm::Powder => true,
             _ => false,
         } {
-            Some((self.clone(), self_amount + other_amount))
+            Some((*self, self_amount + other_amount))
         } else {
             None
         }
@@ -1002,7 +984,7 @@ impl ManaItem {
             && self.subkind == other.subkind
             && self.intent == other.intent
         {
-            Some((self.clone(), self_amount + other_amount))
+            Some((*self, self_amount + other_amount))
         } else {
             None
         }
@@ -1050,7 +1032,7 @@ impl EnergyItem {
         other_amount: f32,
     ) -> Option<(EnergyItem, f32)> {
         if self.kind == other.kind {
-            Some((self.clone(), self_amount + other_amount))
+            Some((*self, self_amount + other_amount))
         } else {
             None
         }
@@ -1153,51 +1135,48 @@ pub fn combine_loose_items(
 ) {
     let mut eliminated: HashSet<Entity> = HashSet::new();
     for collision_event in collision_events.read() {
-        match collision_event {
-            CollisionEvent::Started(entity1, entity2, _) => {
-                // already handled
-                if eliminated.contains(entity1) || eliminated.contains(entity2)
-                {
-                    continue;
-                }
-                // only loose items handled
-                let items =
-                    match loose_item_query.get_many([*entity1, *entity2]) {
-                        Ok(r) => r,
-                        Err(_) => continue,
-                    };
-                let (item1, transform1, velocity1) = items[0];
-                let (item2, transform2, velocity2) = items[1];
-
-                // combine if possible
-                let combined = match item1.combine(&item2) {
-                    Some(c) => c,
-                    None => continue,
-                };
-
-                // prefer the transform of the stuck item, if any
-                let transform = match stuck_query.get(*entity1) {
-                    Ok(_) => transform1,
-                    Err(_) => transform2,
-                };
-
-                // despawn both and add a new one
-                commands.entity(*entity1).despawn();
-                commands.entity(*entity2).despawn();
-                eliminated.insert(*entity1);
-                eliminated.insert(*entity2);
-                commands.spawn(ItemBundle::new(
-                    &mut images,
-                    &mut generated_image_assets,
-                    combined,
-                    *transform,
-                    Velocity {
-                        linvel: velocity1.linvel + velocity2.linvel,
-                        angvel: velocity1.angvel + velocity2.angvel,
-                    },
-                ));
+        if let CollisionEvent::Started(entity1, entity2, _) = collision_event {
+            // already handled
+            if eliminated.contains(entity1) || eliminated.contains(entity2)
+            {
+                continue;
             }
-            _ => {}
+            // only loose items handled
+            let items =
+                match loose_item_query.get_many([*entity1, *entity2]) {
+                    Ok(r) => r,
+                    Err(_) => continue,
+                };
+            let (item1, transform1, velocity1) = items[0];
+            let (item2, transform2, velocity2) = items[1];
+
+            // combine if possible
+            let combined = match item1.combine(item2) {
+                Some(c) => c,
+                None => continue,
+            };
+
+            // prefer the transform of the stuck item, if any
+            let transform = match stuck_query.get(*entity1) {
+                Ok(_) => transform1,
+                Err(_) => transform2,
+            };
+
+            // despawn both and add a new one
+            commands.entity(*entity1).despawn();
+            commands.entity(*entity2).despawn();
+            eliminated.insert(*entity1);
+            eliminated.insert(*entity2);
+            commands.spawn(ItemBundle::new(
+                &mut images,
+                &mut generated_image_assets,
+                combined,
+                *transform,
+                Velocity {
+                    linvel: velocity1.linvel + velocity2.linvel,
+                    angvel: velocity1.angvel + velocity2.angvel,
+                },
+            ));
         }
     }
 }
@@ -1218,51 +1197,48 @@ pub fn grab_items(
     let (player_entity, player_area) = player;
 
     for collision_event in collision_events.read() {
-        match collision_event {
-            CollisionEvent::Started(entity1, entity2, _) => {
-                let other: Entity;
-                let player_is_first: bool;
-                if *entity1 == player_entity {
-                    other = *entity2;
-                    player_is_first = true;
-                } else if *entity2 == player_entity {
-                    other = *entity1;
-                    player_is_first = false;
-                } else {
-                    continue;
-                }
-
-                let Ok(item) = loose_item_query.get_mut(other) else {
-                    continue;
-                };
-                let (item_area, mut item_velocity) = item;
-
-                let Some(contact_pair) =
-                    rapier_context.contact_pair(player_entity, other)
-                else {
-                    continue;
-                };
-                let Some(manifold) = contact_pair.manifold(0) else {
-                    continue;
-                };
-                let direction = (if player_is_first {
-                    manifold.local_n1()
-                } else {
-                    manifold.local_n2()
-                })
-                .normalize();
-
-                stick(
-                    &mut commands,
-                    player_entity,
-                    *player_area,
-                    other,
-                    *item_area,
-                    &mut item_velocity,
-                    direction,
-                );
+        if let CollisionEvent::Started(entity1, entity2, _) = collision_event {
+            let other: Entity;
+            let player_is_first: bool;
+            if *entity1 == player_entity {
+                other = *entity2;
+                player_is_first = true;
+            } else if *entity2 == player_entity {
+                other = *entity1;
+                player_is_first = false;
+            } else {
+                continue;
             }
-            _ => {}
+
+            let Ok(item) = loose_item_query.get_mut(other) else {
+                continue;
+            };
+            let (item_area, mut item_velocity) = item;
+
+            let Some(contact_pair) =
+                rapier_context.contact_pair(player_entity, other)
+            else {
+                continue;
+            };
+            let Some(manifold) = contact_pair.manifold(0) else {
+                continue;
+            };
+            let direction = (if player_is_first {
+                manifold.local_n1()
+            } else {
+                manifold.local_n2()
+            })
+            .normalize();
+
+            stick(
+                &mut commands,
+                player_entity,
+                *player_area,
+                other,
+                *item_area,
+                &mut item_velocity,
+                direction,
+            );
         }
     }
 }

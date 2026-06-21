@@ -222,7 +222,7 @@ impl Minigame {
                 spawn_minigame_container(
                     parent,
                     area,
-                    name.into(),
+                    name,
                     description,
                     level,
                 );
@@ -338,7 +338,7 @@ impl Minigame {
                     area: Area::Circular(player_area),
                 },
                 // Double max item radius to account for holding items on both sides
-                (player_area.radius + (Item::MAX_RADIUS * 2.0)),
+                player_area.radius + (Item::MAX_RADIUS * 2.0),
                 player_entity,
             );
         }
@@ -353,7 +353,7 @@ impl Minigame {
         buffer: f32,
         entity: Entity,
     ) {
-        if minigame_area.overlaps(&area) {
+        if minigame_area.overlaps(area) {
             commands.entity(entity).insert(Transform::from_translation(
                 minigame_area
                     .grow(buffer + 1.0) // +1.0 to ensure it is outside
@@ -412,24 +412,21 @@ pub fn levelup(
         minigames.set_level(&new_minigame);
         // Unlock minigames
         for id in minigames.to_unlock(&minigame.id().into()) {
-            match Minigame::from_id(&id) {
-                Some(unlocked_minigame) => {
-                    let pos = unlocked_minigame.position();
-                    let entity = unlocked_minigame.spawn(
-                        &mut commands,
-                        Transform::from_translation(Vec3::new(
-                            pos.x, pos.y, 0.0,
-                        )),
-                        &mut random,
-                        &asset_server,
-                        &mut images,
-                        &mut generated_image_assets,
-                        &item_query,
-                        &player_query,
-                    );
-                    minigames.set_entity(&id, entity);
-                }
-                None => {}
+            if let Some(unlocked_minigame) = Minigame::from_id(&id) {
+                let pos = unlocked_minigame.position();
+                let entity = unlocked_minigame.spawn(
+                    &mut commands,
+                    Transform::from_translation(Vec3::new(
+                        pos.x, pos.y, 0.0,
+                    )),
+                    &mut random,
+                    &asset_server,
+                    &mut images,
+                    &mut generated_image_assets,
+                    &item_query,
+                    &player_query,
+                );
+                minigames.set_entity(&id, entity);
             }
         }
     }
@@ -590,9 +587,7 @@ impl MinigamesResource {
     }
 
     pub fn set_level(&mut self, minigame: &Minigame) {
-        self.0.get_mut(minigame.id()).map(|(_, level, _)| {
-            *level += 1;
-        });
+        if let Some((_, level, _)) = self.0.get_mut(minigame.id()) { *level += 1; }
     }
 
     pub fn level(&self, minigame: &String) -> u8 {
@@ -603,9 +598,7 @@ impl MinigamesResource {
     }
 
     pub fn set_entity(&mut self, minigame: &String, entity: Entity) {
-        self.0.get_mut(minigame).map(|(e, _, _)| {
-            *e = Some(entity);
-        });
+        if let Some((e, _, _)) = self.0.get_mut(minigame) { *e = Some(entity); }
     }
 
     pub fn entity(&self, minigame: &String) -> Option<Entity> {
@@ -774,7 +767,7 @@ pub fn spawn_minigame_engage_button(
             parent.spawn(Text2dBundle {
                 text: Text {
                     sections: vec![TextSection {
-                        value: format!("{}", level).into(),
+                        value: format!("{}", level),
                         style: TextStyle {
                             font_size: 24.0,
                             color: Color::BLACK,
@@ -992,7 +985,7 @@ pub fn ingest_item(
             aura.minigame,
             minigame_transform,
             minigame_area,
-            &item,
+            item,
         );
 
         if ingested_amount == 0.0 {

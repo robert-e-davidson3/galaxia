@@ -67,7 +67,7 @@ impl BallBreakerMinigame {
     pub fn spawn(
         &self,
         parent: &mut ChildBuilder,
-        mut random: &mut Random,
+        random: &mut Random,
         asset_server: &AssetServer,
     ) {
         let (area, blocks_per_column, blocks_per_row, level) = (
@@ -90,7 +90,7 @@ impl BallBreakerMinigame {
             for x in 0..blocks_per_row {
                 parent.spawn(BlockBundle::new(
                     asset_server,
-                    BallBreakerMinigame::random_material(level, &mut random),
+                    BallBreakerMinigame::random_material(level, random),
                     blocks_per_column,
                     blocks_per_row,
                     x,

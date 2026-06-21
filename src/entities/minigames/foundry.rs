@@ -96,7 +96,7 @@ impl FoundryMinigame {
             // Special cooking (priority)
             ItemType::Abstract(abstraction) => match abstraction.kind {
                 AbstractKind::Click => {
-                    self.special_cooking.push_back(item.clone());
+                    self.special_cooking.push_back(*item);
                     item.amount
                 }
                 _ => 0.0,
@@ -104,7 +104,7 @@ impl FoundryMinigame {
             // Regular cooking
             ItemType::Physical(physical) => match physical.form {
                 PhysicalForm::Ore => {
-                    self.cooking.push_back(item.clone());
+                    self.cooking.push_back(*item);
                     item.amount
                 }
                 _ => 0.0,

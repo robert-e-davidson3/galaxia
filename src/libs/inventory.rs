@@ -267,10 +267,10 @@ pub fn remove_item(
     let removed = amount.min(*current);
     *current -= removed;
     if *current > 0.0 {
-        return (removed, *current);
+        (removed, *current)
     } else {
         inventory.remove(&item);
-        return (removed, 0.0);
+        (removed, 0.0)
     }
 }
 
@@ -297,7 +297,7 @@ pub fn filter_items(
         .take(per_page);
     for (item_type, amount) in page_items {
         result.push(Item {
-            r#type: item_type.clone(),
+            r#type: *item_type,
             amount: *amount,
         });
     }
@@ -445,8 +445,8 @@ pub fn set_slots(
         );
         for (index, slot_entity) in inventory.slots.iter().enumerate() {
             let mut slot = slot_query.get_mut(*slot_entity).unwrap();
-            if let Some(item) = items.get(index as usize) {
-                slot.item = Some(item.r#type.clone());
+            if let Some(item) = items.get(index) {
+                slot.item = Some(item.r#type);
             } else {
                 slot.item = None;
             }
@@ -465,7 +465,7 @@ pub fn redraw_slots(
             &mut commands.entity(entity),
             &mut images,
             &mut generated_image_assets,
-            &slot,
+            slot,
             area.dimensions(),
         );
     }

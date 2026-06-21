@@ -54,11 +54,8 @@ impl MouseState {
 
     pub fn update_state(&mut self, position: Vec2, elapsed_seconds: f32) {
         self.current_position = position;
-        match self.start_time {
-            Some(start_time) => {
-                self.drag_time = elapsed_seconds - start_time;
-            }
-            _ => {}
+        if let Some(start_time) = self.start_time {
+            self.drag_time = elapsed_seconds - start_time;
         }
     }
 
@@ -206,9 +203,8 @@ fn get_mouse_position(
 ) -> Option<Vec2> {
     let (camera, camera_transform) = camera_query.single();
     let window = window_query.single();
-    let world_position =
-        translate_to_world_position(window, camera, camera_transform);
-    return world_position;
+    
+    translate_to_world_position(window, camera, camera_transform)
 }
 
 fn translate_to_world_position(

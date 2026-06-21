@@ -49,10 +49,7 @@ pub mod image_gen {
         }
 
         pub fn get(&self, uid: &String) -> Option<Handle<Image>> {
-            match self.0.get(uid) {
-                Some(handle) => Some(handle.clone()),
-                None => None,
-            }
+            self.0.get(uid).cloned()
         }
     }
 
@@ -163,7 +160,6 @@ pub mod image_gen {
 
                     if adjusted_distance2
                         < (radius2 as f32 * width_multiplier * width_multiplier)
-                            as f32
                     {
                         colors.add_color(self.pick_color(rand));
                     } else {
@@ -246,7 +242,6 @@ pub mod image_gen {
 
                     if adjusted_distance2
                         < (radius2 as f32 * width_multiplier * width_multiplier)
-                            as f32
                     {
                         colors.add_color(self.pick_color(rand));
                     } else {
@@ -364,12 +359,10 @@ pub mod image_gen {
                 } else {
                     base - r as u8
                 }
+            } else if r + base as u64 > 255 {
+                255
             } else {
-                if r + base as u64 > 255 {
-                    255
-                } else {
-                    base + r as u8
-                }
+                base + r as u8
             }
         }
     }
