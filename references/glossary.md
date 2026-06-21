@@ -1,0 +1,47 @@
+# Glossary
+
+Shared vocabulary for Galaxia — the game's own nouns and the architecture around them. These are the canonical definitions; if a term is used loosely elsewhere, this wins. Citations point at the defining file and type/function (not line numbers, which drift). For the source map see `references/repo-layout.md`.
+
+## Core game concepts
+
+- **Minigame** — the central unit of play. Each minigame is a self-contained activity the player feeds items into and that produces items, levels up, and can unlock other minigames. Modeled as the `Minigame` enum (`src/entities/minigame.rs`) with ten variants: `Button`, `PrimordialOcean`, `Rune`, `Chest`, `Battery`, `Foundry`, `BallBreaker`, `Land`, `Life`, `Tree`. Every variant implements the same interface — `id`, `name`, `description`, `position`, `area`, `level`, `levelup`, `spawn`, `ingest_item` — and the enum dispatches to the per-variant module under `src/entities/minigames/`.
+- **Level / levelup** — a minigame's progression, a `u8` capped at 99. When a minigame meets its level condition it gets a `LevelingUp` marker; the `levelup` system (`minigame.rs`) despawns it and respawns it at level + 1, updates `MinigamesResource`, and spawns any newly-unlocked minigames. Each minigame defines its own level rule (e.g. Button: `ceil(log2(clicks + 1))`; Chest capacity: `2^level`).
+- **Prerequisite / unlock** — the gate that controls which minigames exist yet. A `Prerequisite` (`minigame.rs`) is a `{ minigame, level }` pair; `setup_minigame_unlocks()` wires the unlock graph (e.g. Chest needs Button ≥ 1 and PrimordialOcean ≥ 1). On levelup, `to_unlock()` returns the minigames whose prerequisites are now satisfied.
+- **Engage / Engaged** — the camera-focus mechanism. Clicking a minigame's header button toggles it in the `Engaged` resource (`minigame.rs`, holds `Option<Entity>`); while a minigame is engaged the camera zooms to fit it instead of following the player (`src/libs/camera.rs`).
+- **Player** — the controllable entity: a circular physics body (`CircularArea` radius 25) moved with WASD + QE (`src/entities/player.rs`). A marker component with no fields.
+- **Sticky / Stuck** — the player's collection mode. Space toggles the `Sticky` marker on the player; a sticky player attracts nearby loose items and holds them via an `ImpulseJoint`. Each held item carries the `Stuck` marker so queries can exclude it from loose-item logic (`Without<Stuck>`).
+- **Loose item** — an item living free in the world as a physics body (velocity, collider), as opposed to one stored in an inventory. Loose items drift, collide with minigame auras (triggering ingestion), combine with each other on contact, and can be grabbed by a sticky player (`item.rs` systems: `combine_loose_items`, `grab_items`, `teleport_distant_loose_items`).
+- **Aura (MinigameAura)** — an invisible sensor collider grown slightly larger than a minigame's area, spawned as the minigame's child (`MinigameAura`, `minigame.rs`). Item collisions are detected against the aura, which references its parent minigame; the `ingest_item` system reacts to those collision events and asks the minigame to accept or reject the item. This decouples item detection from the minigame's visual bounds.
+
+## Items
+
+- **Item** — a discrete resource: a `{ type: ItemType, amount: f32 }` pair (`src/entities/item.rs`). `amount` is fractional and drives the rendered radius (logarithmic-ish: < 1 → small, larger amounts → bigger, up to a cap). As a world entity an item is a dynamic physics body with a `CircularArea` collider.
+- **ItemType** — the kind of an item: an enum with five categories — `Abstract`, `Physical`, `Mana`, `Energy`, `Minigame`. `uid()` returns a stable string id used for texture caching/lookup (shaped like `domain/noun/adjective`, e.g. `physical/block/marble`).
+- **combine** — the stacking rule. `Item::combine` merges two items of the same type and matching variant into one stack with summed `amount`, returning `None` if they're incompatible. Each category defines its own compatibility (below).
+
+### Item categories
+
+- **Abstract item** — non-physical game-mechanic items (`AbstractItem`): `Click` (produced by the Button minigame; variant 0 = short, 1 = long), `XP` (experience; not fully used yet), and `Rune` (variant 0–6, mapping to the `Rune` enum).
+- **Physical item** — a material thing, described by two orthogonal axes: a **PhysicalForm** (shape/state) and a **PhysicalMaterial** (substance). See below.
+- **Mana** — a magical resource (`ManaItem`): a `kind` (`Fire`, `Water`, `Earth`, `Air`, `Light`, `Dark`), a numeric `subkind`, and an `intent` (`Attack`, `Defense`, `Support`). Not fully implemented; combining is meant to follow special rules that can transmute the mana type (the open TODO at `item.rs` ~mana-combining).
+- **Energy item** — energy in a distinct form (`EnergyItem`): `Kinetic`, `Potential`, `Thermal`, `Electric`, `Magnetic`, `Radiant`. Stacks when `kind` matches.
+- **Minigame item** — a reference to a minigame treated as a tradeable item (`MinigameItem`). Never stacks (`combine` always returns `None`).
+
+### Physical: form vs. material
+
+- **PhysicalForm** — the shape or state of a physical item (`PhysicalForm`): fluids (`Gas`, `Liquid`, `Powder`), solids (`Lump`, `Block`, `Ball`, `Ore`), terrain (`Land`, `Sea`), generic life stages (`Archaea`, `Bacterium`, `Algae`, `Grass`, … `Mammal`, `Bird`), and a few specific objects (`Apple`, `Lemon`, `Lime`).
+- **PhysicalMaterial** — what a physical item is made of (`PhysicalMaterial`): life states (`Seed`, `Baby`, `Youth`, `Adult`, `Elder`, `Corpse`, `Fruit`), minerals (`Mud`, `Dirt`, `Granite`, `Marble`, `Copper`, `Iron`, `Gold`, `Diamond`, … `Unobtainium`), and liquids (`SaltWater`, `FreshWater`). Helpers: `is_goo()` (only `Mud`), `is_water()`, `is_metal()`.
+- **Combining physical items** — materials must match. If the material is goo (`Mud`), forms may differ and amounts still stack; otherwise the forms must match and be of a stackable form (`Gas` / `Liquid` / `Powder`). (This is what the commented-out goo check at `chest.rs` ~131 relates to.)
+- **Rune** — both an item and a minigame. As an item it's a magical symbol drawn on a pixel grid, orientation-sensitive (no rotation/flip); seven canonical runes encoded 0–6: `InclusiveSelf` (1×1), `Connector` (2×1), `ExclusiveSelf` (2×2), `Shelter` (3×2), `InclusiveOther` (3×3), `Force` (4×3), `ExclusiveOther` (4×4). The **Rune minigame** (`src/entities/minigames/rune.rs`) lets the player draw on a grid that grows with level; recognizing a valid pattern produces the corresponding Rune item.
+
+## Spatial & UI
+
+- **Area** — geometric bounds, used for collision, containment, and UI layout (`src/libs/area.rs`). **RectangularArea** (`width`, `height`, centered on its transform) defines minigame play spaces and inventory-slot hitboxes; **CircularArea** (`radius`) defines item colliders and the player. Both offer `overlaps`, `is_within`, `nearest_edge`, `grow`, `clamp`, and convert to/from Rapier `Collider`s.
+- **Inventory** — a UI container of stored items owned by a minigame (`src/libs/inventory.rs`). Holds the backing store `Arc<Mutex<HashMap<ItemType, f32>>>` (item type → total amount), plus the owner entity, child `slots`, grid `dimensions`, a search `filter`, and a `page` for pagination.
+- **Slot** — one cell of an inventory's grid (`Slot { inventory, item: Option<ItemType> }`). Slots are child entities of the inventory; they're redrawn (texture fetched/generated for the slot's item) when the inventory changes.
+
+## Architecture / engine
+
+- **ECS** — the game is built on [Bevy](https://bevyengine.org)'s Entity Component System. State is Components on entities, shared singletons are Resources (e.g. `Engaged`, `MinigamesResource`), and behavior is Systems registered in `main.rs` across the `Startup`, `Update`, and `FixedUpdate` schedules.
+- **Marker component** — a fieldless component used only to tag entities for query filtering: `Sticky`, `Stuck`, `LevelingUp`, `Player`.
+- **Bundle** — a Bevy grouping of components spawned together (e.g. `PlayerBundle`, `MinigameBundle`, `MinigameAuraBundle`).
