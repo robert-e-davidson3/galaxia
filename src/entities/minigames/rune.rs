@@ -392,10 +392,7 @@ pub fn fixed_update(
             if let Some(rune) = minigame.to_rune() {
                 for (pixel_entity, pixel_parent) in pixel_query.iter() {
                     if pixel_parent.get() == minigame_entity {
-                        PixelBundle::turn_off(
-                            pixel_entity,
-                            &mut fill_query,
-                        );
+                        PixelBundle::turn_off(pixel_entity, &mut fill_query);
                     }
                 }
                 minigame.set_highest_level_rune(rune);

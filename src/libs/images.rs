@@ -338,16 +338,11 @@ pub mod image_gen {
                 green = Self::random_of_color(self.green, rand, self.looseness);
                 blue = Self::random_of_color(self.blue, rand, self.looseness);
             }
-            let alpha: u8;
-            if self.alpha_looseness == 0 {
-                alpha = self.alpha;
+            let alpha: u8 = if self.alpha_looseness == 0 {
+                self.alpha
             } else {
-                alpha = Self::random_of_color(
-                    self.alpha,
-                    rand,
-                    self.alpha_looseness,
-                );
-            }
+                Self::random_of_color(self.alpha, rand, self.alpha_looseness)
+            };
             Color::new(red, green, blue, alpha)
         }
 
@@ -437,14 +432,9 @@ pub mod image_gen {
         let height = bits.len();
         let width = bits[0].len();
         let mut data = Vec::with_capacity((width * width * 4) as usize);
-        for y in 0..height {
-            for x in 0..width {
-                data.extend_from_slice(&[
-                    0,
-                    0,
-                    0,
-                    if bits[y][x] { 255 } else { 0 },
-                ]);
+        for row in &bits {
+            for &bit in row {
+                data.extend_from_slice(&[0, 0, 0, if bit { 255 } else { 0 }]);
             }
         }
         // add a row of transparent pixels to make the image square

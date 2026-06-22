@@ -416,9 +416,7 @@ pub fn levelup(
                 let pos = unlocked_minigame.position();
                 let entity = unlocked_minigame.spawn(
                     &mut commands,
-                    Transform::from_translation(Vec3::new(
-                        pos.x, pos.y, 0.0,
-                    )),
+                    Transform::from_translation(Vec3::new(pos.x, pos.y, 0.0)),
                     &mut random,
                     &asset_server,
                     &mut images,
@@ -587,7 +585,9 @@ impl MinigamesResource {
     }
 
     pub fn set_level(&mut self, minigame: &Minigame) {
-        if let Some((_, level, _)) = self.0.get_mut(minigame.id()) { *level += 1; }
+        if let Some((_, level, _)) = self.0.get_mut(minigame.id()) {
+            *level += 1;
+        }
     }
 
     pub fn level(&self, minigame: &String) -> u8 {
@@ -598,7 +598,9 @@ impl MinigamesResource {
     }
 
     pub fn set_entity(&mut self, minigame: &String, entity: Entity) {
-        if let Some((e, _, _)) = self.0.get_mut(minigame) { *e = Some(entity); }
+        if let Some((e, _, _)) = self.0.get_mut(minigame) {
+            *e = Some(entity);
+        }
     }
 
     pub fn entity(&self, minigame: &String) -> Option<Entity> {

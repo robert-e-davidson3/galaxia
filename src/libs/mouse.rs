@@ -203,7 +203,7 @@ fn get_mouse_position(
 ) -> Option<Vec2> {
     let (camera, camera_transform) = camera_query.single();
     let window = window_query.single();
-    
+
     translate_to_world_position(window, camera, camera_transform)
 }
 

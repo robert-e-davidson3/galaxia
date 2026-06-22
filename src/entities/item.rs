@@ -168,23 +168,24 @@ impl Item {
         }
 
         match (self.r#type, other.r#type) {
-            (ItemType::Abstract(a), ItemType::Abstract(b)) => {
-                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Abstract(t), a))
-            }
-            (ItemType::Physical(a), ItemType::Physical(b)) => {
-                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Physical(t), a))
-            }
-            (ItemType::Mana(a), ItemType::Mana(b)) => {
-                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Mana(t), a))
-            }
-            (ItemType::Energy(a), ItemType::Energy(b)) => {
-                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Energy(t), a))
-            }
-            (ItemType::Minigame(a), ItemType::Minigame(b)) => {
-                a.combine(&b, self.amount, other.amount).map(|(t, a)| (ItemType::Minigame(t), a))
-            }
+            (ItemType::Abstract(a), ItemType::Abstract(b)) => a
+                .combine(&b, self.amount, other.amount)
+                .map(|(t, a)| (ItemType::Abstract(t), a)),
+            (ItemType::Physical(a), ItemType::Physical(b)) => a
+                .combine(&b, self.amount, other.amount)
+                .map(|(t, a)| (ItemType::Physical(t), a)),
+            (ItemType::Mana(a), ItemType::Mana(b)) => a
+                .combine(&b, self.amount, other.amount)
+                .map(|(t, a)| (ItemType::Mana(t), a)),
+            (ItemType::Energy(a), ItemType::Energy(b)) => a
+                .combine(&b, self.amount, other.amount)
+                .map(|(t, a)| (ItemType::Energy(t), a)),
+            (ItemType::Minigame(a), ItemType::Minigame(b)) => a
+                .combine(&b, self.amount, other.amount)
+                .map(|(t, a)| (ItemType::Minigame(t), a)),
             _ => None, // mismatched types
-        }.map(|(r#type, amount)| Self { r#type, amount })
+        }
+        .map(|(r#type, amount)| Self { r#type, amount })
     }
 
     pub fn name(&self) -> String {
@@ -244,8 +245,8 @@ pub enum ItemType {
 }
 
 impl ItemType {
-    pub fn to_item(&self, amount: f32) -> Item {
-        Item::new(*self, amount)
+    pub fn to_item(self, amount: f32) -> Item {
+        Item::new(self, amount)
     }
 
     pub fn uid(&self) -> String {
@@ -551,9 +552,9 @@ pub mod rune {
         None
     }
 
-    pub fn strip_empty_rows(pixels: &Vec<Vec<bool>>) -> Vec<Vec<bool>> {
+    pub fn strip_empty_rows(pixels: &[Vec<bool>]) -> Vec<Vec<bool>> {
         if pixels.is_empty() {
-            return pixels.clone();
+            return pixels.to_owned();
         }
 
         let mut first_row = 0;
@@ -675,12 +676,10 @@ impl PhysicalItem {
         if self.form != other.form {
             return None;
         }
-        if match self.form {
-            PhysicalForm::Gas => true,
-            PhysicalForm::Liquid => true,
-            PhysicalForm::Powder => true,
-            _ => false,
-        } {
+        if matches!(
+            self.form,
+            PhysicalForm::Gas | PhysicalForm::Liquid | PhysicalForm::Powder
+        ) {
             Some((*self, self_amount + other_amount))
         } else {
             None
@@ -728,50 +727,48 @@ impl PhysicalItem {
     }
 
     pub fn identifier(&self) -> ItemIdentifier {
-        let noun: &str;
-        let adjective: &str;
-        match self.form {
-            PhysicalForm::Gas => noun = "Gas",
-            PhysicalForm::Liquid => noun = "Liquid",
-            PhysicalForm::Powder => noun = "Powder",
-            PhysicalForm::Lump => noun = "Lump",
-            PhysicalForm::Block => noun = "Block",
-            PhysicalForm::Ball => noun = "Ball",
-            PhysicalForm::Land => noun = "Land",
-            PhysicalForm::Sea => noun = "Sea",
-            PhysicalForm::Archaea => noun = "Archaea",
+        let noun = match self.form {
+            PhysicalForm::Gas => "Gas",
+            PhysicalForm::Liquid => "Liquid",
+            PhysicalForm::Powder => "Powder",
+            PhysicalForm::Lump => "Lump",
+            PhysicalForm::Block => "Block",
+            PhysicalForm::Ball => "Ball",
+            PhysicalForm::Land => "Land",
+            PhysicalForm::Sea => "Sea",
+            PhysicalForm::Archaea => "Archaea",
             _ => panic!("Invalid form {:?}", self.form),
-        }
-        match self.material {
+        };
+        let adjective = match self.material {
             // life
-            PhysicalMaterial::Seed => adjective = "Seed",
-            PhysicalMaterial::Baby => adjective = "Baby",
-            PhysicalMaterial::Youth => adjective = "Youth",
-            PhysicalMaterial::Adult => adjective = "Adult",
-            PhysicalMaterial::Elder => adjective = "Elder",
-            PhysicalMaterial::Corpse => adjective = "Corpse",
-            PhysicalMaterial::Fruit => adjective = "Fruit",
+            PhysicalMaterial::Seed => "Seed",
+            PhysicalMaterial::Baby => "Baby",
+            PhysicalMaterial::Youth => "Youth",
+            PhysicalMaterial::Adult => "Adult",
+            PhysicalMaterial::Elder => "Elder",
+            PhysicalMaterial::Corpse => "Corpse",
+            PhysicalMaterial::Fruit => "Fruit",
             // minerals
-            PhysicalMaterial::Mud => adjective = "Mud",
-            PhysicalMaterial::Dirt => adjective = "Dirt",
-            PhysicalMaterial::Sandstone => adjective = "Sandstone",
-            PhysicalMaterial::Granite => adjective = "Granite",
-            PhysicalMaterial::Marble => adjective = "Marble",
-            PhysicalMaterial::Obsidian => adjective = "Obsidian",
-            PhysicalMaterial::Copper => adjective = "Copper",
-            PhysicalMaterial::Tin => adjective = "Tin",
-            PhysicalMaterial::Bronze => adjective = "Bronze",
-            PhysicalMaterial::Iron => adjective = "Iron",
-            PhysicalMaterial::Silver => adjective = "Silver",
-            PhysicalMaterial::Gold => adjective = "Gold",
-            PhysicalMaterial::Diamond => adjective = "Diamond",
-            PhysicalMaterial::Amethyst => adjective = "Amethyst",
-            PhysicalMaterial::Moss => adjective = "Moss",
+            PhysicalMaterial::Mud => "Mud",
+            PhysicalMaterial::Dirt => "Dirt",
+            PhysicalMaterial::Sandstone => "Sandstone",
+            PhysicalMaterial::Granite => "Granite",
+            PhysicalMaterial::Marble => "Marble",
+            PhysicalMaterial::Obsidian => "Obsidian",
+            PhysicalMaterial::Copper => "Copper",
+            PhysicalMaterial::Tin => "Tin",
+            PhysicalMaterial::Bronze => "Bronze",
+            PhysicalMaterial::Iron => "Iron",
+            PhysicalMaterial::Silver => "Silver",
+            PhysicalMaterial::Gold => "Gold",
+            PhysicalMaterial::Diamond => "Diamond",
+            PhysicalMaterial::Amethyst => "Amethyst",
+            PhysicalMaterial::Moss => "Moss",
             // liquids
-            PhysicalMaterial::SaltWater => adjective = "Salt Water",
-            PhysicalMaterial::FreshWater => adjective = "Fresh Water",
+            PhysicalMaterial::SaltWater => "Salt Water",
+            PhysicalMaterial::FreshWater => "Fresh Water",
             _ => panic!("Invalid material {:?}", self.material),
-        }
+        };
         ItemIdentifier {
             domain: "physical".to_string(),
             noun: noun.to_string(),
@@ -880,30 +877,26 @@ impl PhysicalMaterial {
     //
 
     pub fn is_goo(&self) -> bool {
-        match self {
-            PhysicalMaterial::Mud => true,
-            _ => false,
-        }
+        matches!(self, PhysicalMaterial::Mud)
     }
 
     pub fn is_water(&self) -> bool {
-        match self {
-            PhysicalMaterial::SaltWater => true,
-            PhysicalMaterial::FreshWater => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            PhysicalMaterial::SaltWater | PhysicalMaterial::FreshWater
+        )
     }
 
     pub fn is_metal(&self) -> bool {
-        match self {
+        matches!(
+            self,
             PhysicalMaterial::Copper
-            | PhysicalMaterial::Tin
-            | PhysicalMaterial::Bronze
-            | PhysicalMaterial::Iron
-            | PhysicalMaterial::Silver
-            | PhysicalMaterial::Gold => true,
-            _ => false,
-        }
+                | PhysicalMaterial::Tin
+                | PhysicalMaterial::Bronze
+                | PhysicalMaterial::Iron
+                | PhysicalMaterial::Silver
+                | PhysicalMaterial::Gold
+        )
     }
 
     //
@@ -1137,16 +1130,14 @@ pub fn combine_loose_items(
     for collision_event in collision_events.read() {
         if let CollisionEvent::Started(entity1, entity2, _) = collision_event {
             // already handled
-            if eliminated.contains(entity1) || eliminated.contains(entity2)
-            {
+            if eliminated.contains(entity1) || eliminated.contains(entity2) {
                 continue;
             }
             // only loose items handled
-            let items =
-                match loose_item_query.get_many([*entity1, *entity2]) {
-                    Ok(r) => r,
-                    Err(_) => continue,
-                };
+            let items = match loose_item_query.get_many([*entity1, *entity2]) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
             let (item1, transform1, velocity1) = items[0];
             let (item2, transform2, velocity2) = items[1];
 

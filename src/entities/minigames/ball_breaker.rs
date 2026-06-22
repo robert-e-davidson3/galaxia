@@ -189,12 +189,11 @@ impl BallBreakerMinigame {
     }
 
     pub fn random_material(level: u8, random: &mut Random) -> PhysicalMaterial {
-        let r: u64;
-        if level == 0 {
-            r = 0;
+        let r: u64 = if level == 0 {
+            0
         } else {
-            r = 1 + random.next() % (level as u64);
-        }
+            1 + random.next() % (level as u64)
+        };
 
         match r {
             0 => PhysicalMaterial::Mud,
