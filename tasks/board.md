@@ -10,7 +10,7 @@ Move tasks down the columns (Backlog → Next → Now) as work progresses. Keep 
 
 ## Now
 
-- [ ] **Keep camera focus through a minigame levelup.** Right now `levelup` (`minigame.rs`) clears `Engaged.game` when the focused minigame levels up — a stopgap from fixing the camera crash (`logs/2026-06-21.md`). Desired: the camera should *stay* on the minigame across its despawn/respawn (early levels happen fast; dropping focus is jarring). Needs: remap `Engaged.game` to the respawned entity (which `spawn` returns) and reconcile the new engage button's `Toggleable`/fill state so it still reads as engaged. The `camera.rs` stale-entity guard stays regardless.
+_(nothing in flight)_
 
 ## Next
 
