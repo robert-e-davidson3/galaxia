@@ -23,6 +23,12 @@ serde = "1.0.210"
 serde_json = "1.0.128"
 wyrand = "0.2.1"
 
+# `too_many_arguments` fires constantly on Bevy systems (many Query/Res
+# params), where a high parameter count is normal and idiomatic. Allow it
+# crate-wide rather than scattering `#[allow]` or contorting systems.
+[lints.clippy]
+too_many_arguments = "allow"
+
 # Our own crate compiles at a low opt-level for fast incremental builds.
 [profile.dev]
 opt-level = 1

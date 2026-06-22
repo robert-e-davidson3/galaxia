@@ -31,7 +31,6 @@
           udev
           vulkan-loader
           libxkbcommon
-          wayland
           
           # X11 dependencies
           xorg.libX11
