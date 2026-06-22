@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 
@@ -22,7 +21,7 @@ const VISIBLE_ROWS: u32 = 3;
 #[derive(Debug, Clone, Default, Component)]
 pub struct BatteryMinigame {
     pub level: u8,
-    pub items: Arc<Mutex<HashMap<ItemType, f32>>>,
+    pub items: HashMap<ItemType, f32>,
     pub inventory: Option<Entity>,
 }
 
@@ -74,8 +73,8 @@ impl BatteryMinigame {
                 parent.parent_entity(),
                 Vec::new(),
                 (ITEMS_PER_ROW, VISIBLE_ROWS),
-                &self.items,
             ),
+            &self.items,
             Vec2::ZERO,
             self.area().into(),
         );
@@ -89,7 +88,7 @@ impl BatteryMinigame {
         item: &Item,
     ) -> f32 {
         let added = if self.can_accept(item) {
-            add_item(&self.items, item.r#type, item.amount);
+            add_item(&mut self.items, item.r#type, item.amount);
             item.amount
         } else {
             return 0.0; // Reject the item

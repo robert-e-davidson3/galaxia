@@ -55,7 +55,6 @@ Known work, not yet ready or not yet sequenced.
 
 ### Tech debt / architecture
 
-- [ ] **Evaluate the `Arc<Mutex<HashMap<ItemType, f32>>>` inventory storage** (`src/libs/inventory.rs`). Wrapping shared state in `Arc<Mutex>` inside Bevy's ECS is usually a sign of working around the borrow checker rather than using ECS access patterns, and it forces lock-poisoning `.unwrap()`s. Work out *why* it's there (likely just what compiled around a borrow-check issue). If it turns out to be genuinely needed, leave a comment in the code explaining why; otherwise refactor toward idiomatic ECS access.
 - [ ] **Upgrade the Bevy stack** (large, eventual). Pinned to Bevy 0.14.1 and the matching 0.14-era ecosystem (`bevy_rapier2d` 0.27, `bevy_prototype_lyon` 0.12, `bevy_ecs_tilemap` 0.14, `bevy_framepace` 0.17) — several releases behind current Bevy. A big migration with API churn across the whole stack; do it as a deliberate project, not piecemeal.
 
 ### Bugs

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 
@@ -22,7 +21,7 @@ const VISIBLE_ROWS: u32 = 3;
 #[derive(Debug, Clone, Default, Component)]
 pub struct ChestMinigame {
     pub level: u8,
-    pub items: Arc<Mutex<HashMap<ItemType, f32>>>,
+    pub items: HashMap<ItemType, f32>,
     pub inventory: Option<Entity>,
 }
 
@@ -74,8 +73,8 @@ impl ChestMinigame {
                 parent.parent_entity(),
                 Vec::new(),
                 (ITEMS_PER_ROW, VISIBLE_ROWS),
-                &self.items,
             ),
+            &self.items,
             Vec2::ZERO,
             self.area().into(),
         );
@@ -89,7 +88,7 @@ impl ChestMinigame {
         item: &Item,
     ) -> f32 {
         let added = if self.can_accept(item) {
-            add_item(&self.items, item.r#type, item.amount);
+            add_item(&mut self.items, item.r#type, item.amount);
             item.amount
         } else {
             return 0.0; // Reject the item
@@ -154,5 +153,29 @@ impl ChestMinigame {
                 true
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Leveling up must carry the stored items forward: the minigame entity
+    // (and its inventory entity) is despawned and respawned on levelup, so the
+    // item store has to live on the persistent struct, not the inventory entity.
+    #[test]
+    fn levelup_preserves_stored_items() {
+        let mut chest = ChestMinigame::default();
+        let apple = Item::new_physical(
+            PhysicalForm::Ball,
+            PhysicalMaterial::Fruit,
+            4.0,
+        );
+        add_item(&mut chest.items, apple.r#type, apple.amount);
+
+        let leveled = chest.levelup();
+
+        assert_eq!(leveled.level, 1);
+        assert_eq!(total_stored(&leveled.items), 4.0);
     }
 }

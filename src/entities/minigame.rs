@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use crate::entities::item::{Item, ItemBundle, Stuck};
+use crate::entities::item::{Item, ItemBundle, ItemType, Stuck};
 use crate::entities::player::Player;
 use crate::libs::*;
 use crate::minigames::*;
@@ -152,6 +152,25 @@ impl Minigame {
         RectangularArea {
             width: area.width,
             height: area.height + META_HEIGHT,
+        }
+    }
+
+    // The item store, for the minigames that hold one (chest, battery). This
+    // is the single source of truth for what's stored; the inventory UI reads
+    // it through the owning minigame entity rather than keeping its own copy.
+    pub fn items(&self) -> Option<&HashMap<ItemType, f32>> {
+        match self {
+            Minigame::Chest(m) => Some(&m.items),
+            Minigame::Battery(m) => Some(&m.items),
+            _ => None,
+        }
+    }
+
+    pub fn items_mut(&mut self) -> Option<&mut HashMap<ItemType, f32>> {
+        match self {
+            Minigame::Chest(m) => Some(&mut m.items),
+            Minigame::Battery(m) => Some(&mut m.items),
+            _ => None,
         }
     }
 

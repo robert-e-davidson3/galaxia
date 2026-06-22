@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 use bevy::ecs::system::EntityCommands;
 use bevy::prelude::*;
@@ -30,6 +29,7 @@ impl InventoryBundle {
     pub fn spawn(
         parent: &mut ChildBuilder,
         mut inventory: Inventory,
+        items: &HashMap<ItemType, f32>,
         position: Vec2,
         inventory_size: Vec2,
     ) -> Entity {
@@ -39,7 +39,7 @@ impl InventoryBundle {
             inventory_size.y / height as f32,
         );
         let items = filter_items(
-            &inventory.items,
+            items,
             inventory.filter.clone(),
             (width * height) as usize,
             0,
@@ -76,12 +76,15 @@ impl InventoryBundle {
     }
 }
 
+// The inventory UI. The items it displays are not stored here — they live on
+// the owning minigame entity (`owner`'s `Minigame::items()`), which is the
+// single source of truth and survives the despawn/respawn on levelup. This
+// component only holds the layout and view state.
 #[derive(Debug, Clone, Component)]
 pub struct Inventory {
     pub owner: Entity,
     pub slots: Vec<Entity>,
     pub dimensions: (u32, u32), // (x,y)
-    pub items: Arc<Mutex<HashMap<ItemType, f32>>>,
     pub filter: String,
     pub page: usize,
 }
@@ -91,13 +94,11 @@ impl Inventory {
         owner: Entity,
         slots: Vec<Entity>,
         dimensions: (u32, u32),
-        items: &Arc<Mutex<HashMap<ItemType, f32>>>,
     ) -> Self {
         Inventory {
             owner,
             slots,
             dimensions,
-            items: items.clone(),
             filter: String::new(),
             page: 0,
         }
@@ -243,11 +244,10 @@ pub struct Slot {
 }
 
 pub fn add_item(
-    inventory: &Arc<Mutex<HashMap<ItemType, f32>>>,
+    inventory: &mut HashMap<ItemType, f32>,
     item: ItemType,
     amount: f32,
 ) -> f32 {
-    let mut inventory = inventory.lock().unwrap();
     let current = inventory.entry(item).or_insert(0.0);
     *current += amount;
     *current
@@ -255,11 +255,10 @@ pub fn add_item(
 
 // Returns (removed, remaining)
 pub fn remove_item(
-    inventory: &Arc<Mutex<HashMap<ItemType, f32>>>,
+    inventory: &mut HashMap<ItemType, f32>,
     item: ItemType,
     amount: f32,
 ) -> (f32, f32) {
-    let mut inventory = inventory.lock().unwrap();
     if !inventory.contains_key(&item) {
         return (0.0, amount);
     }
@@ -274,12 +273,12 @@ pub fn remove_item(
     }
 }
 
-pub fn total_stored(inventory: &Arc<Mutex<HashMap<ItemType, f32>>>) -> f32 {
-    inventory.lock().unwrap().values().sum()
+pub fn total_stored(inventory: &HashMap<ItemType, f32>) -> f32 {
+    inventory.values().sum()
 }
 
 pub fn filter_items(
-    inventory: &Arc<Mutex<HashMap<ItemType, f32>>>,
+    inventory: &HashMap<ItemType, f32>,
     filter: String,
     per_page: usize,
     page: usize,
@@ -287,7 +286,6 @@ pub fn filter_items(
     let offset = per_page * page;
     let filter = filter.to_lowercase();
     let mut result = Vec::with_capacity(per_page);
-    let inventory = inventory.lock().unwrap();
     let page_items = inventory
         .iter()
         .filter(|(item_type, _)| {
@@ -381,7 +379,7 @@ pub fn handle_slot_click(
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mouse_state: Res<MouseState>,
     inventory_query: Query<&Inventory>,
-    minigame_query: Query<(&Minigame, &GlobalTransform)>,
+    mut minigame_query: Query<(&mut Minigame, &GlobalTransform)>,
     mut slot_query: Query<(&mut Slot, &GlobalTransform, &RectangularArea)>,
 ) {
     if !mouse_state.just_released {
@@ -402,10 +400,15 @@ pub fn handle_slot_click(
     };
 
     let inventory: &Inventory = inventory_query.get(slot.inventory).unwrap();
-    let (minigame, minigame_transform) =
-        minigame_query.get(inventory.owner).unwrap();
+    let (mut minigame, minigame_transform) =
+        minigame_query.get_mut(inventory.owner).unwrap();
+    let minigame_transform = *minigame_transform;
+    let minigame_area = minigame.area();
+    let Some(items) = minigame.items_mut() else {
+        return;
+    };
 
-    let amount: f32 = match inventory.items.lock().unwrap().get(&item_type) {
+    let amount: f32 = match items.get(&item_type) {
         Some(amount) => match mouse_state.get_click_type() {
             ClickType::Short => amount.min(1.0),
             ClickType::Long => *amount,
@@ -413,13 +416,13 @@ pub fn handle_slot_click(
         },
         None => return,
     };
-    let (removed, remaining) = remove_item(&inventory.items, item_type, amount);
+    let (removed, remaining) = remove_item(items, item_type, amount);
     commands.spawn(ItemBundle::new_from_minigame(
         &mut images,
         &mut generated_image_assets,
         Item::new(item_type, removed),
-        minigame_transform,
-        &minigame.area(),
+        &minigame_transform,
+        &minigame_area,
     ));
     if remaining == 0.0 {
         slot.item.take();
@@ -429,6 +432,7 @@ pub fn handle_slot_click(
 pub fn set_slots(
     mut slot_query: Query<&mut Slot>,
     inventory_query: Query<&Inventory, Changed<Inventory>>,
+    minigame_query: Query<&Minigame>,
     leveling_query: Query<&LevelingUp>,
 ) {
     for inventory in inventory_query.iter() {
@@ -436,9 +440,16 @@ pub fn set_slots(
             continue;
         }
 
+        let Ok(minigame) = minigame_query.get(inventory.owner) else {
+            continue;
+        };
+        let Some(stored) = minigame.items() else {
+            continue;
+        };
+
         let (width, height) = inventory.dimensions;
         let items = filter_items(
-            &inventory.items,
+            stored,
             inventory.filter.clone(),
             (width * height) as usize,
             inventory.page,
@@ -468,5 +479,96 @@ pub fn redraw_slots(
             slot,
             area.dimensions(),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    // Builds an item store pre-loaded with the given (type, amount) pairs.
+    fn store(pairs: &[(ItemType, f32)]) -> HashMap<ItemType, f32> {
+        pairs.iter().copied().collect()
+    }
+
+    // A distinct physical item type, identified by its form/material.
+    fn ptype(form: PhysicalForm, material: PhysicalMaterial) -> ItemType {
+        Item::new_physical(form, material, 0.0).r#type
+    }
+
+    #[test]
+    fn add_item_accumulates_and_returns_new_total() {
+        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let mut s = store(&[]);
+        assert_eq!(add_item(&mut s, a, 3.0), 3.0);
+        assert_eq!(add_item(&mut s, a, 2.0), 5.0);
+        assert_eq!(total_stored(&s), 5.0);
+    }
+
+    #[test]
+    fn remove_item_partial_then_full_drops_the_key() {
+        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let mut s = store(&[(a, 5.0)]);
+        // Partial: removes the requested amount, reports the remainder.
+        assert_eq!(remove_item(&mut s, a, 2.0), (2.0, 3.0));
+        // Over-request: removes only what's left, leaving zero.
+        assert_eq!(remove_item(&mut s, a, 10.0), (3.0, 0.0));
+        // Emptied keys are removed entirely, not left at 0.0.
+        assert_eq!(total_stored(&s), 0.0);
+        assert!(filter_items(&s, String::new(), 10, 0).is_empty());
+    }
+
+    #[test]
+    fn remove_item_absent_removes_nothing() {
+        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let mut s = store(&[]);
+        assert_eq!(remove_item(&mut s, a, 1.0), (0.0, 1.0));
+    }
+
+    #[test]
+    fn total_stored_sums_all_amounts() {
+        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
+        let s = store(&[(a, 2.0), (b, 3.0)]);
+        assert_eq!(total_stored(&s), 5.0);
+    }
+
+    #[test]
+    fn filter_items_empty_filter_returns_all_up_to_per_page() {
+        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
+        let c = ptype(PhysicalForm::Ball, PhysicalMaterial::Gold);
+        let s = store(&[(a, 1.0), (b, 2.0), (c, 3.0)]);
+        assert_eq!(filter_items(&s, String::new(), 10, 0).len(), 3);
+    }
+
+    #[test]
+    fn filter_items_paginates_without_dropping_or_duplicating() {
+        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
+        let c = ptype(PhysicalForm::Ball, PhysicalMaterial::Gold);
+        let s = store(&[(a, 1.0), (b, 2.0), (c, 3.0)]);
+        // HashMap order is unspecified, so assert on counts and coverage
+        // rather than which item lands on which page.
+        let page0 = filter_items(&s, String::new(), 2, 0);
+        let page1 = filter_items(&s, String::new(), 2, 1);
+        assert_eq!(page0.len(), 2);
+        assert_eq!(page1.len(), 1);
+        let seen: HashSet<ItemType> =
+            page0.iter().chain(page1.iter()).map(|i| i.r#type).collect();
+        assert_eq!(seen.len(), 3);
+    }
+
+    #[test]
+    fn filter_items_matches_uid_substring_and_keeps_amount() {
+        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
+        let s = store(&[(a, 7.0), (b, 2.0)]);
+        // Filtering by a's full uid matches only a (uids are unique).
+        let result = filter_items(&s, a.uid(), 10, 0);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].r#type, a);
+        assert_eq!(result[0].amount, 7.0);
     }
 }
