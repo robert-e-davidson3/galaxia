@@ -44,14 +44,18 @@ pub fn update_camera(
 
     // focused on minigame
     if let Some(minigame) = engaged.game {
-        let minigame_transform = minigame_query.get(minigame).unwrap();
-        let Vec3 { x, y, .. } = minigame_transform.translation;
-        let direction = Vec3::new(x, y, camera_transform.translation.z);
-        camera_transform.translation = camera_transform
-            .translation
-            .lerp(direction, time.delta_seconds() * 2.0);
-        camera_projection.scale = 1.0;
-        return;
+        // The engaged minigame may have been despawned (e.g. it leveled up,
+        // which despawns + respawns it). Fall through to following the player
+        // rather than panicking on a stale entity.
+        if let Ok(minigame_transform) = minigame_query.get(minigame) {
+            let Vec3 { x, y, .. } = minigame_transform.translation;
+            let direction = Vec3::new(x, y, camera_transform.translation.z);
+            camera_transform.translation = camera_transform
+                .translation
+                .lerp(direction, time.delta_seconds() * 2.0);
+            camera_projection.scale = 1.0;
+            return;
+        }
     }
 
     // focused on player

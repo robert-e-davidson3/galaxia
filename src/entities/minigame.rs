@@ -373,6 +373,7 @@ pub fn levelup(
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut minigames: ResMut<MinigamesResource>,
+    mut engaged: ResMut<Engaged>,
     mut query: Query<
         (
             &mut Minigame,
@@ -393,6 +394,13 @@ pub fn levelup(
         query.iter_mut()
     {
         let new_minigame = minigame.levelup();
+
+        // If the camera was focused on this minigame, drop focus: its entity
+        // is about to be despawned, and the respawned minigame starts
+        // un-engaged (its engage button is fresh/inactive).
+        if engaged.game == Some(entity) {
+            engaged.game = None;
+        }
 
         // Despawn the old minigame
         commands.entity(entity).despawn_recursive();

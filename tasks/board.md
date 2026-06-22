@@ -10,7 +10,7 @@ Move tasks down the columns (Backlog → Next → Now) as work progresses. Keep 
 
 ## Now
 
-_(nothing in flight)_
+- [ ] **Keep camera focus through a minigame levelup.** Right now `levelup` (`minigame.rs`) clears `Engaged.game` when the focused minigame levels up — a stopgap from fixing the camera crash (`logs/2026-06-21.md`). Desired: the camera should *stay* on the minigame across its despawn/respawn (early levels happen fast; dropping focus is jarring). Needs: remap `Engaged.game` to the respawned entity (which `spawn` returns) and reconcile the new engage button's `Toggleable`/fill state so it still reads as engaged. The `camera.rs` stale-entity guard stays regardless.
 
 ## Next
 
@@ -57,6 +57,10 @@ Known work, not yet ready or not yet sequenced.
 
 - [ ] **Evaluate the `Arc<Mutex<HashMap<ItemType, f32>>>` inventory storage** (`src/libs/inventory.rs`). Wrapping shared state in `Arc<Mutex>` inside Bevy's ECS is usually a sign of working around the borrow checker rather than using ECS access patterns, and it forces lock-poisoning `.unwrap()`s. Work out *why* it's there (likely just what compiled around a borrow-check issue). If it turns out to be genuinely needed, leave a comment in the code explaining why; otherwise refactor toward idiomatic ECS access.
 - [ ] **Upgrade the Bevy stack** (large, eventual). Pinned to Bevy 0.14.1 and the matching 0.14-era ecosystem (`bevy_rapier2d` 0.27, `bevy_prototype_lyon` 0.12, `bevy_ecs_tilemap` 0.14, `bevy_framepace` 0.17) — several releases behind current Bevy. A big migration with API churn across the whole stack; do it as a deliberate project, not piecemeal.
+
+### Bugs
+
+- [ ] **`B0003` double-despawn on minigame levelup.** Leveling up a minigame logs repeated `Could not despawn entity … because it doesn't exist` (Bevy `B0003`) — a stale `Entity` handle despawned after its slot was recycled. Non-fatal. Likely an item in the minigame's area despawned by both `levelup`'s `despawn_recursive()` and another system (the `ingest_item` despawn at `minigame.rs:998`, or item ejection). Reproduce by leveling a minigame that has items in its area. See `logs/2026-06-21.md`.
 
 ## Decisions pending
 
