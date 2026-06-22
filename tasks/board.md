@@ -60,7 +60,7 @@ Known work, not yet ready or not yet sequenced.
 
 ### Bugs
 
-- [ ] **`B0003` double-despawn on minigame levelup.** Leveling up a minigame logs repeated `Could not despawn entity … because it doesn't exist` (Bevy `B0003`) — a stale `Entity` handle despawned after its slot was recycled. Non-fatal. Likely an item in the minigame's area despawned by both `levelup`'s `despawn_recursive()` and another system (the `ingest_item` despawn at `minigame.rs:998`, or item ejection). Reproduce by leveling a minigame that has items in its area. See `logs/2026-06-21.md`.
+_(none open)_
 
 ## Decisions pending
 

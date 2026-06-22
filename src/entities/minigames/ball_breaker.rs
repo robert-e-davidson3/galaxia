@@ -579,7 +579,10 @@ pub fn hit_block_fixed_update(
         if BallBreakerMinigame::material_damage(ball_material)
             >= BallBreakerMinigame::material_toughness(block_material)
         {
-            commands.entity(block_entity).despawn();
+            // despawn_recursive (not despawn) so the block detaches from the
+            // minigame's Children list; a plain despawn leaves a stale child
+            // reference that the levelup despawn_recursive later hits (B0003).
+            commands.entity(block_entity).despawn_recursive();
             broken.insert(block_entity);
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
@@ -597,7 +600,10 @@ pub fn hit_block_fixed_update(
         if BallBreakerMinigame::material_damage(block_material)
             >= BallBreakerMinigame::material_toughness(ball_material)
         {
-            commands.entity(ball_entity).despawn();
+            // despawn_recursive so the ball detaches from the minigame's
+            // Children (see the block despawn above) — avoids a stale child
+            // reference on levelup (B0003).
+            commands.entity(ball_entity).despawn_recursive();
             broken.insert(ball_entity);
             minigame.remove_ball(ball_material);
             commands.spawn(ItemBundle::new_from_minigame(

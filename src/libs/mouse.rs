@@ -375,8 +375,11 @@ pub fn update_hover_text(
                 hover_text.text_entity = Some(text_entity);
             }
             (false, Some(text_entity)) => {
-                // Remove text entity when no longer hovering
-                commands.entity(text_entity).despawn();
+                // Remove text entity when no longer hovering. despawn_recursive
+                // (not despawn) so it detaches from its parent's Children list —
+                // a plain despawn leaves a stale child the parent's later
+                // despawn_recursive would hit (B0003).
+                commands.entity(text_entity).despawn_recursive();
                 hover_text.text_entity = None;
             }
             _ => {}

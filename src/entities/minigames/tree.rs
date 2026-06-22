@@ -172,7 +172,10 @@ pub fn update(
             click_position,
             global_transform.translation().truncate(),
         ) {
-            commands.entity(entity).despawn();
+            // despawn_recursive so the fruit detaches from the tree minigame's
+            // Children list; a plain despawn leaves a stale child reference that
+            // the levelup despawn_recursive later hits (B0003).
+            commands.entity(entity).despawn_recursive();
             let (minigame, minigame_transform, minigame_area) =
                 tree_minigames_query.get_mut(fruit.minigame).unwrap();
 
