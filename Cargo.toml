@@ -23,11 +23,20 @@ serde = "1.0.210"
 serde_json = "1.0.128"
 wyrand = "0.2.1"
 
-# `too_many_arguments` fires constantly on Bevy systems (many Query/Res
-# params), where a high parameter count is normal and idiomatic. Allow it
-# crate-wide rather than scattering `#[allow]` or contorting systems.
+# These fire constantly on Bevy systems, where many parameters and complex
+# `Query<...>` types are normal and idiomatic — allow them crate-wide rather
+# than scattering `#[allow]` or contorting systems. To hunt for genuinely
+# problematic cases later, comment a line out temporarily.
 [lints.clippy]
 too_many_arguments = "allow"
+type_complexity = "allow"
+
+# Temporary: silence dead-code warnings (unused variants / methods / fields)
+# while the game is early and a lot of API surface isn't wired up yet. This is
+# a rustc lint, so it lives under [lints.rust], not [lints.clippy]. Remove this
+# table once the codebase fills in, to surface genuinely abandoned code.
+[lints.rust]
+dead_code = "allow"
 
 # Our own crate compiles at a low opt-level for fast incremental builds.
 [profile.dev]
