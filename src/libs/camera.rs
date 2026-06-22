@@ -22,6 +22,7 @@ pub fn update_camera(
     camera_controller: ResMut<CameraController>,
     time: Res<Time>,
     engaged: Res<Engaged>,
+    minigames: Res<MinigamesResource>,
     mut evr_scroll: EventReader<MouseWheel>,
     mut camera_query: Query<
         (&mut Transform, &mut OrthographicProjection),
@@ -43,11 +44,14 @@ pub fn update_camera(
     };
 
     // focused on minigame
-    if let Some(minigame) = engaged.game {
-        // The engaged minigame may have been despawned (e.g. it leveled up,
-        // which despawns + respawns it). Fall through to following the player
-        // rather than panicking on a stale entity.
-        if let Ok(minigame_transform) = minigame_query.get(minigame) {
+    if let Some(id) = engaged.game {
+        // Resolve the engaged minigame's id to its live entity (it may be
+        // mid-respawn from a levelup, or gone). If it resolves, follow it;
+        // otherwise fall through to following the player.
+        let focus = minigames
+            .entity(id)
+            .and_then(|e| minigame_query.get(e).ok());
+        if let Some(minigame_transform) = focus {
             let Vec3 { x, y, .. } = minigame_transform.translation;
             let direction = Vec3::new(x, y, camera_transform.translation.z);
             camera_transform.translation = camera_transform

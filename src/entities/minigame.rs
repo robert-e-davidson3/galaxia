@@ -71,7 +71,7 @@ impl Minigame {
         }
     }
 
-    pub fn id(&self) -> &str {
+    pub fn id(&self) -> &'static str {
         match self {
             Minigame::Button(_) => button::ID,
             Minigame::PrimordialOcean(_) => primordial_ocean::ID,
@@ -373,7 +373,6 @@ pub fn levelup(
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     mut minigames: ResMut<MinigamesResource>,
-    mut engaged: ResMut<Engaged>,
     mut query: Query<
         (
             &mut Minigame,
@@ -395,18 +394,13 @@ pub fn levelup(
     {
         let new_minigame = minigame.levelup();
 
-        // If the camera was focused on this minigame, drop focus: its entity
-        // is about to be despawned, and the respawned minigame starts
-        // un-engaged (its engage button is fresh/inactive).
-        if engaged.game == Some(entity) {
-            engaged.game = None;
-        }
-
         // Despawn the old minigame
         commands.entity(entity).despawn_recursive();
 
-        // Respawn the minigame
-        new_minigame.spawn(
+        // Respawn the minigame and record its new entity so id -> entity
+        // lookups (the camera's engaged-minigame focus) resolve to the live
+        // entity instead of the despawned one.
+        let new_entity = new_minigame.spawn(
             &mut commands,
             *transform,
             &mut random,
@@ -416,10 +410,11 @@ pub fn levelup(
             &item_query,
             &player_query,
         );
+        minigames.set_entity(new_minigame.id(), new_entity);
         // Update minigame level
         minigames.set_level(&new_minigame);
         // Unlock minigames
-        for id in minigames.to_unlock(&minigame.id().into()) {
+        for id in minigames.to_unlock(minigame.id()) {
             if let Some(unlocked_minigame) = Minigame::from_id(&id) {
                 let pos = unlocked_minigame.position();
                 let entity = unlocked_minigame.spawn(
@@ -598,31 +593,31 @@ impl MinigamesResource {
         }
     }
 
-    pub fn level(&self, minigame: &String) -> u8 {
+    pub fn level(&self, minigame: &str) -> u8 {
         self.0
             .get(minigame)
             .map(|(_, level, _)| *level)
             .unwrap_or(0)
     }
 
-    pub fn set_entity(&mut self, minigame: &String, entity: Entity) {
+    pub fn set_entity(&mut self, minigame: &str, entity: Entity) {
         if let Some((e, _, _)) = self.0.get_mut(minigame) {
             *e = Some(entity);
         }
     }
 
-    pub fn entity(&self, minigame: &String) -> Option<Entity> {
+    pub fn entity(&self, minigame: &str) -> Option<Entity> {
         self.0
             .get(minigame)
             .map(|(entity, _, _)| *entity)
             .unwrap_or(None)
     }
 
-    pub fn is_unlocked(&self, minigame: &String) -> bool {
+    pub fn is_unlocked(&self, minigame: &str) -> bool {
         self.entity(minigame).is_some()
     }
 
-    pub fn prerequisites(&self, minigame: &String) -> Vec<Prerequisite> {
+    pub fn prerequisites(&self, minigame: &str) -> Vec<Prerequisite> {
         self.0
             .get(minigame)
             .map(|(_, _, prerequisites)| prerequisites.clone())
@@ -631,7 +626,7 @@ impl MinigamesResource {
 
     // Given the leveled-up minigame, return minigames to unlock.
     // Only returns minigames that are not already unlocked.
-    pub fn to_unlock(&self, minigame: &String) -> Vec<String> {
+    pub fn to_unlock(&self, minigame: &str) -> Vec<String> {
         self.unlocked_by(minigame)
             .iter()
             .filter(|minigame| self.needs_to_unlock(minigame))
@@ -639,7 +634,7 @@ impl MinigamesResource {
             .collect()
     }
 
-    pub fn needs_to_unlock(&self, minigame: &String) -> bool {
+    pub fn needs_to_unlock(&self, minigame: &str) -> bool {
         if self.is_unlocked(minigame) {
             return false;
         }
@@ -650,7 +645,7 @@ impl MinigamesResource {
     }
 
     // Reverse-lookup for prerequisites
-    fn unlocked_by(&self, minigame: &String) -> Vec<String> {
+    fn unlocked_by(&self, minigame: &str) -> Vec<String> {
         self.0
             .iter()
             .filter_map(|(key, (_, _, prerequisites))| {
@@ -735,7 +730,7 @@ pub struct MinigameEngageButton {
 
 #[derive(Debug, Copy, Clone, Resource)]
 pub struct Engaged {
-    pub game: Option<Entity>,
+    pub game: Option<&'static str>,
 }
 
 pub fn spawn_minigame_engage_button(
@@ -748,7 +743,6 @@ pub fn spawn_minigame_engage_button(
     parent
         .spawn((
             MinigameEngageButton { minigame },
-            Toggleable::new(),
             CircularArea { radius: 90.0 },
             HoverText::new(description.into()),
             ShapeBundle {
@@ -794,13 +788,12 @@ pub fn spawn_minigame_engage_button(
 }
 
 pub fn engage_button_update(
-    mut button_query: Query<(
+    button_query: Query<(
         &MinigameEngageButton,
-        &mut Toggleable,
-        &mut Fill,
         &GlobalTransform,
         &RectangularArea,
     )>,
+    minigame_query: Query<&Minigame>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     window_query: Query<&Window>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
@@ -815,22 +808,44 @@ pub fn engage_button_update(
         None => return,
     };
 
-    for (engage_button, mut toggle, mut fill, global_transform, area) in
-        button_query.iter_mut()
-    {
+    for (engage_button, global_transform, area) in button_query.iter() {
         if area.is_within(
             click_position,
             global_transform.translation().truncate(),
         ) {
-            if toggle.active {
+            let Ok(minigame) = minigame_query.get(engage_button.minigame)
+            else {
+                continue;
+            };
+            // Toggle camera focus on this minigame by id, so it survives the
+            // minigame's despawn/respawn on levelup.
+            if engaged.game == Some(minigame.id()) {
                 engaged.game = None;
-                fill.color.set_alpha(1.0);
             } else {
-                engaged.game = Some(engage_button.minigame);
-                fill.color.set_alpha(0.8);
+                engaged.game = Some(minigame.id());
             }
-            toggle.toggle();
         }
+    }
+}
+
+// Keep each engage button's look in sync with `Engaged` (single source of
+// truth), so a button respawned during levelup immediately shows the right
+// state instead of carrying its own.
+pub fn update_engage_button_appearance(
+    mut button_query: Query<(&MinigameEngageButton, &mut Fill)>,
+    minigame_query: Query<&Minigame>,
+    engaged: Res<Engaged>,
+) {
+    for (engage_button, mut fill) in button_query.iter_mut() {
+        let Ok(minigame) = minigame_query.get(engage_button.minigame) else {
+            continue;
+        };
+        let alpha = if engaged.game == Some(minigame.id()) {
+            0.8
+        } else {
+            1.0
+        };
+        fill.color.set_alpha(alpha);
     }
 }
 

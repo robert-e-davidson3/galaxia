@@ -25,11 +25,15 @@ fn main() {
         .add_systems(
             Startup,
             (
+                // Chained: setup_minigame_unlocks must register the minigame
+                // ids before setup_board's set_entity calls can record their
+                // entities (set_entity no-ops on an unknown id).
                 setup_minigame_unlocks,
                 setup_board,
                 setup_player,
                 setup_camera,
-            ),
+            )
+                .chain(),
         )
         .add_systems(
             Update,
@@ -41,6 +45,7 @@ fn main() {
                 grab_items,
                 release_items,
                 engage_button_update,
+                update_engage_button_appearance,
                 minigames::button::update,
                 minigames::rune::pixel_update,
                 minigames::tree::update,
@@ -125,14 +130,14 @@ fn setup_board(
     };
 
     minigames.set_entity(
-        &entities::minigames::button::ID.into(),
+        entities::minigames::button::ID,
         spawn(
             Minigame::Button(minigames::button::ButtonMinigame { ..default() }),
             Transform::from_xyz(0.0, 200.0, 0.0),
         ),
     );
     minigames.set_entity(
-        &minigames::primordial_ocean::ID.into(),
+        minigames::primordial_ocean::ID,
         spawn(
             Minigame::PrimordialOcean(
                 minigames::primordial_ocean::PrimordialOceanMinigame::new(0.0),
@@ -141,7 +146,7 @@ fn setup_board(
         ),
     );
     minigames.set_entity(
-        &entities::minigames::rune::ID.into(),
+        entities::minigames::rune::ID,
         spawn(
             Minigame::Rune(entities::minigames::rune::RuneMinigame::new(0)),
             Transform::from_xyz(-200.0, -200.0, 0.0),
