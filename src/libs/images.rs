@@ -1,5 +1,5 @@
 use bevy::prelude::Image;
-use bevy::render::render_asset::RenderAssetUsages;
+use bevy::asset::RenderAssetUsages;
 use bevy::render::render_resource::{
     Extent3d, TextureDimension, TextureFormat,
 };
@@ -30,11 +30,11 @@ pub mod image_gen {
     use bevy::asset::Handle;
     use bevy::ecs::prelude::Resource;
     use bevy::prelude::Image;
-    use bevy::render::render_asset::RenderAssetUsages;
+    use bevy::asset::RenderAssetUsages;
     use bevy::render::render_resource::{
         Extent3d, TextureDimension, TextureFormat,
     };
-    use bevy::render::texture::ImageSampler;
+    use bevy::image::ImageSampler;
     use wyrand::WyRand;
 
     use crate::item::rune;

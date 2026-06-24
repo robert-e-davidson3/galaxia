@@ -63,14 +63,14 @@ impl ChestMinigame {
 
     pub fn spawn(
         &mut self,
-        parent: &mut ChildBuilder,
+        parent: &mut ChildSpawnerCommands,
         _asset_server: &AssetServer,
     ) {
         // TODO draw background chest, barrels, etc
         let inventory = InventoryBundle::spawn(
             parent,
             Inventory::new(
-                parent.parent_entity(),
+                parent.target_entity(),
                 Vec::new(),
                 (ITEMS_PER_ROW, VISIBLE_ROWS),
             ),

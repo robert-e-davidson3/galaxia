@@ -66,7 +66,7 @@ impl BallBreakerMinigame {
 
     pub fn spawn(
         &self,
-        parent: &mut ChildBuilder,
+        parent: &mut ChildSpawnerCommands,
         random: &mut Random,
         asset_server: &AssetServer,
     ) {
@@ -76,15 +76,14 @@ impl BallBreakerMinigame {
             self.blocks_per_row(),
             self.level,
         );
-        let _background = parent.spawn(SpriteBundle {
-            sprite: Sprite {
+        let _background = parent.spawn((
+            Sprite {
                 color: Color::srgb(1.0, 1.0, 1.0),
                 custom_size: Some(area.into()),
                 ..default()
             },
-            transform: Transform::from_xyz(0.0, 0.0, -1.0),
-            ..default()
-        });
+            Transform::from_xyz(0.0, 0.0, -1.0),
+        ));
 
         for y in 3..(blocks_per_column + 3) {
             for x in 0..blocks_per_row {
@@ -100,7 +99,7 @@ impl BallBreakerMinigame {
         }
         parent.spawn(PaddleBundle::new(
             asset_server,
-            parent.parent_entity(),
+            parent.target_entity(),
             blocks_per_column,
         ));
 
@@ -277,7 +276,8 @@ impl BallBreakerMinigame {
 #[derive(Debug, Clone, Bundle)]
 pub struct BlockBundle {
     pub block: Block,
-    pub sprite: SpriteBundle,
+    pub sprite: Sprite,
+    pub transform: Transform,
     pub area: RectangularArea,
     pub collider: Collider,
     pub collision_groups: CollisionGroups,
@@ -302,18 +302,15 @@ impl BlockBundle {
             * ((y as f32) - ((blocks_per_column + 3) as f32 / 2.0) + 1.0 / 2.0);
         Self {
             block: Block { material },
-            sprite: SpriteBundle {
-                texture: asset_server.load(
+            sprite: Sprite {
+                image: asset_server.load(
                     Item::new_physical(PhysicalForm::Block, material, 1.0)
                         .asset(),
                 ),
-                transform: Transform::from_xyz(x, y, 0.0),
-                sprite: Sprite {
-                    custom_size: Some(Vec2::new(BLOCK_SIZE, BLOCK_SIZE)),
-                    ..default()
-                },
+                custom_size: Some(Vec2::new(BLOCK_SIZE, BLOCK_SIZE)),
                 ..default()
             },
+            transform: Transform::from_xyz(x, y, 0.0),
             area,
             collider: area.into(),
             collision_groups: CollisionGroups::new(
@@ -332,7 +329,8 @@ pub struct Block {
 #[derive(Debug, Clone, Bundle)]
 pub struct BallBundle {
     pub ball: Ball,
-    pub sprite: SpriteBundle,
+    pub sprite: Sprite,
+    pub transform: Transform,
     pub area: CircularArea,
     pub collider: Collider,
     pub collision_groups: CollisionGroups,
@@ -373,15 +371,12 @@ impl BallBundle {
             };
         Self {
             ball: Ball { material, minigame },
-            sprite: SpriteBundle {
-                texture,
-                transform: Transform::from_xyz(x, y, 0.0),
-                sprite: Sprite {
-                    custom_size: Some(area.into()),
-                    ..default()
-                },
+            sprite: Sprite {
+                image: texture,
+                custom_size: Some(area.into()),
                 ..default()
             },
+            transform: Transform::from_xyz(x, y, 0.0),
             area,
             collider: Collider::from(area),
             collision_groups: CollisionGroups::new(
@@ -418,7 +413,8 @@ pub struct Ball {
 #[derive(Debug, Clone, Bundle)]
 pub struct PaddleBundle {
     pub paddle: Paddle,
-    pub sprite: SpriteBundle,
+    pub sprite: Sprite,
+    pub transform: Transform,
     pub area: RectangularArea,
     pub collider: Collider,
     pub collision_groups: CollisionGroups,
@@ -438,15 +434,12 @@ impl PaddleBundle {
         };
         Self {
             paddle: Paddle { minigame },
-            sprite: SpriteBundle {
-                texture: asset_server.load("block_breaker/paddle.png"),
-                transform: Transform::from_xyz(x, y, 0.0),
-                sprite: Sprite {
-                    custom_size: Some(area.into()),
-                    ..default()
-                },
+            sprite: Sprite {
+                image: asset_server.load("block_breaker/paddle.png"),
+                custom_size: Some(area.into()),
                 ..default()
             },
+            transform: Transform::from_xyz(x, y, 0.0),
             area,
             collider: Collider::from(area),
             collision_groups: CollisionGroups::new(
@@ -513,7 +506,7 @@ pub fn hit_block_fixed_update(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
-    mut collision_events: EventReader<CollisionEvent>,
+    mut collision_events: MessageReader<CollisionEvent>,
     mut minigame_query: Query<(
         &mut Minigame,
         &GlobalTransform,
@@ -582,7 +575,7 @@ pub fn hit_block_fixed_update(
             // despawn_recursive (not despawn) so the block detaches from the
             // minigame's Children list; a plain despawn leaves a stale child
             // reference that the levelup despawn_recursive later hits (B0003).
-            commands.entity(block_entity).despawn_recursive();
+            commands.entity(block_entity).despawn();
             broken.insert(block_entity);
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
@@ -603,7 +596,7 @@ pub fn hit_block_fixed_update(
             // despawn_recursive so the ball detaches from the minigame's
             // Children (see the block despawn above) — avoids a stale child
             // reference on levelup (B0003).
-            commands.entity(ball_entity).despawn_recursive();
+            commands.entity(ball_entity).despawn();
             broken.insert(ball_entity);
             minigame.remove_ball(ball_material);
             commands.spawn(ItemBundle::new_from_minigame(

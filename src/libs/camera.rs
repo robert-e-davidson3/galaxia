@@ -9,10 +9,7 @@ pub struct CameraController {
 }
 
 pub fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2dBundle {
-        camera: Camera { ..default() },
-        ..default()
-    });
+    commands.spawn(Camera2d);
 }
 
 const MIN_ZOOM: f32 = 0.2;
@@ -23,9 +20,9 @@ pub fn update_camera(
     time: Res<Time>,
     engaged: Res<Engaged>,
     minigames: Res<MinigamesResource>,
-    mut evr_scroll: EventReader<MouseWheel>,
+    mut evr_scroll: MessageReader<MouseWheel>,
     mut camera_query: Query<
-        (&mut Transform, &mut OrthographicProjection),
+        (&mut Transform, &mut Projection),
         (With<Camera2d>, Without<player::Player>),
     >,
     player_query: Query<&Transform, (With<player::Player>, Without<Camera2d>)>,
@@ -34,12 +31,15 @@ pub fn update_camera(
         (With<Minigame>, Without<player::Player>, Without<Camera2d>),
     >,
 ) {
-    let Ok(camera) = camera_query.get_single_mut() else {
+    let Ok(camera) = camera_query.single_mut() else {
         return;
     };
-    let (mut camera_transform, mut camera_projection) = camera;
+    let (mut camera_transform, mut projection) = camera;
+    let Projection::Orthographic(camera_projection) = projection.as_mut() else {
+        return;
+    };
 
-    let Ok(player) = player_query.get_single() else {
+    let Ok(player) = player_query.single() else {
         return;
     };
 
@@ -56,7 +56,7 @@ pub fn update_camera(
             let direction = Vec3::new(x, y, camera_transform.translation.z);
             camera_transform.translation = camera_transform
                 .translation
-                .lerp(direction, time.delta_seconds() * 2.0);
+                .lerp(direction, time.delta_secs() * 2.0);
             camera_projection.scale = 1.0;
             return;
         }
@@ -77,7 +77,7 @@ pub fn update_camera(
     {
         camera_transform.translation = camera_transform
             .translation
-            .lerp(direction, time.delta_seconds() * 2.0);
+            .lerp(direction, time.delta_secs() * 2.0);
     }
 
     // adjust zoom

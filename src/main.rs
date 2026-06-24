@@ -12,6 +12,17 @@ use bevy_rapier2d::prelude::*;
 use entities::*;
 use libs::*;
 
+// Rapier 0.29 moved physics config from a `RapierConfiguration` resource to a
+// component on the auto-spawned default context entity (seeded in PreStartup).
+// We only deviate from the defaults in one way — zero gravity for this top-down
+// world — so set that on the context here in Startup. The default TimestepMode
+// (Variable, max_dt 1/60, time_scale 1, substeps 1) already matches what we want.
+fn setup_physics(mut config_query: Query<&mut RapierConfiguration>) {
+    for mut config in &mut config_query {
+        config.gravity = Vec2::ZERO;
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins((
@@ -35,6 +46,7 @@ fn main() {
             )
                 .chain(),
         )
+        .add_systems(Startup, setup_physics)
         .add_systems(
             Update,
             (
@@ -79,18 +91,6 @@ fn main() {
         .insert_resource(Time::<Fixed>::from_hz(20.0))
         .insert_resource(camera::CameraController {
             dead_zone_squared: 1000.0,
-        })
-        .insert_resource(RapierConfiguration {
-            gravity: Vec2::ZERO,
-            physics_pipeline_active: true,
-            query_pipeline_active: true,
-            timestep_mode: TimestepMode::Variable {
-                max_dt: 1.0 / 60.0,
-                time_scale: 1.0,
-                substeps: 1,
-            },
-            scaled_shape_subdivision: 10,
-            force_update_from_transform_changes: false,
         })
         .insert_resource(FramepaceSettings {
             // limiter: Limiter::from_framerate(10.0),
@@ -156,13 +156,13 @@ fn setup_board(
 
 fn exit_system(
     keys: Res<ButtonInput<KeyCode>>,
-    mut app_exit_events: EventWriter<AppExit>,
+    mut app_exit_events: MessageWriter<AppExit>,
 ) {
     if keys.get_pressed().len() == 0 {
         return;
     }
 
     if keys.just_pressed(KeyCode::Escape) {
-        app_exit_events.send(AppExit::Success);
+        app_exit_events.write(AppExit::Success);
     }
 }

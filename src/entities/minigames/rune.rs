@@ -82,19 +82,18 @@ impl RuneMinigame {
         Self::new(self.expected_level())
     }
 
-    pub fn spawn(&self, parent: &mut ChildBuilder) {
+    pub fn spawn(&self, parent: &mut ChildSpawnerCommands) {
         let (area, blocks_per_row, blocks_per_column) =
             (self.area(), self.blocks_per_row(), self.blocks_per_column());
 
-        let _background = parent.spawn(SpriteBundle {
-            sprite: Sprite {
+        let _background = parent.spawn((
+            Sprite {
                 color: Color::srgb(0.5, 0.5, 0.5),
                 custom_size: Some(area.into()),
                 ..default()
             },
-            transform: Transform::from_xyz(0.0, 0.0, -1.0),
-            ..default()
-        });
+            Transform::from_xyz(0.0, 0.0, -1.0),
+        ));
 
         for y in 0..blocks_per_column {
             for x in 0..blocks_per_row {
@@ -229,8 +228,8 @@ impl RuneMinigame {
 pub struct PixelBundle {
     pub pixel: Pixel,
     pub toggleable: Toggleable,
-    pub shape: ShapeBundle,
-    pub fill: Fill,
+    pub shape: Shape,
+    pub transform: Transform,
 }
 
 impl PixelBundle {
@@ -241,34 +240,29 @@ impl PixelBundle {
         Self {
             pixel: Pixel { x, y },
             toggleable: Toggleable::new(),
-            shape: ShapeBundle {
-                path: GeometryBuilder::build_as(&shapes::Rectangle {
-                    extents: PIXEL_AREA.into(),
-                    ..default()
-                }),
-                spatial: SpatialBundle {
-                    transform: Transform::from_xyz(
-                        x as f32 * PIXEL_SIZE + dx,
-                        t_y as f32 * PIXEL_SIZE + dy,
-                        0.0,
-                    ),
-                    ..default()
-                },
+            shape: ShapeBuilder::with(&shapes::Rectangle {
+                extents: PIXEL_AREA.into(),
                 ..default()
-            },
-            fill: Fill::color(PIXEL_OFF_COLOR),
+            })
+            .fill(Fill::color(PIXEL_OFF_COLOR))
+            .build(),
+            transform: Transform::from_xyz(
+                x as f32 * PIXEL_SIZE + dx,
+                t_y as f32 * PIXEL_SIZE + dy,
+                0.0,
+            ),
         }
     }
 
-    pub fn turn_on(entity: Entity, query: &mut Query<&mut Fill, With<Pixel>>) {
-        if let Ok(mut fill) = query.get_mut(entity) {
-            fill.color = PIXEL_ON_COLOR;
+    pub fn turn_on(entity: Entity, query: &mut Query<&mut Shape, With<Pixel>>) {
+        if let Ok(mut shape) = query.get_mut(entity) {
+            shape.fill = Some(Fill::color(PIXEL_ON_COLOR));
         }
     }
 
-    pub fn turn_off(entity: Entity, query: &mut Query<&mut Fill, With<Pixel>>) {
-        if let Ok(mut fill) = query.get_mut(entity) {
-            fill.color = PIXEL_OFF_COLOR;
+    pub fn turn_off(entity: Entity, query: &mut Query<&mut Shape, With<Pixel>>) {
+        if let Ok(mut shape) = query.get_mut(entity) {
+            shape.fill = Some(Fill::color(PIXEL_OFF_COLOR));
         }
     }
 }
@@ -287,8 +281,8 @@ pub fn pixel_update(
     mut rune_minigame_query: Query<&mut Minigame>,
     leveling_up_query: Query<&LevelingUp, With<Minigame>>,
     ready_query: Query<&Ready, With<Minigame>>,
-    pixel_query: Query<(&Pixel, Entity, &Parent, &GlobalTransform)>,
-    mut fill_query: Query<&mut Fill, With<Pixel>>,
+    pixel_query: Query<(&Pixel, Entity, &ChildOf, &GlobalTransform)>,
+    mut fill_query: Query<&mut Shape, With<Pixel>>,
 ) {
     // reset erasing state when mouse is released
     if mouse_state.just_released {
@@ -308,7 +302,7 @@ pub fn pixel_update(
     for (pixel, pixel_entity, pixel_parent, pixel_global_transform) in
         pixel_query.iter()
     {
-        let minigame_entity = pixel_parent.get();
+        let minigame_entity = pixel_parent.parent();
         if leveling_up_query.get(minigame_entity).is_ok() {
             continue;
         }
@@ -347,7 +341,7 @@ pub fn pixel_update(
                     if !is_ready {
                         commands
                             .entity(minigame_entity)
-                            .insert(Ready::new(time.elapsed_seconds()));
+                            .insert(Ready::new(time.elapsed_secs()));
                     }
                 }
                 None => {
@@ -374,14 +368,14 @@ pub fn fixed_update(
     )>,
     leveling_up_query: Query<&LevelingUp, With<Minigame>>,
     ready_query: Query<(&Ready, Entity), With<Minigame>>,
-    pixel_query: Query<(Entity, &Parent)>,
-    mut fill_query: Query<&mut Fill, With<Pixel>>,
+    pixel_query: Query<(Entity, &ChildOf)>,
+    mut fill_query: Query<&mut Shape, With<Pixel>>,
 ) {
     for (ready, minigame_entity) in ready_query.iter() {
         if leveling_up_query.get(minigame_entity).is_ok() {
             continue;
         }
-        if time.elapsed_seconds() - ready.since_time > RUNE_TRIGGER_SECONDS {
+        if time.elapsed_secs() - ready.since_time > RUNE_TRIGGER_SECONDS {
             commands.entity(minigame_entity).remove::<Ready>();
             let (minigame, minigame_transform, minigame_area) =
                 rune_minigame_query.get_mut(minigame_entity).unwrap();
@@ -391,7 +385,7 @@ pub fn fixed_update(
             };
             if let Some(rune) = minigame.to_rune() {
                 for (pixel_entity, pixel_parent) in pixel_query.iter() {
-                    if pixel_parent.get() == minigame_entity {
+                    if pixel_parent.parent() == minigame_entity {
                         PixelBundle::turn_off(pixel_entity, &mut fill_query);
                     }
                 }

@@ -99,11 +99,11 @@ pub fn update_mouse_state(
     mut mouse_state: ResMut<MouseState>,
 ) {
     if let Some(position) = get_mouse_position(&camera_query, &window_query) {
-        mouse_state.update_state(position, time.elapsed_seconds());
+        mouse_state.update_state(position, time.elapsed_secs());
     }
 
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        mouse_state.start_press(time.elapsed_seconds());
+        mouse_state.start_press(time.elapsed_secs());
     } else if mouse_button_input.just_released(MouseButton::Left) {
         mouse_state.end_press();
     } else if mouse_state.just_released {
@@ -201,8 +201,12 @@ fn get_mouse_position(
     camera_query: &Query<(&Camera, &GlobalTransform)>,
     window_query: &Query<&Window>,
 ) -> Option<Vec2> {
-    let (camera, camera_transform) = camera_query.single();
-    let window = window_query.single();
+    let Ok((camera, camera_transform)) = camera_query.single() else {
+        return None;
+    };
+    let Ok(window) = window_query.single() else {
+        return None;
+    };
 
     translate_to_world_position(window, camera, camera_transform)
 }
@@ -214,7 +218,7 @@ fn translate_to_world_position(
 ) -> Option<Vec2> {
     window
         .cursor_position()
-        .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor))
+        .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor).ok())
         .map(|ray| ray.origin.truncate())
 }
 
@@ -248,19 +252,19 @@ fn manage_click_indicator(
     mut commands: Commands,
     mouse_state: Res<MouseState>,
     indicator_config: Res<ClickIndicatorConfig>,
-    indicator_query: Query<Entity, With<ClickIndicator>>,
+    mut indicator_query: Query<(Entity, &mut Shape), With<ClickIndicator>>,
     time: Res<Time>,
 ) {
     if !mouse_state.dragging() {
         // Remove the indicator when mouse is not dragging
-        for entity in indicator_query.iter() {
+        for (entity, _) in indicator_query.iter() {
             commands.entity(entity).despawn();
         }
         return;
     }
 
     let elapsed =
-        time.elapsed_seconds() - mouse_state.start_time.unwrap_or(0.0);
+        time.elapsed_secs() - mouse_state.start_time.unwrap_or(0.0);
     if elapsed < mouse_state.long_click_threshold / 5.0 {
         return; // not pressed long enough to show indicator
     }
@@ -274,34 +278,28 @@ fn manage_click_indicator(
             center: Vec2::ZERO,
         };
         commands.spawn((
-            ShapeBundle {
-                path: GeometryBuilder::build_as(&shape),
-                spatial: SpatialBundle {
-                    transform: Transform::from_xyz(
-                        position.x, position.y, 100.0,
-                    ),
-                    ..default()
-                },
-                ..default()
-            },
-            Fill::color(Color::NONE),
-            Stroke::new(indicator_config.color, indicator_config.stroke_width),
+            ShapeBuilder::with(&shape)
+                .fill(Fill::color(Color::NONE))
+                .stroke(Stroke::new(
+                    indicator_config.color,
+                    indicator_config.stroke_width,
+                ))
+                .build(),
+            Transform::from_xyz(position.x, position.y, 100.0),
             ClickIndicator {},
         ));
     } else {
         // Update the indicator
-        for entity in indicator_query.iter() {
+        for (entity, mut shape) in indicator_query.iter_mut() {
             // Update position
             commands
                 .entity(entity)
                 .insert(Transform::from_xyz(position.x, position.y, 100.0));
             // Update color
             if progress >= 1.0 {
-                commands
-                    .entity(entity)
-                    .insert(Fill::color(indicator_config.long_color));
+                shape.fill = Some(Fill::color(indicator_config.long_color));
             } else {
-                commands.entity(entity).insert(Fill::color(
+                shape.fill = Some(Fill::color(
                     indicator_config.color.with_alpha(progress),
                 ));
             }
@@ -358,18 +356,15 @@ pub fn update_hover_text(
             (true, None) => {
                 // Spawn text entity when starting to hover
                 let text_entity = commands
-                    .spawn(Text2dBundle {
-                        text: Text::from_section(
-                            hover_text.text.clone(),
-                            TextStyle {
-                                font_size: 20.0,
-                                color: Color::BLACK,
-                                ..default()
-                            },
-                        ),
-                        transform: Transform::from_xyz(0.0, 30.0, 2.0),
-                        ..default()
-                    })
+                    .spawn((
+                        Text2d::new(hover_text.text.clone()),
+                        TextFont {
+                            font_size: 20.0,
+                            ..default()
+                        },
+                        TextColor(Color::BLACK),
+                        Transform::from_xyz(0.0, 30.0, 2.0),
+                    ))
                     .id();
                 commands.entity(entity).add_child(text_entity);
                 hover_text.text_entity = Some(text_entity);
@@ -379,7 +374,7 @@ pub fn update_hover_text(
                 // (not despawn) so it detaches from its parent's Children list —
                 // a plain despawn leaves a stale child the parent's later
                 // despawn_recursive would hit (B0003).
-                commands.entity(text_entity).despawn_recursive();
+                commands.entity(text_entity).despawn();
                 hover_text.text_entity = None;
             }
             _ => {}

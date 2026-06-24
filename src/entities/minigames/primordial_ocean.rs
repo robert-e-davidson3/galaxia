@@ -66,9 +66,9 @@ impl PrimordialOceanMinigame {
         Self::new(self.salt_water_collected)
     }
 
-    pub fn spawn(&self, parent: &mut ChildBuilder) {
+    pub fn spawn(&self, parent: &mut ChildSpawnerCommands) {
         let radius = self.radius;
-        parent.spawn(OceanBundle::new(parent.parent_entity(), radius));
+        parent.spawn(OceanBundle::new(parent.target_entity(), radius));
     }
 
     pub fn ingest_item(
@@ -125,8 +125,7 @@ impl PrimordialOceanMinigame {
 pub struct OceanBundle {
     pub ocean: Ocean,
     pub area: CircularArea,
-    pub shape: ShapeBundle,
-    pub fill: Fill,
+    pub shape: Shape,
 }
 
 impl OceanBundle {
@@ -136,14 +135,12 @@ impl OceanBundle {
         Self {
             ocean: Ocean { minigame },
             area,
-            shape: ShapeBundle {
-                path: GeometryBuilder::build_as(&shapes::Circle {
-                    radius,
-                    ..default()
-                }),
+            shape: ShapeBuilder::with(&shapes::Circle {
+                radius,
                 ..default()
-            },
-            fill: Fill::color(Color::srgb(0.0, 0.25, 1.0)),
+            })
+            .fill(Fill::color(Color::srgb(0.0, 0.25, 1.0)))
+            .build(),
         }
     }
 }

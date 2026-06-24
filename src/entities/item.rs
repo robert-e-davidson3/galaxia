@@ -15,7 +15,8 @@ pub const SEED: u64 = 91;
 pub struct ItemBundle {
     pub item: Item,
     pub area: CircularArea,
-    pub sprite: SpriteBundle,
+    pub sprite: Sprite,
+    pub transform: Transform,
     pub rigid_body: RigidBody,
     pub collider: Collider,
     pub collision_groups: CollisionGroups,
@@ -52,15 +53,12 @@ impl ItemBundle {
         Self {
             item,
             area,
-            sprite: SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(area.into()),
-                    ..default()
-                },
-                texture,
-                transform,
+            sprite: Sprite {
+                image: texture,
+                custom_size: Some(area.into()),
                 ..default()
             },
+            transform,
             rigid_body: RigidBody::Dynamic,
             collider: area.into(),
             collision_groups: CollisionGroups::new(ETHER_GROUP, ether_filter()),
@@ -1124,7 +1122,7 @@ pub fn combine_loose_items(
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     loose_item_query: Query<(&Item, &Transform, &Velocity)>,
     stuck_query: Query<&Stuck>,
-    mut collision_events: EventReader<CollisionEvent>,
+    mut collision_events: MessageReader<CollisionEvent>,
 ) {
     let mut eliminated: HashSet<Entity> = HashSet::new();
     for collision_event in collision_events.read() {
@@ -1164,8 +1162,8 @@ pub fn combine_loose_items(
                 combined,
                 *transform,
                 Velocity {
-                    linvel: velocity1.linvel + velocity2.linvel,
-                    angvel: velocity1.angvel + velocity2.angvel,
+                    linear: velocity1.linear + velocity2.linear,
+                    angular: velocity1.angular + velocity2.angular,
                 },
             ));
         }
@@ -1174,18 +1172,21 @@ pub fn combine_loose_items(
 
 pub fn grab_items(
     mut commands: Commands,
-    rapier_context: Res<RapierContext>,
+    read_rapier_context: ReadRapierContext,
     player_query: Query<(Entity, &CircularArea), (With<Player>, With<Sticky>)>,
     mut loose_item_query: Query<
         (&CircularArea, &mut Velocity),
         (With<Item>, Without<Stuck>),
     >,
-    mut collision_events: EventReader<CollisionEvent>,
+    mut collision_events: MessageReader<CollisionEvent>,
 ) {
-    let Ok(player) = player_query.get_single() else {
+    let Ok(player) = player_query.single() else {
         return;
     };
     let (player_entity, player_area) = player;
+    let Ok(rapier_context) = read_rapier_context.single() else {
+        return;
+    };
 
     for collision_event in collision_events.read() {
         if let CollisionEvent::Started(entity1, entity2, _) = collision_event {
@@ -1252,8 +1253,8 @@ pub fn stick(
         .insert(Stuck {
             player: player_entity,
         });
-    item_velocity.linvel = Vec2::ZERO;
-    item_velocity.angvel = 0.0;
+    item_velocity.linear = Vec2::ZERO;
+    item_velocity.angular = 0.0;
 }
 
 pub fn release_items(

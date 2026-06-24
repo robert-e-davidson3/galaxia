@@ -95,17 +95,16 @@ impl LandMinigame {
         Self::new(self.level, self.energy)
     }
 
-    pub fn spawn(&self, parent: &mut ChildBuilder) {
+    pub fn spawn(&self, parent: &mut ChildSpawnerCommands) {
         let area = self.area();
-        let _background = parent.spawn(SpriteBundle {
-            sprite: Sprite {
+        let _background = parent.spawn((
+            Sprite {
                 color: Color::srgb(0.5, 0.5, 0.5),
                 custom_size: Some(area.into()),
                 ..default()
             },
-            transform: Transform::from_xyz(0.0, 0.0, -1.0),
-            ..default()
-        });
+            Transform::from_xyz(0.0, 0.0, -1.0),
+        ));
 
         for y in 0..area.height as u32 {
             for x in 0..area.width as u32 {
@@ -330,7 +329,8 @@ impl LandMinigame {
 pub struct CellBundle {
     pub cell: Cell,
     pub toggleable: Toggleable,
-    pub sprite: SpriteBundle,
+    pub sprite: Sprite,
+    pub transform: Transform,
 }
 
 impl CellBundle {
@@ -341,28 +341,25 @@ impl CellBundle {
         Self {
             cell: Cell { x, y },
             toggleable: Toggleable::new(),
-            sprite: SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(Vec2::new(1.0, 1.0)),
-                    ..default()
-                },
-                transform: Transform::from_xyz(
-                    x as f32 + dx,
-                    y as f32 + dy,
-                    0.0,
-                ),
+            sprite: Sprite {
+                custom_size: Some(Vec2::new(1.0, 1.0)),
                 ..default()
             },
+            transform: Transform::from_xyz(
+                x as f32 + dx,
+                y as f32 + dy,
+                0.0,
+            ),
         }
     }
 
     pub fn turn_on(
         entity: Entity,
-        query: &mut Query<(&mut Handle<Image>, &mut Sprite), With<Cell>>,
+        query: &mut Query<&mut Sprite, With<Cell>>,
         new_handle: Handle<Image>,
     ) {
-        if let Ok((mut handle, mut sprite)) = query.get_mut(entity) {
-            *handle = new_handle;
+        if let Ok(mut sprite) = query.get_mut(entity) {
+            sprite.image = new_handle;
             // TODO verify this means "no tint"
             sprite.color = Color::default();
         }
@@ -370,9 +367,9 @@ impl CellBundle {
 
     pub fn turn_off(
         entity: Entity,
-        query: &mut Query<(&mut Handle<Image>, &mut Sprite), With<Cell>>,
+        query: &mut Query<&mut Sprite, With<Cell>>,
     ) {
-        if let Ok((_, mut sprite)) = query.get_mut(entity) {
+        if let Ok(mut sprite) = query.get_mut(entity) {
             sprite.color = Color::srgba(0.0, 0.0, 0.0, 0.0);
         }
     }
@@ -396,11 +393,8 @@ pub fn cell_update(
         &RectangularArea,
     )>,
     leveling_up_query: Query<&LevelingUp, With<Minigame>>,
-    cell_query: Query<(&Cell, Entity, &Parent, &GlobalTransform)>,
-    mut cell_draw_query: &mut Query<
-        (&mut Handle<Image>, &mut Sprite),
-        With<Cell>,
-    >,
+    cell_query: Query<(&Cell, Entity, &ChildOf, &GlobalTransform)>,
+    mut cell_draw_query: &mut Query<&mut Sprite, With<Cell>>,
 ) {
     if !mouse_state.just_pressed {
         return;
@@ -410,7 +404,7 @@ pub fn cell_update(
     for (cell, cell_entity, cell_parent, cell_global_transform) in
         cell_query.iter()
     {
-        let minigame_entity = cell_parent.get();
+        let minigame_entity = cell_parent.parent();
         if leveling_up_query.get(minigame_entity).is_ok() {
             continue;
         }
@@ -457,8 +451,8 @@ pub fn evolve_fixed_update(
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
     time: Res<Time>,
     mut minigame_query: Query<(&mut Minigame, Entity), Changed<Minigame>>,
-    cell_query: Query<(Entity, &Parent)>,
-    mut fill_query: Query<&mut Fill, With<Cell>>,
+    cell_query: Query<(Entity, &ChildOf)>,
+    mut fill_query: Query<&mut Shape, With<Cell>>,
 ) {
     for (mut minigame, minigame_entity) in minigame_query.iter_mut() {
         let minigame = match minigame.into_inner() {

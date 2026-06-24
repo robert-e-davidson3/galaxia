@@ -52,7 +52,7 @@ impl ButtonMinigame {
         Self::new(self.count)
     }
 
-    pub fn spawn(&self, parent: &mut ChildBuilder) {
+    pub fn spawn(&self, parent: &mut ChildSpawnerCommands) {
         spawn_background(parent);
         let text = spawn_text(parent, self.count);
         spawn_button(parent, text);
@@ -83,56 +83,47 @@ impl ButtonMinigame {
     }
 }
 
-fn spawn_background(parent: &mut ChildBuilder) {
-    parent.spawn(SpriteBundle {
-        sprite: Sprite {
+fn spawn_background(parent: &mut ChildSpawnerCommands) {
+    parent.spawn((
+        Sprite {
             color: Color::srgb(0.9, 0.9, 0.9),
             custom_size: Some(Vec2::new(AREA.width, AREA.height)),
             ..default()
         },
-        transform: Transform::from_xyz(0.0, 0.0, -1.0),
-        ..default()
-    });
+        Transform::from_xyz(0.0, 0.0, -1.0),
+    ));
 }
 
-fn spawn_text(parent: &mut ChildBuilder, initial_clicks: u64) -> Entity {
+fn spawn_text(parent: &mut ChildSpawnerCommands, initial_clicks: u64) -> Entity {
     parent
-        .spawn(Text2dBundle {
-            text: Text::from_section(
-                format!("Clicks: {}", initial_clicks),
-                TextStyle {
-                    font_size: 20.0,
-                    color: Color::BLACK,
-                    ..default()
-                },
-            ),
-            transform: Transform::from_xyz(0.0, 58.0, 0.0),
-            ..default()
-        })
+        .spawn((
+            Text2d::new(format!("Clicks: {}", initial_clicks)),
+            TextFont {
+                font_size: 20.0,
+                ..default()
+            },
+            TextColor(Color::BLACK),
+            Transform::from_xyz(0.0, 58.0, 0.0),
+        ))
         .id()
 }
 
-fn spawn_button(parent: &mut ChildBuilder, text: Entity) {
+fn spawn_button(parent: &mut ChildSpawnerCommands, text: Entity) {
     let radius = AREA.width / 2.0 - 5.0;
     parent.spawn((
         ClickMeButton {
-            game: parent.parent_entity(),
+            game: parent.target_entity(),
             text,
         },
         CircularArea { radius },
-        ShapeBundle {
-            path: GeometryBuilder::build_as(&shapes::Circle {
-                radius,
-                ..default()
-            }),
-            spatial: SpatialBundle {
-                transform: Transform::from_xyz(0.0, -10.0, 0.0),
-                ..default()
-            },
+        ShapeBuilder::with(&shapes::Circle {
+            radius,
             ..default()
-        },
-        Fill::color(Color::srgb(0.8, 0.1, 0.1)),
-        Stroke::new(Color::BLACK, 2.0),
+        })
+        .fill(Fill::color(Color::srgb(0.8, 0.1, 0.1)))
+        .stroke(Stroke::new(Color::BLACK, 2.0))
+        .build(),
+        Transform::from_xyz(0.0, -10.0, 0.0),
     ));
 }
 
@@ -153,7 +144,7 @@ pub fn update(
         &GlobalTransform,
         &RectangularArea,
     )>,
-    mut text_query: Query<&mut Text>,
+    mut text_query: Query<&mut Text2d>,
     leveling_up_query: Query<&LevelingUp>,
 ) {
     if !mouse_state.just_released {
@@ -182,7 +173,7 @@ pub fn update(
             };
             minigame.count += 1;
             let mut text = text_query.get_mut(button.text).unwrap();
-            text.sections[0].value = format!("Clicks: {}", minigame.count);
+            text.0 = format!("Clicks: {}", minigame.count);
 
             // Check for level up condition
             if minigame.should_level_up() {

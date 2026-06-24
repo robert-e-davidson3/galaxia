@@ -55,20 +55,8 @@ Known work, not yet ready or not yet sequenced.
 
 ### Tech debt / architecture
 
-- [ ] **Upgrade the Bevy stack** (large, eventual). Pinned to Bevy 0.14.1 and the matching 0.14-era ecosystem. A big migration with API churn across the whole stack; do it as a deliberate project, not piecemeal. Recon done 2026-06-22 (see `logs/2026-06-22.md`); concrete plan below.
-  - **Target: Bevy 0.18.1** — *not* the newest. Latest stable is 0.19.0, but all four third-party crates top out at Bevy 0.18 (none support 0.19 as of 2026-06-22), so 0.18 is the ecosystem ceiling; going past it means dropping/forking a dependency. Version set:
-
-    | Crate | Current | Target (Bevy 0.18) |
-    |---|---|---|
-    | bevy | 0.14.1 | 0.18.1 |
-    | bevy_rapier2d | 0.27.0 | 0.34.0 |
-    | bevy_prototype_lyon | 0.12.0 | 0.16.0 |
-    | bevy_ecs_tilemap | 0.14.0 | 0.21.0 |
-    | bevy_framepace | 0.17.1 | 0.18.1 |
-
-  - **It's a four-version jump** (0.14 → 0.15 → 0.16 → 0.17 → 0.18). Recommended strategy: step one version at a time, getting to a green `cargo build` + 25 tests passing at each stop before moving on, following each official Bevy migration guide (bevyengine.org). Stepping keeps it compiling/debuggable; a big-bang to 0.18 compounds errors into one huge non-compiling blob.
-  - **Toolchain bump required.** Bevy MSRVs climb past the flake's pinned Rust 1.87.0: 0.15→1.82, 0.16→1.85, 0.17→**1.88**, 0.18→**1.89**. The flake's oxalica Rust pin must move to ≥1.89 (at the latest by the 0.17 step).
-  - **Watch-outs:** align the standalone `rapier2d` dep (currently 0.22) to whatever `bevy_rapier2d` 0.34 pulls in, to avoid two rapier versions; `despawn_recursive` is deprecated in 0.16 (plain `despawn` became recursive) — touches the B0003 fix in `ball_breaker.rs`/`tree.rs`/`mouse.rs`; `flake.nix` system deps (wgpu/winit) may need adjusting. This task is command-heavy (many compile-fix cycles) — plan the session accordingly.
+_(The big Bevy 0.14 → 0.18.1 stack upgrade landed 2026-06-23 — all four steps green, 25 tests
+passing. See `logs/2026-06-23.md`. Not yet verified in the running game.)_
 
 ### Bugs
 

@@ -12,9 +12,7 @@ use crate::libs::*;
 pub struct PlayerBundle {
     pub player: Player,
     pub area: CircularArea,
-    pub shape: ShapeBundle,
-    pub fill: Fill,
-    pub stroke: Stroke,
+    pub shape: Shape,
     pub collider: Collider,
     pub rigid_body: RigidBody,
     pub active_events: ActiveEvents,
@@ -30,15 +28,13 @@ impl PlayerBundle {
         Self {
             player: Player,
             area,
-            shape: ShapeBundle {
-                path: GeometryBuilder::build_as(&shapes::Circle {
-                    radius: area.radius,
-                    ..default()
-                }),
+            shape: ShapeBuilder::with(&shapes::Circle {
+                radius: area.radius,
                 ..default()
-            },
-            fill: Fill::color(Color::srgb(0.625, 0.94, 0.91)),
-            stroke: Stroke::new(Color::BLACK, 1.0),
+            })
+            .fill(Fill::color(Color::srgb(0.625, 0.94, 0.91)))
+            .stroke(Stroke::new(Color::BLACK, 1.0))
+            .build(),
             collider: area.into(),
             rigid_body: RigidBody::Dynamic,
             active_events: ActiveEvents::COLLISION_EVENTS,

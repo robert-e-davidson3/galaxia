@@ -77,7 +77,7 @@ impl FoundryMinigame {
         )
     }
 
-    pub fn spawn(&self, _parent: &mut ChildBuilder) {
+    pub fn spawn(&self, _parent: &mut ChildSpawnerCommands) {
         // TODO background
         // TODO heat meter
         // TODO transmutation timer
@@ -172,8 +172,8 @@ pub fn cook_fixed_update(
             _ => continue,
         };
         if minigame.last_cook == 0.0 {
-            minigame.last_cook = time.elapsed_seconds();
-        } else if minigame.last_cook + time.elapsed_seconds()
+            minigame.last_cook = time.elapsed_secs();
+        } else if minigame.last_cook + time.elapsed_secs()
             >= COOK_PERIOD_SECONDS
         {
             // first try priority cooking
@@ -186,7 +186,7 @@ pub fn cook_fixed_update(
                     minigame_transform,
                     minigame_area,
                 ));
-                minigame.last_cook = time.elapsed_seconds();
+                minigame.last_cook = time.elapsed_secs();
 
                 return;
             }
@@ -196,7 +196,7 @@ pub fn cook_fixed_update(
                 Some(raw) => raw,
                 None => continue,
             };
-            minigame.last_cook = time.elapsed_seconds();
+            minigame.last_cook = time.elapsed_secs();
 
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,

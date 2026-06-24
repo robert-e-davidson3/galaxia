@@ -11,9 +11,9 @@ pub fn constant_velocity_system(
 ) {
     for (speed, mut velocity) in query.iter_mut() {
         if speed.speed == 0.0 {
-            velocity.linvel = Vec2::ZERO;
+            velocity.linear = Vec2::ZERO;
         } else {
-            velocity.linvel = velocity.linvel.normalize() * speed.speed;
+            velocity.linear = velocity.linear.normalize() * speed.speed;
         }
     }
 }

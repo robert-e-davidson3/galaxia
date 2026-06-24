@@ -11,7 +11,8 @@ use crate::libs::*;
 #[derive(Debug, Clone, Bundle)]
 pub struct InventoryBundle {
     pub inventory: Inventory,
-    pub spatial: SpatialBundle,
+    pub transform: Transform,
+    pub visibility: Visibility,
 }
 
 impl InventoryBundle {
@@ -19,15 +20,13 @@ impl InventoryBundle {
         let (x, y) = position.into();
         InventoryBundle {
             inventory,
-            spatial: SpatialBundle {
-                transform: Transform::from_translation(Vec3::new(x, y, 0.0)),
-                ..default()
-            },
+            transform: Transform::from_translation(Vec3::new(x, y, 0.0)),
+            visibility: Visibility::default(),
         }
     }
 
     pub fn spawn(
-        parent: &mut ChildBuilder,
+        parent: &mut ChildSpawnerCommands,
         mut inventory: Inventory,
         items: &HashMap<ItemType, f32>,
         position: Vec2,
@@ -46,10 +45,17 @@ impl InventoryBundle {
         );
         let inventory_area =
             RectangularArea::new(inventory_size.x, inventory_size.y);
+        let (origin_x, origin_y) = position.into();
         parent
-            .spawn_empty()
+            // Spatial components must exist on the parent before its slot children
+            // spawn, or each slot's GlobalTransform fires B0004 (parent without
+            // one). Same reasoning as the minigame entity spawn.
+            .spawn((
+                Transform::from_translation(Vec3::new(origin_x, origin_y, 0.0)),
+                Visibility::default(),
+            ))
             .with_children(|parent| {
-                let inventory_entity = parent.parent_entity();
+                let inventory_entity = parent.target_entity();
                 let mut item_index = 0;
                 for y in 0..height {
                     let y = height - y - 1;
@@ -109,7 +115,8 @@ impl Inventory {
 pub struct SlotBundle {
     pub slot: Slot,
     pub area: RectangularArea,
-    pub sprite: SpriteBundle,
+    pub sprite: Sprite,
+    pub transform: Transform,
 }
 
 impl SlotBundle {
@@ -120,21 +127,23 @@ impl SlotBundle {
         inventory_area: RectangularArea,
     ) -> Self {
         let area = RectangularArea::new(slot_size.x, slot_size.y);
-        let sprite = SpriteBundle {
-            sprite: Self::missing_sprite(),
-            transform: Self::slot_transform(
-                slot_size,
-                slot_position,
-                inventory_area,
-            ),
-            ..default()
-        };
-        SlotBundle { slot, area, sprite }
+        let sprite = Self::missing_sprite();
+        let transform = Self::slot_transform(
+            slot_size,
+            slot_position,
+            inventory_area,
+        );
+        SlotBundle {
+            slot,
+            area,
+            sprite,
+            transform,
+        }
     }
 
     // Spawns the background as well as the slot.
     pub fn spawn(
-        parent: &mut ChildBuilder,
+        parent: &mut ChildSpawnerCommands,
         slot: Slot,
         slot_position: (u32, u32),
         slot_size: Vec2,
@@ -148,17 +157,14 @@ impl SlotBundle {
                 inventory_area,
             ))
             .with_children(|parent| {
-                let _background = parent.spawn(SpriteBundle {
-                    sprite: Sprite {
+                let _background = parent.spawn((
+                    Sprite {
                         color: Color::srgba(0.5, 0.5, 0.5, 0.2),
                         custom_size: Some(slot_size * 0.9),
                         ..default()
                     },
-                    transform: Transform::from_translation(Vec3::new(
-                        0.0, 0.0, -1.0,
-                    )),
-                    ..default()
-                });
+                    Transform::from_translation(Vec3::new(0.0, 0.0, -1.0)),
+                ));
             })
             .id()
     }
@@ -172,18 +178,15 @@ impl SlotBundle {
     ) {
         match slot.item {
             Some(item) => {
-                commands
-                    .insert(Self::get_texture(
-                        images,
-                        generated_image_assets,
-                        &item,
-                    ))
-                    .insert(Self::present_sprite(&size));
+                let texture = Self::get_texture(
+                    images,
+                    generated_image_assets,
+                    &item,
+                );
+                commands.insert(Self::present_sprite(texture, &size));
             }
             None => {
-                commands
-                    .insert(Self::missing_texture())
-                    .insert(Self::missing_sprite());
+                commands.insert(Self::missing_sprite());
             }
         }
     }
@@ -195,8 +198,9 @@ impl SlotBundle {
         }
     }
 
-    fn present_sprite(size: &Vec2) -> Sprite {
+    fn present_sprite(image: Handle<Image>, size: &Vec2) -> Sprite {
         Sprite {
+            image,
             custom_size: Some(*size * 0.8),
             ..default()
         }
@@ -311,22 +315,20 @@ const SCROLL_BUTTON_SIZE: f32 = 20.0;
 #[derive(Bundle)]
 struct SearchBoxBundle {
     text_box: TextBox,
-    sprite: SpriteBundle,
+    sprite: Sprite,
+    transform: Transform,
 }
 
 impl SearchBoxBundle {
     fn new(position: Vec2) -> Self {
         Self {
             text_box: TextBox,
-            sprite: SpriteBundle {
-                sprite: Sprite {
-                    color: Color::WHITE,
-                    custom_size: Some(Vec2::new(200.0, 30.0)),
-                    ..default()
-                },
-                transform: Transform::from_xyz(position.x, position.y, 0.0),
+            sprite: Sprite {
+                color: Color::WHITE,
+                custom_size: Some(Vec2::new(200.0, 30.0)),
                 ..default()
             },
+            transform: Transform::from_xyz(position.x, position.y, 0.0),
         }
     }
 }
@@ -337,29 +339,27 @@ struct TextBox;
 #[derive(Bundle)]
 struct ScrollButtonBundle {
     button: ScrollButton,
-    sprite: SpriteBundle,
+    sprite: Sprite,
+    transform: Transform,
 }
 
 impl ScrollButtonBundle {
     fn new(asset_server: &AssetServer, left: bool, position: Vec2) -> Self {
         Self {
             button: ScrollButton { left },
-            sprite: SpriteBundle {
-                texture: asset_server.load(if left {
+            sprite: Sprite {
+                image: asset_server.load(if left {
                     "left_arrow.png"
                 } else {
                     "right_arrow.png"
                 }),
-                transform: Transform::from_xyz(position.x, position.y, 0.0),
-                sprite: Sprite {
-                    custom_size: Some(Vec2::new(
-                        SCROLL_BUTTON_SIZE,
-                        SCROLL_BUTTON_SIZE,
-                    )),
-                    ..default()
-                },
+                custom_size: Some(Vec2::new(
+                    SCROLL_BUTTON_SIZE,
+                    SCROLL_BUTTON_SIZE,
+                )),
                 ..default()
             },
+            transform: Transform::from_xyz(position.x, position.y, 0.0),
         }
     }
 }

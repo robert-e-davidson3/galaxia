@@ -12,7 +12,8 @@ use crate::minigames::*;
 #[derive(Debug, Bundle)]
 pub struct MinigameBundle {
     pub minigame: Minigame,
-    pub spatial: SpatialBundle,
+    pub transform: Transform,
+    pub visibility: Visibility,
     pub area: RectangularArea,
 }
 
@@ -21,10 +22,8 @@ impl MinigameBundle {
         let area = minigame.area();
         MinigameBundle {
             minigame,
-            spatial: SpatialBundle {
-                transform,
-                ..default()
-            },
+            transform,
+            visibility: Visibility::default(),
             area,
         }
     }
@@ -236,7 +235,12 @@ impl Minigame {
         let level = self.level();
         let mut new_minigame = self.clone();
         let entity = commands
-            .spawn_empty()
+            // Give the entity its spatial components up front, before spawning
+            // children. A child's `GlobalTransform` on-insert hook validates that
+            // its parent already has one (B0004); inserting `MinigameBundle`
+            // *after* `with_children` would fire that warning once per child —
+            // i.e. once per cell/pixel across the whole minigame grid.
+            .spawn((transform, Visibility::default()))
             .with_children(|parent| {
                 spawn_minigame_container(
                     parent,
@@ -246,7 +250,7 @@ impl Minigame {
                     level,
                 );
                 parent.spawn(MinigameAuraBundle::new(
-                    parent.parent_entity(),
+                    parent.target_entity(),
                     area,
                 ));
                 match &mut new_minigame {
@@ -414,7 +418,7 @@ pub fn levelup(
         let new_minigame = minigame.levelup();
 
         // Despawn the old minigame
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
 
         // Respawn the minigame and record its new entity so id -> entity
         // lookups (the camera's engaged-minigame focus) resolve to the live
@@ -467,7 +471,8 @@ pub struct MinigameAuraBundle {
     pub sensor: Sensor,
     pub collision_groups: CollisionGroups,
     pub active_events: ActiveEvents,
-    pub spatial: SpatialBundle,
+    pub transform: Transform,
+    pub visibility: Visibility,
 }
 
 impl MinigameAuraBundle {
@@ -481,7 +486,8 @@ impl MinigameAuraBundle {
                 minigame_aura_filter(),
             ),
             active_events: ActiveEvents::COLLISION_EVENTS,
-            spatial: SpatialBundle { ..default() },
+            transform: Transform::default(),
+            visibility: Visibility::default(),
         }
     }
 }
@@ -493,13 +499,13 @@ pub struct MinigameAura {
 
 // Draw bounds around the minigame, plus the meta buttons.
 pub fn spawn_minigame_container(
-    parent: &mut ChildBuilder,
+    parent: &mut ChildSpawnerCommands,
     area: RectangularArea,
     name: &str,
     description: &str,
     level: u8,
 ) {
-    let minigame = parent.parent_entity();
+    let minigame = parent.target_entity();
     spawn_minigame_bounds(parent, area);
     let meta_area = RectangularArea {
         width: area.width,
@@ -510,38 +516,31 @@ pub fn spawn_minigame_container(
     parent.spawn((
         Collider::from(area.grow(0.0, META_HEIGHT)),
         CollisionGroups::new(ETHER_GROUP, ether_filter()),
-        SpatialBundle {
-            transform: Transform::from_xyz(0.0, META_HEIGHT / 2.0, 0.0),
-            ..default()
-        },
+        Transform::from_xyz(0.0, META_HEIGHT / 2.0, 0.0),
+        Visibility::default(),
     ));
     // Spawn the rest
     parent
-        .spawn(SpatialBundle {
-            transform: Transform::from_xyz(
+        .spawn((
+            Transform::from_xyz(
                 0.0,
                 area.top() + META_HEIGHT / 2.0,
                 0.0,
             ),
-            ..default()
-        })
+            Visibility::default(),
+        ))
         .with_children(|parent| {
             parent.spawn((
-                ShapeBundle {
-                    path: GeometryBuilder::build_as(&shapes::Rectangle {
-                        extents: meta_area.into(),
-                        ..default()
-                    }),
-                    spatial: SpatialBundle {
-                        transform: Transform::from_xyz(
-                            0.0, 0.0, -1.0, // background
-                        ),
-                        ..default()
-                    },
+                ShapeBuilder::with(&shapes::Rectangle {
+                    extents: meta_area.into(),
                     ..default()
-                },
-                Fill::color(Color::WHITE),
-                Stroke::new(Color::BLACK, WALL_THICKNESS),
+                })
+                .fill(Fill::color(Color::WHITE))
+                .stroke(Stroke::new(Color::BLACK, WALL_THICKNESS))
+                .build(),
+                Transform::from_xyz(
+                    0.0, 0.0, -1.0, // background
+                ),
             ));
             spawn_minigame_name(parent, name, &area);
             spawn_minigame_buttons(
@@ -555,26 +554,21 @@ pub fn spawn_minigame_container(
 }
 
 pub fn spawn_minigame_name(
-    parent: &mut ChildBuilder,
+    parent: &mut ChildSpawnerCommands,
     name: &str,
     area: &RectangularArea,
 ) {
     // set font size so it fits in the space
     let font_size = (area.width / name.len() as f32).clamp(10.0, 24.0);
-    parent.spawn(Text2dBundle {
-        text: Text {
-            sections: vec![TextSection {
-                value: name.into(),
-                style: TextStyle {
-                    font_size,
-                    color: Color::BLACK,
-                    ..default()
-                },
-            }],
-            justify: JustifyText::Left,
+    parent.spawn((
+        Text2d::new(name),
+        TextFont {
+            font_size,
             ..default()
         },
-        transform: Transform {
+        TextColor(Color::BLACK),
+        TextLayout::new_with_justify(Justify::Left),
+        Transform {
             translation: Vec3::new(
                 -(BUTTON_WIDTH * BUTTON_COUNT) / 2.0,
                 0.0,
@@ -582,12 +576,11 @@ pub fn spawn_minigame_name(
             ),
             ..default()
         },
-        ..default()
-    });
+    ));
 }
 
 pub fn spawn_minigame_buttons(
-    parent: &mut ChildBuilder,
+    parent: &mut ChildSpawnerCommands,
     area: RectangularArea,
     minigame: Entity,
     level: u8,
@@ -753,7 +746,7 @@ pub struct Engaged {
 }
 
 pub fn spawn_minigame_engage_button(
-    parent: &mut ChildBuilder,
+    parent: &mut ChildSpawnerCommands,
     area: RectangularArea,
     minigame: Entity,
     level: u8,
@@ -764,45 +757,34 @@ pub fn spawn_minigame_engage_button(
             MinigameEngageButton { minigame },
             CircularArea { radius: 90.0 },
             HoverText::new(description.into()),
-            ShapeBundle {
-                path: GeometryBuilder::build_as(&shapes::Rectangle {
-                    extents: Vec2::new(BUTTON_WIDTH, META_HEIGHT),
-                    ..default()
-                }),
-                spatial: SpatialBundle {
-                    transform: Transform::from_xyz(
-                        area.right() - BUTTON_WIDTH / 2.0,
-                        0.0,
-                        0.0,
-                    ),
-                    ..default()
-                },
+            ShapeBuilder::with(&shapes::Rectangle {
+                extents: Vec2::new(BUTTON_WIDTH, META_HEIGHT),
                 ..default()
-            },
-            Fill::color(Color::srgba(0.2, 0.8, 0.8, 1.0)),
-            Stroke::new(Color::BLACK, 1.0),
+            })
+            .fill(Fill::color(Color::srgba(0.2, 0.8, 0.8, 1.0)))
+            .stroke(Stroke::new(Color::BLACK, 1.0))
+            .build(),
+            Transform::from_xyz(
+                area.right() - BUTTON_WIDTH / 2.0,
+                0.0,
+                0.0,
+            ),
             RectangularArea {
                 width: BUTTON_WIDTH,
                 height: META_HEIGHT,
             },
         ))
         .with_children(|parent| {
-            parent.spawn(Text2dBundle {
-                text: Text {
-                    sections: vec![TextSection {
-                        value: format!("{}", level),
-                        style: TextStyle {
-                            font_size: 24.0,
-                            color: Color::BLACK,
-                            ..default()
-                        },
-                    }],
-                    justify: JustifyText::Center,
+            parent.spawn((
+                Text2d::new(format!("{}", level)),
+                TextFont {
+                    font_size: 24.0,
                     ..default()
                 },
-                transform: Transform::from_xyz(0.0, 0.0, 1.0),
-                ..default()
-            });
+                TextColor(Color::BLACK),
+                TextLayout::new_with_justify(Justify::Center),
+                Transform::from_xyz(0.0, 0.0, 1.0),
+            ));
         });
 }
 
@@ -851,11 +833,11 @@ pub fn engage_button_update(
 // truth), so a button respawned during levelup immediately shows the right
 // state instead of carrying its own.
 pub fn update_engage_button_appearance(
-    mut button_query: Query<(&MinigameEngageButton, &mut Fill)>,
+    mut button_query: Query<(&MinigameEngageButton, &mut Shape)>,
     minigame_query: Query<&Minigame>,
     engaged: Res<Engaged>,
 ) {
-    for (engage_button, mut fill) in button_query.iter_mut() {
+    for (engage_button, mut shape) in button_query.iter_mut() {
         let Ok(minigame) = minigame_query.get(engage_button.minigame) else {
             continue;
         };
@@ -864,13 +846,15 @@ pub fn update_engage_button_appearance(
         } else {
             1.0
         };
-        fill.color.set_alpha(alpha);
+        if let Some(fill) = shape.fill.as_mut() {
+            fill.color.set_alpha(alpha);
+        }
     }
 }
 
 #[derive(Bundle)]
 pub struct MinigameBoundBundle {
-    pub transform: TransformBundle,
+    pub transform: Transform,
     pub collider: Collider,
     pub collision_groups: CollisionGroups,
     pub rigid_body: RigidBody,
@@ -898,9 +882,9 @@ impl MinigameBoundBundle {
 
     fn build(x_offset: f32, y_offset: f32, width: f32, height: f32) -> Self {
         Self {
-            transform: TransformBundle::from(Transform::from_xyz(
+            transform: Transform::from_xyz(
                 x_offset, y_offset, 0.0,
-            )),
+            ),
             collider: Collider::cuboid(width / 2.0, height / 2.0),
             collision_groups: CollisionGroups::new(
                 BORDER_GROUP,
@@ -912,21 +896,23 @@ impl MinigameBoundBundle {
     }
 }
 
-pub fn spawn_minigame_bounds(parent: &mut ChildBuilder, area: RectangularArea) {
+pub fn spawn_minigame_bounds(
+    parent: &mut ChildSpawnerCommands,
+    area: RectangularArea,
+) {
     parent
         .spawn((
-            ShapeBundle {
-                path: GeometryBuilder::build_as(&shapes::Rectangle {
-                    extents: Vec2::new(area.width, area.height + META_HEIGHT),
-                    origin: RectangleOrigin::CustomCenter(Vec2::new(
-                        0.0,
-                        META_HEIGHT / 2.0,
-                    )),
-                }),
-                ..Default::default()
-            },
-            Fill::color(Color::NONE),
-            Stroke::new(Color::BLACK, WALL_THICKNESS),
+            ShapeBuilder::with(&shapes::Rectangle {
+                extents: Vec2::new(area.width, area.height + META_HEIGHT),
+                origin: RectangleOrigin::CustomCenter(Vec2::new(
+                    0.0,
+                    META_HEIGHT / 2.0,
+                )),
+                ..default()
+            })
+            .fill(Fill::color(Color::NONE))
+            .stroke(Stroke::new(Color::BLACK, WALL_THICKNESS))
+            .build(),
         ))
         .with_children(|parent| {
             // top wall
@@ -972,7 +958,7 @@ pub fn ingest_item(
     mut random: ResMut<Random>,
     mut images: ResMut<Assets<Image>>,
     mut generated_image_assets: ResMut<image_gen::GeneratedImageAssets>,
-    mut collision_events: EventReader<CollisionEvent>,
+    mut collision_events: MessageReader<CollisionEvent>,
     mut minigame_query: Query<(
         &mut Minigame,
         &GlobalTransform,
@@ -1037,7 +1023,7 @@ pub fn ingest_item(
         }
         ingested.insert(item_entity);
         // Always despawn - respawn later if needed
-        commands.entity(item_entity).despawn_recursive();
+        commands.entity(item_entity).despawn();
 
         let remainder = item.amount - ingested_amount;
         if remainder == 0.0 {

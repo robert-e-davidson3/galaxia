@@ -63,17 +63,20 @@ impl TreeMinigame {
         Self::new(self.level + 1)
     }
 
-    pub fn spawn(&self, parent: &mut ChildBuilder, asset_server: &AssetServer) {
-        parent.spawn(SpriteBundle {
-            texture: asset_server.load("oak-tree-white-background-300x300.png"),
-            sprite: Sprite {
+    pub fn spawn(
+        &self,
+        parent: &mut ChildSpawnerCommands,
+        asset_server: &AssetServer,
+    ) {
+        parent.spawn((
+            Sprite {
+                image: asset_server.load("oak-tree-white-background-300x300.png"),
                 color: Color::srgba(1.0, 1.0, 1.0, 1.0),
                 custom_size: Some(Vec2::new(AREA.width, AREA.height)),
                 ..default()
             },
-            transform: Transform::from_xyz(0.0, 0.0, 0.0),
-            ..default()
-        });
+            Transform::from_xyz(0.0, 0.0, 0.0),
+        ));
     }
 
     pub fn ingest_item(&mut self) -> f32 {
@@ -99,7 +102,8 @@ impl TreeMinigame {
 pub struct UnpickedFruitBundle {
     pub unpicked_fruit: UnpickedFruit,
     pub area: CircularArea,
-    pub sprite: SpriteBundle,
+    pub sprite: Sprite,
+    pub transform: Transform,
 }
 
 impl UnpickedFruitBundle {
@@ -116,18 +120,18 @@ impl UnpickedFruitBundle {
                 minigame,
             },
             area,
-            sprite: SpriteBundle {
-                texture: asset_server.load(
+            sprite: Sprite {
+                image: asset_server.load(
                     Item::new_physical(fruit, PhysicalMaterial::Fruit, 1.0)
                         .asset(),
                 ),
-                transform: Transform::from_xyz(
-                    transform.translation.x,
-                    transform.translation.y,
-                    1.0,
-                ),
                 ..default()
             },
+            transform: Transform::from_xyz(
+                transform.translation.x,
+                transform.translation.y,
+                1.0,
+            ),
         }
     }
 }
@@ -175,7 +179,7 @@ pub fn update(
             // despawn_recursive so the fruit detaches from the tree minigame's
             // Children list; a plain despawn leaves a stale child reference that
             // the levelup despawn_recursive later hits (B0003).
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
             let (minigame, minigame_transform, minigame_area) =
                 tree_minigames_query.get_mut(fruit.minigame).unwrap();
 
@@ -225,7 +229,7 @@ pub fn fixed_update(
 
         let needed_time_seconds =
             5.0 - (tree_minigame.level as f32 * 0.05).min(4.0);
-        let elapsed_seconds = time.elapsed_seconds();
+        let elapsed_seconds = time.elapsed_secs();
 
         if elapsed_seconds - tree_minigame.last_fruit_time
             <= needed_time_seconds
