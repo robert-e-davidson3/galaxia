@@ -135,7 +135,7 @@ impl RuneMinigame {
     // 1 -> 1
     // 2 -> 2
     fn _blocks_per_row(level: u8) -> u8 {
-        if level % 2 == 0 {
+        if level.is_multiple_of(2) {
             1 + level / 2
         } else {
             2 + level / 2

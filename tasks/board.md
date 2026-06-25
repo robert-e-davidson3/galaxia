@@ -35,7 +35,6 @@ Known work, not yet ready or not yet sequenced.
 
 ### Systems & performance
 
-- [ ] **Inventory performance** (`src/libs/inventory.rs:306,315`) — short-circuit the item listing instead of iterating past the page, and pre-allocate the result `Vec`.
 - [ ] **Mouse run-conditions** (`src/libs/mouse.rs:184,196`) — replace the TODO links with proper Bevy run conditions (https://bevy-cheatbook.github.io/programming/run-conditions.html).
 - [ ] **Area nearest-point** (`src/libs/area.rs:217`) — `nearest` returns cardinal positions only; make it actually nearest.
 - [ ] **Area centering** (`src/libs/area.rs:83`) — "center before position" TODO.
@@ -54,8 +53,9 @@ Known work, not yet ready or not yet sequenced.
 
 ### Tech debt / architecture
 
-_(The big Bevy 0.14 → 0.18.1 stack upgrade landed 2026-06-23 — all four steps green, 25 tests
-passing. See `logs/2026-06-23.md`. Not yet verified in the running game.)_
+_(The big Bevy 0.14 → 0.18.1 stack upgrade landed 2026-06-23 — all four steps green. See
+`logs/2026-06-23.md`. Verified in the running game 2026-06-24: window renders, B0004 gone,
+inventory works.)_
 
 ### Bugs
 

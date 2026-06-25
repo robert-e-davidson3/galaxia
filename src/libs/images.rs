@@ -431,7 +431,7 @@ pub mod image_gen {
         let bits: Vec<Vec<bool>> = rune::rune_to_pixels(&r);
         let height = bits.len();
         let width = bits[0].len();
-        let mut data = Vec::with_capacity((width * width * 4) as usize);
+        let mut data = Vec::with_capacity(width * width * 4);
         for row in &bits {
             for &bit in row {
                 data.extend_from_slice(&[0, 0, 0, if bit { 255 } else { 0 }]);
