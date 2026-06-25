@@ -40,16 +40,14 @@ impl ItemBundle {
             radius: item.size(),
         };
         let density = item.density();
-        let texture: Handle<Image> =
-            match generated_image_assets.get(&item.uid()) {
-                Some(texture) => texture,
-                None => {
-                    let image = item.draw(&mut WyRand::new(SEED));
-                    let texture = images.add(image.clone());
-                    generated_image_assets.insert(item.uid(), &texture);
-                    texture
-                }
-            };
+        let texture: Handle<Image> = generated_image_assets
+            .get(&item.uid())
+            .unwrap_or_else(|| {
+                let image = item.draw(&mut WyRand::new(SEED));
+                let texture = images.add(image.clone());
+                generated_image_assets.insert(item.uid(), &texture);
+                texture
+            });
         Self {
             item,
             area,
@@ -484,15 +482,7 @@ pub mod rune {
     fn pattern_to_pixels<const W: usize, const H: usize>(
         pattern: &[[bool; W]; H],
     ) -> Vec<Vec<bool>> {
-        let mut pixels: Vec<Vec<bool>> = Vec::with_capacity(H);
-        for col in pattern.iter() {
-            let mut row: Vec<bool> = Vec::with_capacity(W);
-            for &pixel in col.iter() {
-                row.push(pixel);
-            }
-            pixels.push(row);
-        }
-        pixels
+        pattern.iter().map(|col| col.to_vec()).collect()
     }
 
     pub fn rune_to_pixels(rune: &Rune) -> Vec<Vec<bool>> {
@@ -1132,23 +1122,23 @@ pub fn combine_loose_items(
                 continue;
             }
             // only loose items handled
-            let items = match loose_item_query.get_many([*entity1, *entity2]) {
-                Ok(r) => r,
-                Err(_) => continue,
+            let Ok(items) = loose_item_query.get_many([*entity1, *entity2])
+            else {
+                continue;
             };
             let (item1, transform1, velocity1) = items[0];
             let (item2, transform2, velocity2) = items[1];
 
             // combine if possible
-            let combined = match item1.combine(item2) {
-                Some(c) => c,
-                None => continue,
+            let Some(combined) = item1.combine(item2) else {
+                continue;
             };
 
             // prefer the transform of the stuck item, if any
-            let transform = match stuck_query.get(*entity1) {
-                Ok(_) => transform1,
-                Err(_) => transform2,
+            let transform = if stuck_query.get(*entity1).is_ok() {
+                transform1
+            } else {
+                transform2
             };
 
             // despawn both and add a new one
@@ -1180,32 +1170,28 @@ pub fn grab_items(
     >,
     mut collision_events: MessageReader<CollisionEvent>,
 ) {
-    let Ok(player) = player_query.single() else {
+    let Ok((player_entity, player_area)) = player_query.single() else {
         return;
     };
-    let (player_entity, player_area) = player;
     let Ok(rapier_context) = read_rapier_context.single() else {
         return;
     };
 
     for collision_event in collision_events.read() {
         if let CollisionEvent::Started(entity1, entity2, _) = collision_event {
-            let other: Entity;
-            let player_is_first: bool;
-            if *entity1 == player_entity {
-                other = *entity2;
-                player_is_first = true;
+            let (other, player_is_first) = if *entity1 == player_entity {
+                (*entity2, true)
             } else if *entity2 == player_entity {
-                other = *entity1;
-                player_is_first = false;
+                (*entity1, false)
             } else {
                 continue;
-            }
+            };
 
-            let Ok(item) = loose_item_query.get_mut(other) else {
+            let Ok((item_area, mut item_velocity)) =
+                loose_item_query.get_mut(other)
+            else {
                 continue;
             };
-            let (item_area, mut item_velocity) = item;
 
             let Some(contact_pair) =
                 rapier_context.contact_pair(player_entity, other)

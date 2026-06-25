@@ -52,8 +52,9 @@ pub fn update_camera(
             .entity(id)
             .and_then(|e| minigame_query.get(e).ok());
         if let Some(minigame_transform) = focus {
-            let Vec3 { x, y, .. } = minigame_transform.translation;
-            let direction = Vec3::new(x, y, camera_transform.translation.z);
+            let direction = minigame_transform
+                .translation
+                .with_z(camera_transform.translation.z);
             camera_transform.translation = camera_transform
                 .translation
                 .lerp(direction, time.delta_secs() * 2.0);
@@ -64,8 +65,8 @@ pub fn update_camera(
 
     // focused on player
 
-    let Vec3 { x, y, .. } = player.translation;
-    let direction = Vec3::new(x, y, camera_transform.translation.z);
+    let direction =
+        player.translation.with_z(camera_transform.translation.z);
 
     // Applies a smooth effect to camera movement using interpolation between
     // the camera position and the player position on the x and y axes.

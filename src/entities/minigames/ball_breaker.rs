@@ -119,9 +119,8 @@ impl BallBreakerMinigame {
             return 0.0;
         }
 
-        let item = match Self::item_is_valid(item) {
-            Some(item) => item,
-            None => return 0.0,
+        let Some(item) = Self::item_is_valid(item) else {
+            return 0.0;
         };
 
         let material = item.material;
@@ -162,29 +161,29 @@ impl BallBreakerMinigame {
     }
 
     pub fn item_is_valid(item: &Item) -> Option<PhysicalItem> {
-        let physical = match item.r#type {
-            ItemType::Physical(data) => data,
-            _ => return None,
+        let ItemType::Physical(physical) = item.r#type else {
+            return None;
         };
 
-        match physical.material {
+        let valid = matches!(
+            physical.material,
             PhysicalMaterial::Mud
-            | PhysicalMaterial::Dirt
-            | PhysicalMaterial::Sandstone
-            | PhysicalMaterial::Granite
-            | PhysicalMaterial::Marble
-            | PhysicalMaterial::Obsidian
-            | PhysicalMaterial::Copper
-            | PhysicalMaterial::Tin
-            | PhysicalMaterial::Iron
-            | PhysicalMaterial::Silver
-            | PhysicalMaterial::Gold
-            | PhysicalMaterial::Diamond
-            | PhysicalMaterial::Amethyst
-            | PhysicalMaterial::FreshWater
-            | PhysicalMaterial::Moss => Some(physical),
-            _ => None,
-        }
+                | PhysicalMaterial::Dirt
+                | PhysicalMaterial::Sandstone
+                | PhysicalMaterial::Granite
+                | PhysicalMaterial::Marble
+                | PhysicalMaterial::Obsidian
+                | PhysicalMaterial::Copper
+                | PhysicalMaterial::Tin
+                | PhysicalMaterial::Iron
+                | PhysicalMaterial::Silver
+                | PhysicalMaterial::Gold
+                | PhysicalMaterial::Diamond
+                | PhysicalMaterial::Amethyst
+                | PhysicalMaterial::FreshWater
+                | PhysicalMaterial::Moss
+        );
+        valid.then_some(physical)
     }
 
     pub fn random_material(level: u8, random: &mut Random) -> PhysicalMaterial {
@@ -466,13 +465,12 @@ pub fn unselected_paddle_update(
     window_query: Query<&Window>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
 ) {
-    let click_position = match get_click_press_position(
+    let Some(click_position) = get_click_press_position(
         camera_query,
         window_query,
         mouse_button_input,
-    ) {
-        Some(world_position) => world_position,
-        None => return,
+    ) else {
+        return;
     };
 
     for (paddle_entity, paddle, paddle_global_transform, paddle_area) in
@@ -519,53 +517,39 @@ pub fn hit_block_fixed_update(
 
     for event in collision_events.read() {
         // only care about collision start
-        let (a, b) = match event {
-            CollisionEvent::Started(a, b, _flags) => (a, b),
-            _ => continue,
+        let CollisionEvent::Started(a, b, _flags) = event else {
+            continue;
         };
 
         // only care about collisions between balls and blocks
-        let ball_entity: Entity;
-        let block_entity: Entity;
-        let ball_material: PhysicalMaterial;
-        let minigame_entity: Entity;
-        match ball_query.get(*a) {
-            Ok(ball) => {
-                ball_entity = *a;
-                block_entity = *b;
-                ball_material = ball.material;
-                minigame_entity = ball.minigame;
-            }
-            Err(_) => match ball_query.get(*b) {
-                Ok(ball) => {
-                    ball_entity = *b;
-                    block_entity = *a;
-                    ball_material = ball.material;
-                    minigame_entity = ball.minigame;
-                }
-                Err(_) => continue,
-            },
-        };
-
-        let block_material: PhysicalMaterial =
-            match block_query.get(block_entity) {
-                Ok(x) => x.material,
-                Err(_) => continue,
+        let (ball_entity, block_entity, ball) =
+            if let Ok(ball) = ball_query.get(*a) {
+                (*a, *b, ball)
+            } else if let Ok(ball) = ball_query.get(*b) {
+                (*b, *a, ball)
+            } else {
+                continue;
             };
+        let ball_material = ball.material;
+        let minigame_entity = ball.minigame;
+
+        let Ok(block) = block_query.get(block_entity) else {
+            continue;
+        };
+        let block_material = block.material;
 
         if broken.contains(&block_entity) || broken.contains(&ball_entity) {
             continue;
         }
 
         // get minigame
-        let (minigame, minigame_global_transform, minigame_area) =
-            match minigame_query.get_mut(minigame_entity) {
-                Ok(x) => x,
-                Err(_) => continue,
-            };
-        let minigame = match minigame.into_inner() {
-            Minigame::BallBreaker(x) => x,
-            _ => continue,
+        let Ok((minigame, minigame_global_transform, minigame_area)) =
+            minigame_query.get_mut(minigame_entity)
+        else {
+            continue;
+        };
+        let Minigame::BallBreaker(minigame) = minigame.into_inner() else {
+            continue;
         };
 
         // break stuff! and spit out resources!

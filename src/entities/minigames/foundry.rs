@@ -167,9 +167,8 @@ pub fn cook_fixed_update(
     for (minigame, minigame_transform, minigame_area, minigame_entity) in
         query.iter_mut()
     {
-        let minigame = match minigame.into_inner() {
-            Minigame::Foundry(minigame) => minigame,
-            _ => continue,
+        let Minigame::Foundry(minigame) = minigame.into_inner() else {
+            continue;
         };
         if minigame.last_cook == 0.0 {
             minigame.last_cook = time.elapsed_secs();
@@ -192,9 +191,8 @@ pub fn cook_fixed_update(
             }
 
             // remove first item in cooking, map, emit
-            let raw = match minigame.cooking.pop_front() {
-                Some(raw) => raw,
-                None => continue,
+            let Some(raw) = minigame.cooking.pop_front() else {
+                continue;
             };
             minigame.last_cook = time.elapsed_secs();
 

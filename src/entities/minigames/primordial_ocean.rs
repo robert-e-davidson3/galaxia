@@ -67,8 +67,7 @@ impl PrimordialOceanMinigame {
     }
 
     pub fn spawn(&self, parent: &mut ChildSpawnerCommands) {
-        let radius = self.radius;
-        parent.spawn(OceanBundle::new(parent.target_entity(), radius));
+        parent.spawn(OceanBundle::new(parent.target_entity(), self.radius));
     }
 
     pub fn ingest_item(
@@ -112,9 +111,8 @@ impl PrimordialOceanMinigame {
     }
 
     pub fn item_is_valid(item: &Item) -> bool {
-        let physical = match item.r#type {
-            ItemType::Physical(data) => data,
-            _ => return false,
+        let ItemType::Physical(physical) = item.r#type else {
+            return false;
         };
 
         matches!(physical.material, PhysicalMaterial::SaltWater)

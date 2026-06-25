@@ -116,10 +116,8 @@ impl RuneMinigame {
     //
 
     pub fn expected_level(&self) -> u8 {
-        match self.highest_level_rune {
-            Some(rune) => Self::rune_level(&rune),
-            None => 0,
-        }
+        self.highest_level_rune
+            .map_or(0, |rune| Self::rune_level(&rune))
     }
 
     pub fn blocks_per_row(&self) -> u8 {
@@ -151,15 +149,11 @@ impl RuneMinigame {
     }
 
     pub fn set_highest_level_rune(&mut self, rune: Rune) {
-        if self.highest_level_rune.is_none() {
-            self.highest_level_rune = Some(rune);
-        } else {
-            let current_level =
-                Self::rune_level(&self.highest_level_rune.unwrap());
-            let new_level = Self::rune_level(&rune);
-            if new_level > current_level {
-                self.highest_level_rune = Some(rune);
-            }
+        match self.highest_level_rune {
+            Some(current)
+                if Self::rune_level(&rune)
+                    <= Self::rune_level(&current) => {}
+            _ => self.highest_level_rune = Some(rune),
         }
     }
 
@@ -216,10 +210,8 @@ impl RuneMinigame {
     }
 
     pub fn clear(&mut self) {
-        for row in self.pixels.iter_mut() {
-            for pixel in row.iter_mut() {
-                *pixel = false;
-            }
+        for pixel in self.pixels.iter_mut().flatten() {
+            *pixel = false;
         }
     }
 }
@@ -403,5 +395,28 @@ pub fn fixed_update(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn set_highest_level_rune_keeps_the_highest() {
+        let mut minigame = RuneMinigame::default();
+        assert_eq!(minigame.highest_level_rune, None);
+
+        // From none, any rune is recorded.
+        minigame.set_highest_level_rune(Rune::Connector); // level 2
+        assert_eq!(minigame.highest_level_rune, Some(Rune::Connector));
+
+        // A higher-level rune replaces it.
+        minigame.set_highest_level_rune(Rune::Shelter); // level 4
+        assert_eq!(minigame.highest_level_rune, Some(Rune::Shelter));
+
+        // A lower-level rune does not.
+        minigame.set_highest_level_rune(Rune::InclusiveSelf); // level 1
+        assert_eq!(minigame.highest_level_rune, Some(Rune::Shelter));
     }
 }

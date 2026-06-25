@@ -59,8 +59,8 @@ pub mod image_gen {
     }
 
     impl ColorPalette {
-        pub fn new() -> ColorPalette {
-            ColorPalette {
+        pub fn new() -> Self {
+            Self {
                 colorants: Vec::new(),
                 total_weight: 0,
             }
@@ -75,8 +75,8 @@ pub mod image_gen {
         pub fn adjust_alpha_looseness(
             &self,
             alpha_looseness: u8,
-        ) -> ColorPalette {
-            let mut new_palette = ColorPalette::new();
+        ) -> Self {
+            let mut new_palette = Self::new();
             for colorant in &self.colorants {
                 new_palette.add_colorant(
                     colorant.adjust_alpha_looseness(alpha_looseness),
@@ -276,8 +276,8 @@ pub mod image_gen {
             weight: u8,
             looseness: u8,
             alpha_looseness: u8,
-        ) -> Colorant {
-            Colorant {
+        ) -> Self {
+            Self {
                 red,
                 green,
                 blue,
@@ -288,8 +288,8 @@ pub mod image_gen {
             }
         }
 
-        pub fn new_tight(red: u8, green: u8, blue: u8, weight: u8) -> Colorant {
-            Colorant {
+        pub fn new_tight(red: u8, green: u8, blue: u8, weight: u8) -> Self {
+            Self {
                 red,
                 green,
                 blue,
@@ -306,8 +306,8 @@ pub mod image_gen {
             blue: u8,
             looseness: u8,
             weight: u8,
-        ) -> Colorant {
-            Colorant {
+        ) -> Self {
+            Self {
                 red,
                 green,
                 blue,
@@ -318,26 +318,23 @@ pub mod image_gen {
             }
         }
 
-        pub fn adjust_alpha_looseness(&self, alpha_looseness: u8) -> Colorant {
-            Colorant {
+        pub fn adjust_alpha_looseness(&self, alpha_looseness: u8) -> Self {
+            Self {
                 alpha_looseness,
                 ..*self
             }
         }
 
         pub fn pick(&self, rand: &mut WyRand) -> Color {
-            let red: u8;
-            let green: u8;
-            let blue: u8;
-            if self.looseness == 0 {
-                red = self.red;
-                green = self.green;
-                blue = self.blue;
+            let (red, green, blue) = if self.looseness == 0 {
+                (self.red, self.green, self.blue)
             } else {
-                red = Self::random_of_color(self.red, rand, self.looseness);
-                green = Self::random_of_color(self.green, rand, self.looseness);
-                blue = Self::random_of_color(self.blue, rand, self.looseness);
-            }
+                (
+                    Self::random_of_color(self.red, rand, self.looseness),
+                    Self::random_of_color(self.green, rand, self.looseness),
+                    Self::random_of_color(self.blue, rand, self.looseness),
+                )
+            };
             let alpha: u8 = if self.alpha_looseness == 0 {
                 self.alpha
             } else {
@@ -370,8 +367,8 @@ pub mod image_gen {
     }
 
     impl Color {
-        pub fn new(red: u8, green: u8, blue: u8, alpha: u8) -> Color {
-            Color {
+        pub fn new(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
+            Self {
                 red,
                 green,
                 blue,
@@ -379,8 +376,8 @@ pub mod image_gen {
             }
         }
 
-        pub fn new_clear() -> Color {
-            Color {
+        pub fn new_clear() -> Self {
+            Self {
                 red: 0,
                 green: 0,
                 blue: 0,
@@ -396,8 +393,8 @@ pub mod image_gen {
     }
 
     impl Colors {
-        pub fn new(width: u32, height: u32) -> Colors {
-            Colors {
+        pub fn new(width: u32, height: u32) -> Self {
+            Self {
                 bytes: Vec::with_capacity((width * height) as usize * 4),
                 width,
                 height,

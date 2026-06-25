@@ -168,8 +168,7 @@ pub fn follow_mouse_update(
 
         // delta needed because GlobalTransform is read-only
         let delta = new_global_position - old_global_position;
-        transform.translation.x += delta.x;
-        transform.translation.y += delta.y;
+        transform.translation += delta.extend(0.0);
     }
 }
 
@@ -271,7 +270,7 @@ fn manage_click_indicator(
     let progress = (elapsed / mouse_state.long_click_threshold).min(1.0);
     let position = mouse_state.current_position;
 
-    if indicator_query.iter().count() == 0 {
+    if indicator_query.is_empty() {
         // Create the indicator
         let shape = shapes::Circle {
             radius: indicator_config.radius,
@@ -338,10 +337,10 @@ pub fn update_hover_text(
     window_query: Query<&Window>,
     mut hover_text_query: Query<(Entity, &mut HoverText, &GlobalTransform)>,
 ) {
-    let mouse_position = match get_mouse_position(&camera_query, &window_query)
-    {
-        Some(pos) => pos,
-        None => return,
+    let Some(mouse_position) =
+        get_mouse_position(&camera_query, &window_query)
+    else {
+        return;
     };
 
     for (entity, mut hover_text, transform) in hover_text_query.iter_mut() {

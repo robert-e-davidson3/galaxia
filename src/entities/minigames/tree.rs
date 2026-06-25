@@ -162,13 +162,12 @@ pub fn update(
         &RectangularArea,
     )>,
 ) {
-    let click_position = match get_click_release_position(
+    let Some(click_position) = get_click_release_position(
         camera_query,
         window_query,
         mouse_button_input,
-    ) {
-        Some(world_position) => world_position,
-        None => return,
+    ) else {
+        return;
     };
 
     for (entity, fruit, global_transform, area) in clickable_query.iter() {
@@ -215,12 +214,9 @@ pub fn fixed_update(
         if leveling_up_query.get(entity).is_ok() {
             continue;
         }
-        let tree_minigame =
-            if let Minigame::Tree(tree_minigame) = minigame.into_inner() {
-                tree_minigame
-            } else {
-                continue;
-            };
+        let Minigame::Tree(tree_minigame) = minigame.into_inner() else {
+            continue;
+        };
 
         let max_fruit = 1 + (tree_minigame.level / 10) as u32;
         if tree_minigame.count >= max_fruit {

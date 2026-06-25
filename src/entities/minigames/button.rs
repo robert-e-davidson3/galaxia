@@ -162,14 +162,13 @@ pub fn update(
                 continue;
             }
 
-            let (minigame, minigame_transform, minigame_area) =
-                match minigame_query.get_mut(button.game) {
-                    Ok(x) => x,
-                    Err(_) => continue,
-                };
-            let minigame = match minigame.into_inner() {
-                Minigame::Button(minigame) => minigame,
-                _ => continue,
+            let Ok((minigame, minigame_transform, minigame_area)) =
+                minigame_query.get_mut(button.game)
+            else {
+                continue;
+            };
+            let Minigame::Button(minigame) = minigame.into_inner() else {
+                continue;
             };
             minigame.count += 1;
             let mut text = text_query.get_mut(button.text).unwrap();

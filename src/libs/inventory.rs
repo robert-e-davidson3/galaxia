@@ -18,10 +18,9 @@ pub struct InventoryBundle {
 
 impl InventoryBundle {
     pub fn new(inventory: Inventory, position: Vec2) -> Self {
-        let (x, y) = position.into();
-        InventoryBundle {
+        Self {
             inventory,
-            transform: Transform::from_translation(Vec3::new(x, y, 0.0)),
+            transform: Transform::from_translation(position.extend(0.0)),
             visibility: Visibility::default(),
         }
     }
@@ -46,13 +45,12 @@ impl InventoryBundle {
         );
         let inventory_area =
             RectangularArea::new(inventory_size.x, inventory_size.y);
-        let (origin_x, origin_y) = position.into();
         parent
             // Spatial components must exist on the parent before its slot children
             // spawn, or each slot's GlobalTransform fires B0004 (parent without
             // one). Same reasoning as the minigame entity spawn.
             .spawn((
-                Transform::from_translation(Vec3::new(origin_x, origin_y, 0.0)),
+                Transform::from_translation(position.extend(0.0)),
                 Visibility::default(),
             ))
             .with_children(|parent| {
@@ -115,7 +113,7 @@ impl Inventory {
         slots: Vec<Entity>,
         dimensions: (u32, u32),
     ) -> Self {
-        Inventory {
+        Self {
             owner,
             slots,
             dimensions,
@@ -147,7 +145,7 @@ impl SlotBundle {
             slot_position,
             inventory_area,
         );
-        SlotBundle {
+        Self {
             slot,
             area,
             sprite,
@@ -164,7 +162,7 @@ impl SlotBundle {
         inventory_area: RectangularArea,
     ) -> Entity {
         parent
-            .spawn(SlotBundle::new(
+            .spawn(Self::new(
                 slot,
                 slot_position,
                 slot_size,
@@ -190,18 +188,12 @@ impl SlotBundle {
         slot: &Slot,
         size: Vec2,
     ) {
-        match slot.item {
-            Some(item) => {
-                let texture = Self::get_texture(
-                    images,
-                    generated_image_assets,
-                    &item,
-                );
-                commands.insert(Self::present_sprite(texture, &size));
-            }
-            None => {
-                commands.insert(Self::missing_sprite());
-            }
+        if let Some(item) = slot.item {
+            let texture =
+                Self::get_texture(images, generated_image_assets, &item);
+            commands.insert(Self::present_sprite(texture, &size));
+        } else {
+            commands.insert(Self::missing_sprite());
         }
     }
 
@@ -277,10 +269,9 @@ pub fn remove_item(
     item: ItemType,
     amount: f32,
 ) -> (f32, f32) {
-    if !inventory.contains_key(&item) {
+    let Some(current) = inventory.get_mut(&item) else {
         return (0.0, amount);
-    }
-    let current = inventory.get_mut(&item).unwrap();
+    };
     let removed = amount.min(*current);
     *current -= removed;
     if *current > 0.0 {
@@ -303,21 +294,18 @@ pub fn filter_items(
 ) -> Vec<Item> {
     let offset = per_page * page;
     let filter = filter.to_lowercase();
-    let mut result = Vec::with_capacity(per_page);
-    let page_items = inventory
+    inventory
         .iter()
         .filter(|(item_type, _)| {
             item_type.uid().to_lowercase().contains(&filter)
         })
         .skip(offset)
-        .take(per_page);
-    for (item_type, amount) in page_items {
-        result.push(Item {
+        .take(per_page)
+        .map(|(item_type, amount)| Item {
             r#type: *item_type,
             amount: *amount,
-        });
-    }
-    result
+        })
+        .collect()
 }
 
 // Total items matching the filter, across all pages. Used to bound paging.
@@ -431,16 +419,16 @@ pub fn handle_slot_click(
     }
     let click_position = mouse_state.current_position;
 
-    let mut slot = match slot_query.iter_mut().find(|(_, transform, area)| {
-        area.is_within(click_position, transform.translation().truncate())
-    }) {
-        Some((slot, _, _)) => slot,
-        None => return,
+    let Some((mut slot, _, _)) =
+        slot_query.iter_mut().find(|(_, transform, area)| {
+            area.is_within(click_position, transform.translation().truncate())
+        })
+    else {
+        return;
     };
 
-    let item_type = match slot.item {
-        Some(item) => item,
-        None => return,
+    let Some(item_type) = slot.item else {
+        return;
     };
 
     let inventory: &Inventory = inventory_query.get(slot.inventory).unwrap();
@@ -452,13 +440,13 @@ pub fn handle_slot_click(
         return;
     };
 
-    let amount: f32 = match items.get(&item_type) {
-        Some(amount) => match mouse_state.get_click_type() {
-            ClickType::Short => amount.min(1.0),
-            ClickType::Long => *amount,
-            ClickType::Invalid => return,
-        },
-        None => return,
+    let Some(amount) = items.get(&item_type) else {
+        return;
+    };
+    let amount: f32 = match mouse_state.get_click_type() {
+        ClickType::Short => amount.min(1.0),
+        ClickType::Long => *amount,
+        ClickType::Invalid => return,
     };
     let (removed, remaining) = remove_item(items, item_type, amount);
     commands.spawn(ItemBundle::new_from_minigame(
@@ -548,11 +536,7 @@ pub fn set_slots(
         );
         for (index, slot_entity) in inventory.slots.iter().enumerate() {
             let mut slot = slot_query.get_mut(*slot_entity).unwrap();
-            if let Some(item) = items.get(index) {
-                slot.item = Some(item.r#type);
-            } else {
-                slot.item = None;
-            }
+            slot.item = items.get(index).map(|item| item.r#type);
         }
     }
 }

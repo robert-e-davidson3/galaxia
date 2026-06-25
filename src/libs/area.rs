@@ -22,8 +22,8 @@ impl PositionedArea {
 
     pub fn grow(&self, amount: f32) -> Self {
         Self {
-            position: self.position,
             area: self.area.grow(amount),
+            ..*self
         }
     }
 
@@ -63,10 +63,7 @@ impl Area {
     // Returns the size in three dimensions
     // For 2D areas, z is always 0.0.
     pub fn dimensions3(&self) -> Vec3 {
-        match self {
-            Area::Rectangular(rect) => rect.dimensions3(),
-            Area::Circular(circle) => circle.dimensions3(),
-        }
+        self.dimensions().extend(0.0)
     }
 
     // Changes size of area by the amount.
@@ -186,7 +183,7 @@ impl RectangularArea {
     }
 
     pub fn dimensions3(&self) -> Vec3 {
-        Vec3::new(self.width, self.height, 0.0)
+        self.dimensions().extend(0.0)
     }
 
     pub fn grow(&self, x: f32, y: f32) -> Self {
@@ -269,11 +266,11 @@ impl CircularArea {
     }
 
     pub fn dimensions(&self) -> Vec2 {
-        Vec2::new(self.radius * 2.0, self.radius * 2.0)
+        Vec2::splat(self.radius * 2.0)
     }
 
     pub fn dimensions3(&self) -> Vec3 {
-        Vec3::new(self.radius * 2.0, self.radius * 2.0, 0.0)
+        self.dimensions().extend(0.0)
     }
 
     pub fn grow(&self, radius: f32) -> Self {
@@ -295,13 +292,11 @@ impl CircularArea {
 
     pub fn nearest_edge(&self, position: Vec2, center: Vec2) -> Vec2 {
         let direction = position - center;
-        if direction.length() <= 0.001 {
+        let distance = direction.length();
+        if distance <= 0.001 {
             return Vec2::new(center.x + self.radius, center.y);
         }
-
-        let distance = direction.length();
-        let scale = self.radius / distance;
-        center + direction * scale
+        center + direction * (self.radius / distance)
     }
 
     pub fn clamp(&self, position: Vec2, center: Vec2) -> Vec2 {
@@ -403,6 +398,12 @@ mod tests {
         assert_eq!(edge, Vec2::new(5.0, 5.0));
     }
 
+    #[test]
+    fn rect_dimensions3_zeros_z() {
+        let rect = RectangularArea::new(100.0, 60.0);
+        assert_eq!(rect.dimensions3(), Vec3::new(100.0, 60.0, 0.0));
+    }
+
     // --- CircularArea ---
 
     #[test]
@@ -449,6 +450,25 @@ mod tests {
         let circle = CircularArea::new(5.0).grow(3.0);
         assert_eq!(circle.radius, 8.0);
         assert_eq!(circle.dimensions(), Vec2::new(16.0, 16.0));
+    }
+
+    #[test]
+    fn circle_dimensions3_is_bounding_box_with_zero_z() {
+        let circle = CircularArea::new(5.0);
+        assert_eq!(circle.dimensions3(), Vec3::new(10.0, 10.0, 0.0));
+    }
+
+    // --- PositionedArea ---
+
+    #[test]
+    fn positioned_area_grow_keeps_position_and_grows_area() {
+        let pa = PositionedArea::new(
+            Vec2::new(7.0, -4.0),
+            Area::Circular(CircularArea::new(5.0)),
+        );
+        let grown = pa.grow(3.0);
+        assert_eq!(grown.position, Vec2::new(7.0, -4.0));
+        assert_eq!(grown.dimensions(), Vec2::splat(16.0));
     }
 
     // --- Conversions ---

@@ -133,7 +133,7 @@ impl LifeMinigame {
     // 1 -> 1
     // 2 -> 2
     fn _blocks_per_row(level: u8) -> u8 {
-        if level % 2 == 0 {
+        if level.is_multiple_of(2) {
             1 + level / 2
         } else {
             2 + level / 2
@@ -156,7 +156,7 @@ impl LifeMinigame {
         if x >= self.cells[y].len() {
             return;
         }
-        self.cells[y][x] = value.clone();
+        self.cells[y][x] = value;
     }
 
     pub fn get_cell(&self, x: u8, y: u8) -> Option<ItemType> {
@@ -171,10 +171,8 @@ impl LifeMinigame {
     }
 
     pub fn clear(&mut self) {
-        for row in self.cells.iter_mut() {
-            for cell in row.iter_mut() {
-                *cell = None;
-            }
+        for cell in self.cells.iter_mut().flatten() {
+            *cell = None;
         }
     }
 }
@@ -266,20 +264,18 @@ pub fn cell_update(
             mouse_position,
             cell_global_transform.translation().truncate(),
         ) {
-            let (minigame, minigame_transform, minigame_area) =
-                match minigame_query.get_mut(minigame_entity) {
-                    Ok((minigame, t, a)) => (minigame, t, a),
-                    Err(_) => continue,
-                };
-            let minigame = match minigame.into_inner() {
-                Minigame::Life(minigame) => minigame,
-                _ => continue,
+            let Ok((minigame, minigame_transform, minigame_area)) =
+                minigame_query.get_mut(minigame_entity)
+            else {
+                continue;
+            };
+            let Minigame::Life(minigame) = minigame.into_inner() else {
+                continue;
             };
 
             // Only "on" cells do something when clicked
-            let item_type = match minigame.get_cell(cell.x, cell.y) {
-                Some(c) => c,
-                None => continue,
+            let Some(item_type) = minigame.get_cell(cell.x, cell.y) else {
+                continue;
             };
 
             // Clear cell

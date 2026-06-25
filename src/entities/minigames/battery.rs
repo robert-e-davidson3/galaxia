@@ -87,12 +87,11 @@ impl BatteryMinigame {
         minigame_entity: Entity,
         item: &Item,
     ) -> f32 {
-        let added = if self.can_accept(item) {
-            add_item(&mut self.items, item.r#type, item.amount);
-            item.amount
-        } else {
+        if !self.can_accept(item) {
             return 0.0; // Reject the item
-        };
+        }
+        add_item(&mut self.items, item.r#type, item.amount);
+        let added = item.amount;
 
         // Poke Inventory so it redraws
         mark_component_changed::<Inventory>(commands, self.inventory.unwrap());
@@ -114,9 +113,8 @@ impl BatteryMinigame {
     }
 
     pub fn can_accept(&self, item: &Item) -> bool {
-        let energy = match item.r#type {
-            ItemType::Energy(data) => data,
-            _ => return false,
+        let ItemType::Energy(energy) = item.r#type else {
+            return false;
         };
 
         // Level-based restrictions

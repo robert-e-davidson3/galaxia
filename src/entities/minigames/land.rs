@@ -194,7 +194,7 @@ impl LandMinigame {
         value: Option<ItemType>,
     ) -> Option<ItemType> {
         let (x, y) = (x as usize, y as usize);
-        let old = self.life[y][x].clone();
+        let old = self.life[y][x];
         self.life[y][x] = value;
         old
     }
@@ -412,21 +412,20 @@ pub fn cell_update(
             mouse_position,
             cell_global_transform.translation().truncate(),
         ) {
-            let (minigame, minigame_transform, minigame_area) =
-                match minigame_query.get_mut(minigame_entity) {
-                    Ok((minigame, t, a)) => (minigame, t, a),
-                    Err(_) => continue,
-                };
-            let minigame = match minigame.into_inner() {
-                Minigame::Land(minigame) => minigame,
-                _ => continue,
+            let Ok((minigame, minigame_transform, minigame_area)) =
+                minigame_query.get_mut(minigame_entity)
+            else {
+                continue;
+            };
+            let Minigame::Land(minigame) = minigame.into_inner() else {
+                continue;
             };
 
             // Clear cell and emit item, if present.
             // Otherwise, do nothing.
-            let item_type = match minigame.set_life_cell(cell.x, cell.y, None) {
-                Some(c) => c,
-                None => continue,
+            let Some(item_type) = minigame.set_life_cell(cell.x, cell.y, None)
+            else {
+                continue;
             };
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,

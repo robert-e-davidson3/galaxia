@@ -20,7 +20,7 @@ pub struct MinigameBundle {
 impl MinigameBundle {
     pub fn new(minigame: Minigame, transform: Transform) -> Self {
         let area = minigame.area();
-        MinigameBundle {
+        Self {
             minigame,
             transform,
             visibility: Visibility::default(),
@@ -221,13 +221,7 @@ impl Minigame {
         >,
         player_query: &Query<(&Transform, &CircularArea, Entity), With<Player>>,
     ) -> Entity {
-        Self::clear_clutter(
-            self,
-            commands,
-            &transform,
-            item_query,
-            player_query,
-        );
+        self.clear_clutter(commands, &transform, item_query, player_query);
 
         let area = self.area();
         let name = self.name();
@@ -442,7 +436,7 @@ pub fn levelup(
                 let pos = unlocked_minigame.position();
                 let entity = unlocked_minigame.spawn(
                     &mut commands,
-                    Transform::from_translation(Vec3::new(pos.x, pos.y, 0.0)),
+                    Transform::from_translation(pos.extend(0.0)),
                     &mut random,
                     &asset_server,
                     &mut images,
@@ -619,10 +613,7 @@ impl MinigamesResource {
     }
 
     pub fn entity(&self, minigame: &str) -> Option<Entity> {
-        self.0
-            .get(minigame)
-            .map(|(entity, _, _)| *entity)
-            .unwrap_or(None)
+        self.0.get(minigame).and_then(|(entity, _, _)| *entity)
     }
 
     pub fn is_unlocked(&self, minigame: &str) -> bool {
@@ -776,7 +767,7 @@ pub fn spawn_minigame_engage_button(
         ))
         .with_children(|parent| {
             parent.spawn((
-                Text2d::new(format!("{}", level)),
+                Text2d::new(level.to_string()),
                 TextFont {
                     font_size: 24.0,
                     ..default()
@@ -800,13 +791,12 @@ pub fn engage_button_update(
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     mut engaged: ResMut<Engaged>,
 ) {
-    let click_position = match get_click_release_position(
+    let Some(click_position) = get_click_release_position(
         camera_query,
         window_query,
         mouse_button_input,
-    ) {
-        Some(world_position) => world_position,
-        None => return,
+    ) else {
+        return;
     };
 
     for (engage_button, global_transform, area) in button_query.iter() {
@@ -970,21 +960,17 @@ pub fn ingest_item(
 ) {
     let mut ingested: HashSet<Entity> = HashSet::new();
     for event in collision_events.read() {
+        let CollisionEvent::Started(e1, e2, _) = event else {
+            continue;
+        };
         let (item_entity, aura_entity, item, item_transform, item_velocity) =
-            match event {
-                CollisionEvent::Started(e1, e2, _) => match item_query.get(*e1)
-                {
-                    Ok((item, transform, velocity)) => {
-                        (*e1, *e2, item, transform, velocity)
-                    }
-                    Err(_) => match item_query.get(*e2) {
-                        Ok((item, transform, velocity)) => {
-                            (*e2, *e1, item, transform, velocity)
-                        }
-                        Err(_) => continue,
-                    },
-                },
-                _ => continue,
+            if let Ok((item, transform, velocity)) = item_query.get(*e1) {
+                (*e1, *e2, item, transform, velocity)
+            } else if let Ok((item, transform, velocity)) = item_query.get(*e2)
+            {
+                (*e2, *e1, item, transform, velocity)
+            } else {
+                continue;
             };
 
         if ingested.contains(&item_entity) {
@@ -992,15 +978,15 @@ pub fn ingest_item(
         }
 
         // Get the minigame
-        let aura = match aura_query.get(aura_entity) {
-            Ok(x) => x,
-            Err(_) => continue,
+        let Ok(aura) = aura_query.get(aura_entity) else {
+            continue;
         };
-        let (minigame, minigame_transform, minigame_area) =
-            match minigame_query.get_mut(aura.minigame) {
-                Ok((m, t, a)) => (m.into_inner(), t, a),
-                Err(_) => continue,
-            };
+        let Ok((minigame, minigame_transform, minigame_area)) =
+            minigame_query.get_mut(aura.minigame)
+        else {
+            continue;
+        };
+        let minigame = minigame.into_inner();
 
         // Skip if minigame is leveling up to prevent conflicts
         if leveling_up_query.get(aura.minigame).is_ok() {
