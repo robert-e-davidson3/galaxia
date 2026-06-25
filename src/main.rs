@@ -64,6 +64,7 @@ fn main() {
                 minigames::ball_breaker::unselected_paddle_update,
                 minigames::primordial_ocean::update,
                 inventory::handle_slot_click,
+                inventory::handle_scroll_click,
                 mouse::update_mouse_state,
                 mouse::follow_mouse_update,
                 mouse::update_hover_text,

@@ -36,7 +36,6 @@ Known work, not yet ready or not yet sequenced.
 ### Systems & performance
 
 - [ ] **Inventory performance** (`src/libs/inventory.rs:306,315`) — short-circuit the item listing instead of iterating past the page, and pre-allocate the result `Vec`.
-- [ ] **Inventory scroll bar** — finish scrolling inventories. Partially scaffolded in `inventory.rs`: `ScrollButton` / `ScrollButtonBundle` (left/right arrow sprites) exist and the listing is paginated (`offset` / `per_page`), but no system handles button clicks to change page and the buttons aren't spawned.
 - [ ] **Mouse run-conditions** (`src/libs/mouse.rs:184,196`) — replace the TODO links with proper Bevy run conditions (https://bevy-cheatbook.github.io/programming/run-conditions.html).
 - [ ] **Area nearest-point** (`src/libs/area.rs:217`) — `nearest` returns cardinal positions only; make it actually nearest.
 - [ ] **Area centering** (`src/libs/area.rs:83`) — "center before position" TODO.

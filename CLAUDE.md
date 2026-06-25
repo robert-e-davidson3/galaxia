@@ -17,3 +17,7 @@ Galaxia is a Rust game built on the Bevy engine: a collection of interconnected 
 - When you make a decision or learn something non-obvious, write it to today's log. If it's a durable fact (not over-time nuance), also update or create the relevant `references/` file.
 - When you find yourself running the same procedure twice, write it up as a skill.
 - Adding a minigame? Follow `skills/add-minigame.md`.
+
+## Directives
+
+- Do not launch the game, as it grabs attention from the user and messes up the window layouts.

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use bevy::ecs::system::EntityCommands;
 use bevy::prelude::*;
+use bevy_prototype_lyon::prelude::*;
 use wyrand::WyRand;
 
 use crate::entities::item::*;
@@ -76,6 +77,19 @@ impl InventoryBundle {
                         item_index += 1;
                     }
                 }
+                // Paging controls, just below the slot grid.
+                let button_y =
+                    -inventory_size.y / 2.0 - SCROLL_BUTTON_SIZE;
+                parent.spawn(ScrollButtonBundle::new(
+                    inventory_entity,
+                    true,
+                    Vec2::new(-SCROLL_BUTTON_SIZE, button_y),
+                ));
+                parent.spawn(ScrollButtonBundle::new(
+                    inventory_entity,
+                    false,
+                    Vec2::new(SCROLL_BUTTON_SIZE, button_y),
+                ));
             })
             .insert(InventoryBundle::new(inventory, position))
             .id()
@@ -306,6 +320,20 @@ pub fn filter_items(
     result
 }
 
+// Total items matching the filter, across all pages. Used to bound paging.
+pub fn count_filtered_items(
+    inventory: &HashMap<ItemType, f32>,
+    filter: &str,
+) -> usize {
+    let filter = filter.to_lowercase();
+    inventory
+        .iter()
+        .filter(|(item_type, _)| {
+            item_type.uid().to_lowercase().contains(&filter)
+        })
+        .count()
+}
+
 //
 // TEXT ENTRY and SEARCH
 //
@@ -339,33 +367,49 @@ struct TextBox;
 #[derive(Bundle)]
 struct ScrollButtonBundle {
     button: ScrollButton,
-    sprite: Sprite,
+    area: RectangularArea,
+    shape: Shape,
     transform: Transform,
 }
 
 impl ScrollButtonBundle {
-    fn new(asset_server: &AssetServer, left: bool, position: Vec2) -> Self {
+    // A filled triangle pointing left (previous page) or right (next page).
+    fn new(inventory: Entity, left: bool, position: Vec2) -> Self {
+        let half = SCROLL_BUTTON_SIZE / 2.0;
+        let points = if left {
+            vec![
+                Vec2::new(-half, 0.0),
+                Vec2::new(half, half),
+                Vec2::new(half, -half),
+            ]
+        } else {
+            vec![
+                Vec2::new(half, 0.0),
+                Vec2::new(-half, half),
+                Vec2::new(-half, -half),
+            ]
+        };
         Self {
-            button: ScrollButton { left },
-            sprite: Sprite {
-                image: asset_server.load(if left {
-                    "left_arrow.png"
-                } else {
-                    "right_arrow.png"
-                }),
-                custom_size: Some(Vec2::new(
-                    SCROLL_BUTTON_SIZE,
-                    SCROLL_BUTTON_SIZE,
-                )),
-                ..default()
-            },
-            transform: Transform::from_xyz(position.x, position.y, 0.0),
+            button: ScrollButton { inventory, left },
+            area: RectangularArea::new(
+                SCROLL_BUTTON_SIZE,
+                SCROLL_BUTTON_SIZE,
+            ),
+            shape: ShapeBuilder::with(&shapes::Polygon {
+                points,
+                closed: true,
+            })
+            .fill(Fill::color(Color::srgb(0.8, 0.8, 0.8)))
+            .stroke(Stroke::new(Color::BLACK, 1.0))
+            .build(),
+            transform: Transform::from_xyz(position.x, position.y, 1.0),
         }
     }
 }
 
 #[derive(Component)]
-struct ScrollButton {
+pub struct ScrollButton {
+    inventory: Entity,
     left: bool,
 }
 
@@ -426,6 +470,54 @@ pub fn handle_slot_click(
     ));
     if remaining == 0.0 {
         slot.item.take();
+    }
+}
+
+// Click a scroll button to page the inventory. Mutating `Inventory::page`
+// trips `Changed<Inventory>`, which makes `set_slots` repaint the new page.
+pub fn handle_scroll_click(
+    mouse_state: Res<MouseState>,
+    mut inventory_query: Query<&mut Inventory>,
+    minigame_query: Query<&Minigame>,
+    button_query: Query<(&ScrollButton, &GlobalTransform, &RectangularArea)>,
+) {
+    if !mouse_state.just_released {
+        return;
+    }
+    let click_position = mouse_state.current_position;
+
+    let Some((button, _, _)) =
+        button_query.iter().find(|(_, transform, area)| {
+            area.is_within(click_position, transform.translation().truncate())
+        })
+    else {
+        return;
+    };
+
+    let Ok(mut inventory) = inventory_query.get_mut(button.inventory) else {
+        return;
+    };
+
+    if button.left {
+        if inventory.page > 0 {
+            inventory.page -= 1;
+        }
+        return;
+    }
+
+    // Advancing only makes sense if there's a page past the current one.
+    let Ok(minigame) = minigame_query.get(inventory.owner) else {
+        return;
+    };
+    let Some(stored) = minigame.items() else {
+        return;
+    };
+    let (width, height) = inventory.dimensions;
+    let per_page = (width * height) as usize;
+    let total = count_filtered_items(stored, &inventory.filter);
+    let last_page = total.saturating_sub(1) / per_page;
+    if inventory.page < last_page {
+        inventory.page += 1;
     }
 }
 
@@ -558,6 +650,18 @@ mod tests {
         let seen: HashSet<ItemType> =
             page0.iter().chain(page1.iter()).map(|i| i.r#type).collect();
         assert_eq!(seen.len(), 3);
+    }
+
+    #[test]
+    fn count_filtered_items_counts_all_pages_and_respects_filter() {
+        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
+        let s = store(&[(a, 1.0), (b, 2.0)]);
+        // Counts every match regardless of page size.
+        assert_eq!(count_filtered_items(&s, ""), 2);
+        // The filter narrows the count to matching uids.
+        assert_eq!(count_filtered_items(&s, &a.uid()), 1);
+        assert_eq!(count_filtered_items(&s, "no-such-item"), 0);
     }
 
     #[test]
