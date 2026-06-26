@@ -1,7 +1,6 @@
 #![allow(warnings)]
 
 use bevy::prelude::*;
-use bevy_prototype_lyon::prelude::*;
 
 use crate::entities::*;
 use crate::libs::*;
@@ -309,7 +308,7 @@ pub fn evolve_fixed_update(
     )>,
     leveling_up_query: Query<&LevelingUp, With<Minigame>>,
     cell_query: Query<(Entity, &ChildOf)>,
-    mut fill_query: Query<&mut Shape, With<Cell>>,
+    mut cell_draw_query: Query<&mut Sprite, With<Cell>>,
 ) {
     return; // TODO
 }

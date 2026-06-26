@@ -211,19 +211,39 @@ impl RectangularArea {
             && point.y <= max_y
     }
 
-    // TODO this needs to actually be nearest, not just the cardinal positions
+    // Returns the nearest point on the rectangle's perimeter. For a point
+    // outside the rectangle this is the point clamped onto the boundary; for a
+    // point inside it is the projection onto whichever edge is closest. A point
+    // dead center is equidistant from all edges, so an arbitrary (but
+    // deterministic) edge is chosen.
     pub fn nearest_edge(&self, point: Vec2, center: Vec2) -> Vec2 {
-        let x = if point.x < center.x {
-            center.x + self.left()
+        let left = center.x + self.left();
+        let right = center.x + self.right();
+        let bottom = center.y + self.bottom();
+        let top = center.y + self.top();
+
+        let clamped =
+            Vec2::new(point.x.clamp(left, right), point.y.clamp(bottom, top));
+        // Outside the rectangle: the clamped point is already on the perimeter.
+        if clamped != point {
+            return clamped;
+        }
+
+        // Inside: snap to the closest of the four edges.
+        let to_left = point.x - left;
+        let to_right = right - point.x;
+        let to_bottom = point.y - bottom;
+        let to_top = top - point.y;
+        let nearest = to_left.min(to_right).min(to_bottom).min(to_top);
+        if nearest == to_left {
+            Vec2::new(left, point.y)
+        } else if nearest == to_right {
+            Vec2::new(right, point.y)
+        } else if nearest == to_bottom {
+            Vec2::new(point.x, bottom)
         } else {
-            center.x + self.right()
-        };
-        let y = if point.y < center.y {
-            center.y + self.top()
-        } else {
-            center.y + self.bottom()
-        };
-        Vec2::new(x, y)
+            Vec2::new(point.x, top)
+        }
     }
 
     pub fn clamp(&self, point: Vec2, center: Vec2) -> Vec2 {
@@ -387,15 +407,61 @@ mod tests {
     }
 
     #[test]
-    fn rect_nearest_edge_returns_a_corner_known_limitation() {
-        // Documents CURRENT behavior: nearest_edge on a rectangle snaps to a
-        // corner (and inverts y) instead of the true nearest edge point. See
-        // the TODO on nearest_edge / the "Area nearest-point" board task;
-        // update the expected value when that is fixed.
+    fn rect_nearest_edge_outside_clamps_onto_the_boundary() {
+        let rect = RectangularArea::new(10.0, 10.0); // edges at +/-5
+        // Beyond the right edge but within the vertical band → slides onto the
+        // right edge, keeping y.
+        assert_eq!(
+            rect.nearest_edge(Vec2::new(8.0, 2.0), Vec2::ZERO),
+            Vec2::new(5.0, 2.0)
+        );
+        // Beyond the bottom edge → onto the bottom edge, keeping x.
+        assert_eq!(
+            rect.nearest_edge(Vec2::new(2.0, -8.0), Vec2::ZERO),
+            Vec2::new(2.0, -5.0)
+        );
+        // Diagonally outside → the nearest corner.
+        assert_eq!(
+            rect.nearest_edge(Vec2::new(8.0, -8.0), Vec2::ZERO),
+            Vec2::new(5.0, -5.0)
+        );
+    }
+
+    #[test]
+    fn rect_nearest_edge_inside_projects_to_closest_edge() {
+        let rect = RectangularArea::new(10.0, 10.0); // edges at +/-5
+        // Closest to the right edge.
+        assert_eq!(
+            rect.nearest_edge(Vec2::new(3.0, 0.0), Vec2::ZERO),
+            Vec2::new(5.0, 0.0)
+        );
+        // A point below center snaps DOWN to the bottom edge — this is the
+        // regression guard for the old y-inversion bug, which flipped it up.
+        assert_eq!(
+            rect.nearest_edge(Vec2::new(0.0, -4.0), Vec2::ZERO),
+            Vec2::new(0.0, -5.0)
+        );
+    }
+
+    #[test]
+    fn rect_nearest_edge_center_picks_a_deterministic_edge() {
         let rect = RectangularArea::new(10.0, 10.0);
-        let lower_right = Vec2::new(3.0, -3.0);
-        let edge = rect.nearest_edge(lower_right, Vec2::ZERO);
-        assert_eq!(edge, Vec2::new(5.0, 5.0));
+        // All edges equidistant; the left edge wins the tie-break.
+        assert_eq!(
+            rect.nearest_edge(Vec2::ZERO, Vec2::ZERO),
+            Vec2::new(-5.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn rect_clamp_outside_slides_onto_the_edge() {
+        let rect = RectangularArea::new(10.0, 10.0);
+        // Outside → clamp falls back to nearest_edge (the boundary point),
+        // not a corner.
+        assert_eq!(
+            rect.clamp(Vec2::new(8.0, 2.0), Vec2::ZERO),
+            Vec2::new(5.0, 2.0)
+        );
     }
 
     #[test]

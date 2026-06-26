@@ -17,9 +17,11 @@ _(nothing in flight)_
 Ready to pick up — no open prerequisite.
 
 - [ ] **Finish the incomplete minigame implementations.**
-  - `src/entities/minigames/life.rs:324,327` — implement the missing item-ingestion TODO (fills a random cell).
+  - `src/entities/minigames/life.rs` — implement the missing item-ingestion TODO (fills a random cell); `evolve_fixed_update` is a `return;` stub; `ingest_fixed_update` is empty.
   - `src/entities/minigames/tree.rs:7` — fix `POSITION` (currently `Vec2::ZERO`).
-  - `src/entities/minigames/land.rs:227,282,290` — complete the terrain placement logic (290: stick archaea on a random water-terrain cell).
+  - `src/entities/minigames/land.rs` — complete the terrain placement logic (stick archaea on a random water-terrain cell); `evolve` runs the sim but has no rendering step.
+  - **Wiring gap:** `life`/`land` `cell_update` + `evolve_fixed_update` are NOT registered in `main.rs`, and `life` is not in the `unlocks` table (minigame.rs) so it never spawns. These minigames are dormant until wired up. Their cells render via `Sprite` (the old `Shape` query was corrected 2026-06-24); repaint after evolve via `CellBundle::turn_on/turn_off` + `Query<&mut Sprite, With<Cell>>`.
+  - Both files start with `#![allow(warnings)]` — remove and clean the cascade as part of finishing them.
 
 ## Backlog
 
@@ -36,7 +38,6 @@ Known work, not yet ready or not yet sequenced.
 ### Systems & performance
 
 - [ ] **Mouse run-conditions** (`src/libs/mouse.rs:184,196`) — replace the TODO links with proper Bevy run conditions (https://bevy-cheatbook.github.io/programming/run-conditions.html).
-- [ ] **Area nearest-point** (`src/libs/area.rs:217`) — `nearest` returns cardinal positions only; make it actually nearest.
 - [ ] **Area centering** (`src/libs/area.rs:83`) — "center before position" TODO.
 - [ ] **ball_breaker** (`ball_breaker.rs:107,130`) — empty out balls as loose items; verify collision works now that the parent is the minigame instead of an aura.
 
