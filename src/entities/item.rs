@@ -297,6 +297,8 @@ impl ItemIdentifier {
     pub fn asset(&self) -> String {
         let filename = match self.domain.as_str() {
             "abstract" => self.noun.clone(),
+            // Fruit is textured by its form (Apple/Lemon/Lime), not material.
+            _ if self.adjective == "Fruit" => self.noun.clone(),
             _ => self.adjective.clone(),
         };
         format!("{}/{}.png", self.domain, filename)
@@ -708,7 +710,7 @@ impl PhysicalItem {
                 self.form.palette().draw_lump(rand, ITEM_SIZE)
             }
             PhysicalForm::Apple => {
-                load_image(&"assets/physical/apple.png".to_string())
+                load_image(&"assets/physical/Apple.png".to_string())
             }
             _ => panic!("Invalid form {:?}", self.form),
         }
@@ -725,6 +727,10 @@ impl PhysicalItem {
             PhysicalForm::Land => "Land",
             PhysicalForm::Sea => "Sea",
             PhysicalForm::Archaea => "Archaea",
+            // specific life
+            PhysicalForm::Apple => "Apple",
+            PhysicalForm::Lemon => "Lemon",
+            PhysicalForm::Lime => "Lime",
             _ => panic!("Invalid form {:?}", self.form),
         };
         let adjective = match self.material {
@@ -1255,5 +1261,26 @@ pub fn release_items(
         }
         commands.entity(stuck_entity).remove::<ImpulseJoint>();
         commands.entity(stuck_entity).remove::<Stuck>();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The tree minigame produces Apple fruit. Before this fix, identifier()
+    // panicked on the Apple form (crashing on fruit spawn), and asset()/draw()
+    // pointed at the wrong filename. Guards all three.
+    #[test]
+    fn apple_fruit_identifier_and_asset_resolve() {
+        let apple =
+            Item::new_physical(PhysicalForm::Apple, PhysicalMaterial::Fruit, 1.0);
+        let id = apple.r#type.identifier();
+        assert_eq!(id.noun, "Apple");
+        assert_eq!(id.adjective, "Fruit");
+        // Fruit is textured by its form, so the path points at Apple.png
+        // (which exists in assets/physical/), not Fruit.png.
+        assert_eq!(apple.asset(), "physical/Apple.png");
+        assert_eq!(apple.r#type.uid(), "physical/Apple/Fruit");
     }
 }

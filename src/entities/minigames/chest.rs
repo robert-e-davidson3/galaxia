@@ -117,6 +117,14 @@ impl ChestMinigame {
             return false;
         };
 
+        // Fruit is a basic harvest; always storable.
+        if matches!(
+            physical.form,
+            PhysicalForm::Apple | PhysicalForm::Lemon | PhysicalForm::Lime
+        ) {
+            return true;
+        }
+
         // Level-based restrictions
         match self.level {
             0..=4 => {
@@ -175,5 +183,18 @@ mod tests {
 
         assert_eq!(leveled.level, 1);
         assert_eq!(total_stored(&leveled.items), 4.0);
+    }
+
+    // Tree fruit (Apple) must be storable even in a level-0 chest, which
+    // otherwise only accepts solid lumps/blocks/balls.
+    #[test]
+    fn chest_accepts_fruit_at_level_zero() {
+        let chest = ChestMinigame::default();
+        let apple = Item::new_physical(
+            PhysicalForm::Apple,
+            PhysicalMaterial::Fruit,
+            1.0,
+        );
+        assert!(chest.can_accept(&apple));
     }
 }

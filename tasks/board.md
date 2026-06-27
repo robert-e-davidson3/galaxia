@@ -54,6 +54,13 @@ Known work, not yet ready or not yet sequenced.
 
 ### Tech debt / architecture
 
+- [ ] **Restructure the item model to packed identity + taxonomy** — design agreed in
+  `references/item-model.md`. Replace flat `PhysicalForm`/`PhysicalMaterial` enums with a
+  `u64` tagged/nested id (closed axes as fields, open species axis as a data registry),
+  prefix-mask property helpers (`is_solid`/`state`/`is_fruit`), and a derived facet `Flags`
+  bitset. Big change + needs a save migration later; not urgent. Sub-step when it lands:
+  replace the chest `can_accept` fruit early-return (added 2026-06-26) with `is_solid()`.
+
 _(The big Bevy 0.14 → 0.18.1 stack upgrade landed 2026-06-23 — all four steps green. See
 `logs/2026-06-23.md`. Verified in the running game 2026-06-24: window renders, B0004 gone,
 inventory works.)_

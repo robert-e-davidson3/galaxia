@@ -716,6 +716,13 @@ pub fn setup_minigame_unlocks(mut unlocks: ResMut<MinigamesResource>) {
             level: 1,
         }],
     );
+    unlocks.insert(
+        tree::ID,
+        vec![Prerequisite {
+            minigame: primordial_ocean::ID.into(),
+            level: 1,
+        }],
+    );
 
     unlocks.insert(
         ball_breaker::ID,

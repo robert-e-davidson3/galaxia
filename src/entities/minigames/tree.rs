@@ -4,7 +4,7 @@ use crate::entities::*;
 use crate::libs::*;
 
 pub const ID: &str = "tree";
-pub const POSITION: Vec2 = Vec2::ZERO; // TODO
+pub const POSITION: Vec2 = Vec2::new(-350.0, 250.0);
 
 pub const NAME: &str = "Tree";
 pub const DESCRIPTION: &str = "Pick fruits from the tree!";
@@ -12,6 +12,14 @@ const AREA: RectangularArea = RectangularArea {
     width: 300.0,
     height: 300.0,
 };
+
+// Apples grow within the leafy crown (the upper-center of the 300x300 sprite),
+// not on the trunk. Coordinates are local to the tree's center.
+const CANOPY_MIN: Vec2 = Vec2::new(-95.0, -20.0);
+const CANOPY_MAX: Vec2 = Vec2::new(95.0, 105.0);
+const FRUIT_RADIUS: f32 = 8.0;
+// Centers at least this far apart so the fruit sprites don't overlap.
+const FRUIT_SPACING: f32 = FRUIT_RADIUS * 2.0 + 4.0;
 
 #[derive(Debug, Clone, Component)]
 pub struct TreeMinigame {
@@ -113,7 +121,9 @@ impl UnpickedFruitBundle {
         fruit: PhysicalForm,
         transform: Transform,
     ) -> Self {
-        let area = CircularArea { radius: 8.0 };
+        let area = CircularArea {
+            radius: FRUIT_RADIUS,
+        };
         Self {
             unpicked_fruit: UnpickedFruit {
                 form: fruit,
@@ -201,13 +211,34 @@ pub fn update(
     }
 }
 
+// Pick a spot in the canopy that doesn't overlap existing fruit. Best-effort:
+// after a fixed number of tries it returns the last candidate rather than
+// looping forever (the canopy can legitimately fill up).
+fn random_canopy_position(random: &mut Random, existing: &[Vec2]) -> Vec2 {
+    let mut candidate = Vec2::ZERO;
+    for _ in 0..24 {
+        let fx = (random.next() % 10_000) as f32 / 10_000.0;
+        let fy = (random.next() % 10_000) as f32 / 10_000.0;
+        candidate = Vec2::new(
+            CANOPY_MIN.x + fx * (CANOPY_MAX.x - CANOPY_MIN.x),
+            CANOPY_MIN.y + fy * (CANOPY_MAX.y - CANOPY_MIN.y),
+        );
+        if existing.iter().all(|p| p.distance(candidate) >= FRUIT_SPACING) {
+            return candidate;
+        }
+    }
+    candidate
+}
+
 // Grow fruits periodically
 pub fn fixed_update(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
+    mut random: ResMut<Random>,
     mut minigame_query: Query<(Entity, &mut Minigame)>,
     leveling_up_query: Query<&LevelingUp>,
+    fruit_query: Query<(&UnpickedFruit, &Transform)>,
 ) {
     for (entity, minigame) in minigame_query.iter_mut() {
         // Skip if leveling up
@@ -235,13 +266,22 @@ pub fn fixed_update(
 
         tree_minigame.last_fruit_time = elapsed_seconds;
         tree_minigame.add_fruit();
+        let fruit = tree_minigame.fruit;
+
+        // Scatter the new fruit across the canopy, clear of the others.
+        let existing: Vec<Vec2> = fruit_query
+            .iter()
+            .filter(|(unpicked, _)| unpicked.minigame == entity)
+            .map(|(_, transform)| transform.translation.truncate())
+            .collect();
+        let position = random_canopy_position(&mut random, &existing);
 
         commands.entity(entity).with_children(|parent| {
             parent.spawn(UnpickedFruitBundle::new(
                 &asset_server,
                 entity,
-                tree_minigame.fruit,
-                Transform::from_xyz(0.0, 0.0, 0.0),
+                fruit,
+                Transform::from_xyz(position.x, position.y, 0.0),
             ));
         });
     }
