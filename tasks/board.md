@@ -16,10 +16,9 @@ _(nothing in flight)_
 
 Ready to pick up — no open prerequisite.
 
-- [ ] **Finish `land`** (tree landed 2026-06-26, life 2026-06-28).
-  - `src/entities/minigames/land.rs` — complete the terrain placement logic (stick archaea on a random water-terrain cell); `evolve` runs the sim but has no rendering step, and its `cell_update`/`evolve_fixed_update` aren't registered in `main.rs`.
-  - Pattern to follow: `life` is now fully wired — `evolve_fixed_update` (energy+timer gated) and `render_cells` (repaints cells from the model each FixedUpdate) registered in main.rs, `life` in the unlocks table, ingestion seeds cells. Mirror that for land.
-  - `land.rs` still starts with `#![allow(warnings)]` — remove and clean the cascade.
+- [ ] **Draw fallback (do this next).** Make `ItemType::draw`/`palette` return a plain colored square instead of `panic!` for unsupported substances/species, so non-renderable items render harmlessly instead of crashing the game. Robert wants this before broader land testing (tossing e.g. an iron block into land currently crashes). See the Bugs entry for the full picture.
+
+_All three dormant minigames are now wired up and playable — tree (2026-06-26), life (2026-06-28), land v1 (2026-06-29). Other candidates: Life slice 2 (extractor), deepening land, polish._
 
 ## Backlog
 
@@ -33,10 +32,10 @@ Known work, not yet ready or not yet sequenced.
   - **Rune-shaped insertion/extraction** — deterministic placement via runes (the power progression; gives the rune minigame a downstream use).
   - Maybe: reverse rune generation (Life emits a rune if the board forms its shape) — easter-egg; per-tick shape-scanning is expensive, so non-core.
   - Maybe: have a seed *become* the dropped item (apple → apple cell) instead of always Archaea — needs a renders-safely guard since most item types `panic!` in `draw`.
+- [ ] **Deepen `land`** — v1 landed 2026-06-29 (layered cells, archaea evolve, distinct-type leveling capped at L6, top-layer extraction, top-layer rendering). Design in `references/land-minigame.md`. Remaining: the coexisting food-web evolve rules (plants/animals/mana — who needs/eats what), z-stacked layered rendering (all layers, not just the top), the species-pyramid leveling with rising population bars, and actual plant/animal content.
 - [ ] **Foundry UI** (`src/entities/minigames/foundry.rs:81-83`) — background graphics, heat-meter visualization, transmutation-timer display.
 - [ ] **Missing background visuals** — battery (`battery.rs:70`) and chest (`chest.rs:70`): draw background chest, barrels, etc.
 - [ ] **Rune feedback** (`rune.rs:350`) — visual change when the drawing is a valid rune.
-- [ ] **Verify "no tint" color handling** — resolved in `life.rs` (cells use `Color::WHITE`, 2026-06-28); the same TODO still sits at `land.rs:366`.
 - [ ] **Chest goo check** (`chest.rs:131`) — re-add the commented-out goo material check.
 
 ### Systems & performance
@@ -69,7 +68,7 @@ inventory works.)_
 
 ### Bugs
 
-_(none open)_
+- [ ] **Non-renderable items crash on draw.** Most substances/species still `panic!` in `ItemType::draw` — only Mud/Dirt/Sandstone/Salt/Fresh water and Archaea/Apple render. Anything else crashes the moment it's drawn: stored in a chest slot, dropped as a loose item, or (newly easy to hit) tossed into `land` (bulk → terrain → repaint → panic; e.g. an iron block from ball_breaker). Systemic, pre-dates land. Fix: make `draw()`/`palette()` fall back to a placeholder (e.g. a flat colored square) instead of panicking, so unsupported items render harmlessly.
 
 ## Decisions pending
 

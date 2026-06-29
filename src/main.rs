@@ -62,6 +62,7 @@ fn main() {
                 minigames::rune::pixel_update,
                 minigames::tree::update,
                 minigames::life::cell_update,
+                minigames::land::cell_update,
                 minigames::ball_breaker::unselected_paddle_update,
                 minigames::primordial_ocean::update,
                 inventory::handle_slot_click,
@@ -94,6 +95,14 @@ fn main() {
             (
                 minigames::life::evolve_fixed_update,
                 minigames::life::render_cells,
+            )
+                .chain(),
+        )
+        .add_systems(
+            FixedUpdate,
+            (
+                minigames::land::evolve_fixed_update,
+                minigames::land::render_cells,
             )
                 .chain(),
         )
