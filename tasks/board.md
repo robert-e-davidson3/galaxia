@@ -16,11 +16,10 @@ _(nothing in flight)_
 
 Ready to pick up — no open prerequisite.
 
-- [ ] **Finish the incomplete minigame implementations.** (tree landed 2026-06-26.)
-  - `src/entities/minigames/life.rs` — implement the missing item-ingestion TODO (fills a random cell); `evolve_fixed_update` is a `return;` stub; `ingest_fixed_update` is empty.
-  - `src/entities/minigames/land.rs` — complete the terrain placement logic (stick archaea on a random water-terrain cell); `evolve` runs the sim but has no rendering step.
-  - **Wiring gap:** `life`/`land` `cell_update` + `evolve_fixed_update` are NOT registered in `main.rs`, and `life` is not in the `unlocks` table (minigame.rs) so it never spawns. These minigames are dormant until wired up. Their cells render via `Sprite` (the old `Shape` query was corrected 2026-06-24); repaint after evolve via `CellBundle::turn_on/turn_off` + `Query<&mut Sprite, With<Cell>>`.
-  - Both files start with `#![allow(warnings)]` — remove and clean the cascade as part of finishing them.
+- [ ] **Finish `land`** (tree landed 2026-06-26, life 2026-06-28).
+  - `src/entities/minigames/land.rs` — complete the terrain placement logic (stick archaea on a random water-terrain cell); `evolve` runs the sim but has no rendering step, and its `cell_update`/`evolve_fixed_update` aren't registered in `main.rs`.
+  - Pattern to follow: `life` is now fully wired — `evolve_fixed_update` (energy+timer gated) and `render_cells` (repaints cells from the model each FixedUpdate) registered in main.rs, `life` in the unlocks table, ingestion seeds cells. Mirror that for land.
+  - `land.rs` still starts with `#![allow(warnings)]` — remove and clean the cascade.
 
 ## Backlog
 
@@ -28,6 +27,12 @@ Known work, not yet ready or not yet sequenced.
 
 ### Minigame features & visuals
 
+- [ ] **Life rule-bender items** — design in `references/life-minigame.md`. Slice 1 (XP = Σ|births−deaths|, geometric levelup) landed 2026-06-28. Remaining:
+  - **Extractor item** (slice 2) — a birth on it ejects the item out of the minigame + counts as a birth, and the cell stays empty → a perpetual birth/XP/item engine (the unbounded birth source the level curve needs). Likely becomes the harvest mechanism (replacing click-to-extract).
+  - **Other benders** (slice 3) — always-alive, always-dead, teleporter, time-phase (cells updating only on even ticks; needs a tick counter on the minigame). Each is a special `ItemType` a cell holds; `step()` dispatches.
+  - **Rune-shaped insertion/extraction** — deterministic placement via runes (the power progression; gives the rune minigame a downstream use).
+  - Maybe: reverse rune generation (Life emits a rune if the board forms its shape) — easter-egg; per-tick shape-scanning is expensive, so non-core.
+  - Maybe: have a seed *become* the dropped item (apple → apple cell) instead of always Archaea — needs a renders-safely guard since most item types `panic!` in `draw`.
 - [ ] **Foundry UI** (`src/entities/minigames/foundry.rs:81-83`) — background graphics, heat-meter visualization, transmutation-timer display.
 - [ ] **Missing background visuals** — battery (`battery.rs:70`) and chest (`chest.rs:70`): draw background chest, barrels, etc.
 - [ ] **Rune feedback** (`rune.rs:350`) — visual change when the drawing is a valid rune.

@@ -61,6 +61,7 @@ fn main() {
                 minigames::button::update,
                 minigames::rune::pixel_update,
                 minigames::tree::update,
+                minigames::life::cell_update,
                 minigames::ball_breaker::unselected_paddle_update,
                 minigames::primordial_ocean::update,
                 inventory::handle_slot_click,
@@ -87,6 +88,14 @@ fn main() {
         .add_systems(
             FixedUpdate,
             (inventory::set_slots, inventory::redraw_slots).chain(),
+        )
+        .add_systems(
+            FixedUpdate,
+            (
+                minigames::life::evolve_fixed_update,
+                minigames::life::render_cells,
+            )
+                .chain(),
         )
         .insert_resource(mouse::MouseState::new(1.0))
         .insert_resource(Time::<Fixed>::from_hz(20.0))

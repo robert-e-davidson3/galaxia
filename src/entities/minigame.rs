@@ -311,7 +311,7 @@ impl Minigame {
                 minigame_area,
                 item,
             ),
-            Minigame::Life(m) => m.ingest_item(item),
+            Minigame::Life(m) => m.ingest_item(rand, item),
             Minigame::Tree(m) => m.ingest_item(),
         }
     }
@@ -718,6 +718,13 @@ pub fn setup_minigame_unlocks(mut unlocks: ResMut<MinigamesResource>) {
     );
     unlocks.insert(
         tree::ID,
+        vec![Prerequisite {
+            minigame: primordial_ocean::ID.into(),
+            level: 1,
+        }],
+    );
+    unlocks.insert(
+        life::ID,
         vec![Prerequisite {
             minigame: primordial_ocean::ID.into(),
             level: 1,
