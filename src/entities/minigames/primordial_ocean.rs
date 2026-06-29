@@ -111,11 +111,11 @@ impl PrimordialOceanMinigame {
     }
 
     pub fn item_is_valid(item: &Item) -> bool {
-        let ItemType::Physical(physical) = item.r#type else {
+        let ItemType::Physical(PhysicalItem::Bulk(bulk)) = item.r#type else {
             return false;
         };
 
-        matches!(physical.material, PhysicalMaterial::SaltWater)
+        bulk.substance == Substance::SaltWater
     }
 }
 
@@ -123,7 +123,7 @@ impl PrimordialOceanMinigame {
 pub struct OceanBundle {
     pub ocean: Ocean,
     pub area: CircularArea,
-    pub shape: Shape,
+    pub shape: bevy_prototype_lyon::prelude::Shape,
 }
 
 impl OceanBundle {
@@ -176,11 +176,13 @@ pub fn update(
             let (minigame_transform, minigame_area) =
                 minigame_query.get(minigame_entity).unwrap();
             let click_type = mouse_state.get_click_type();
-            let (form, material) = match click_type {
-                ClickType::Short => {
-                    (PhysicalForm::Liquid, PhysicalMaterial::SaltWater)
-                }
-                ClickType::Long => (PhysicalForm::Lump, PhysicalMaterial::Mud),
+            let item = match click_type {
+                ClickType::Short => Item::liquid(Substance::SaltWater, 1.0),
+                ClickType::Long => Item::solid(
+                    Substance::Mud,
+                    crate::entities::item::BulkShape::Lump,
+                    1.0,
+                ),
                 ClickType::Invalid => {
                     println!("unexpected: invalid click type");
                     continue;
@@ -189,7 +191,7 @@ pub fn update(
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
-                Item::new_physical(form, material, 1.0),
+                item,
                 minigame_transform,
                 minigame_area,
             ));

@@ -101,14 +101,13 @@ impl FoundryMinigame {
                 }
                 _ => 0.0,
             },
-            // Regular cooking
-            ItemType::Physical(physical) => match physical.form {
-                PhysicalForm::Ore => {
-                    self.cooking.push_back(*item);
-                    item.amount
-                }
-                _ => 0.0,
-            },
+            // Regular cooking: ore == Bulk solid in the Raw processing state.
+            ItemType::Physical(PhysicalItem::Bulk(bulk))
+                if bulk.processing == Processing::Raw =>
+            {
+                self.cooking.push_back(*item);
+                item.amount
+            }
             _ => 0.0,
         }
     }
@@ -138,13 +137,15 @@ impl FoundryMinigame {
                 }
                 _ => item_type,
             },
-            ItemType::Physical(physical) => match physical.form {
-                PhysicalForm::Ore => ItemType::Physical(PhysicalItem {
-                    form: PhysicalForm::Liquid,
-                    material: physical.material,
-                }),
-                _ => item_type,
-            },
+            // Smelting an ore (Raw bulk solid) yields a liquid of the same
+            // substance.
+            ItemType::Physical(PhysicalItem::Bulk(bulk)) => {
+                if bulk.processing == Processing::Raw {
+                    Item::liquid(bulk.substance, 1.0).r#type
+                } else {
+                    item_type
+                }
+            }
             _ => item_type,
         }
     }

@@ -113,51 +113,36 @@ impl ChestMinigame {
     }
 
     pub fn can_accept(&self, item: &Item) -> bool {
-        let ItemType::Physical(physical) = item.r#type else {
+        let ItemType::Physical(_) = item.r#type else {
             return false;
         };
 
         // Fruit is a basic harvest; always storable.
-        if matches!(
-            physical.form,
-            PhysicalForm::Apple | PhysicalForm::Lemon | PhysicalForm::Lime
-        ) {
+        if item.r#type.is_fruit() {
             return true;
         }
 
+        let is_powder = matches!(
+            item.r#type,
+            ItemType::Physical(PhysicalItem::Bulk(BulkItem {
+                structure: BulkStructure::Powder,
+                ..
+            }))
+        );
+        let is_liquid = matches!(
+            item.r#type,
+            ItemType::Physical(PhysicalItem::Bulk(BulkItem {
+                structure: BulkStructure::Liquid,
+                ..
+            }))
+        );
+
         // Level-based restrictions
         match self.level {
-            0..=4 => {
-                // Only solid items
-                matches!(
-                    physical.form,
-                    |PhysicalForm::Lump| PhysicalForm::Block
-                        | PhysicalForm::Ball
-                ) // && !physical.material.is_goo() // TODO re-add
-            }
-            5..=9 => {
-                // Add powders and goos
-                matches!(
-                    physical.form,
-                    |PhysicalForm::Lump| PhysicalForm::Block
-                        | PhysicalForm::Ball
-                        | PhysicalForm::Powder
-                )
-            }
-            10..=19 => {
-                // Add liquids
-                matches!(
-                    physical.form,
-                    |PhysicalForm::Lump| PhysicalForm::Block
-                        | PhysicalForm::Ball
-                        | PhysicalForm::Powder
-                        | PhysicalForm::Liquid
-                )
-            }
-            _ => {
-                // All forms allowed
-                true
-            }
+            0..=4 => item.r#type.is_solid(),
+            5..=9 => item.r#type.is_solid() || is_powder,
+            10..=19 => item.r#type.is_solid() || is_powder || is_liquid,
+            _ => true, // all forms allowed
         }
     }
 }
@@ -172,12 +157,8 @@ mod tests {
     #[test]
     fn levelup_preserves_stored_items() {
         let mut chest = ChestMinigame::default();
-        let apple = Item::new_physical(
-            PhysicalForm::Ball,
-            PhysicalMaterial::Fruit,
-            4.0,
-        );
-        add_item(&mut chest.items, apple.r#type, apple.amount);
+        let stored = Item::solid(Substance::Iron, BulkShape::Block, 4.0);
+        add_item(&mut chest.items, stored.r#type, stored.amount);
 
         let leveled = chest.levelup();
 
@@ -190,11 +171,7 @@ mod tests {
     #[test]
     fn chest_accepts_fruit_at_level_zero() {
         let chest = ChestMinigame::default();
-        let apple = Item::new_physical(
-            PhysicalForm::Apple,
-            PhysicalMaterial::Fruit,
-            1.0,
-        );
+        let apple = Item::fruit(Species::Apple, 1.0);
         assert!(chest.can_accept(&apple));
     }
 }

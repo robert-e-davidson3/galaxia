@@ -1,9 +1,12 @@
 # Item model (packed identity + taxonomy)
 
-**Status: design, not yet implemented.** This is the agreed target for restructuring
-`src/entities/item.rs`. The current code uses flat enums (`PhysicalForm`,
-`PhysicalMaterial`, …) matched ad-hoc; this document is what we are migrating
-toward. See `tasks/board.md` for the implementation task.
+**Status: implemented 2026-06-26.** `src/entities/item.rs` now uses this model.
+In-memory it is the typed taxonomy (structured enums); `ItemType::pack()`/
+`unpack()` produce/parse the u64 layout below for save/load and as a compact
+identity key. Note: the bulk geometry enum is named **`BulkShape`** in code (not
+`Shape`) to avoid colliding with `bevy_prototype_lyon::prelude::Shape`. Species is
+currently a closed enum (Apple/Lemon/Lime + the life forms we use), not yet the
+data registry — that's the next evolution when species count grows.
 
 ## Why
 
@@ -65,15 +68,18 @@ forces one.
 
 ### Physical  (domain `000`, payload [60:0])
 
-| field     | width | bits    | values |
-|-----------|-------|---------|--------|
-| structure | 5     | [60:56] | Gas, Liquid, Powder, Bulk, Discrete, Terrain (6 used, room to 32) |
+| field | width | bits    | values |
+|-------|-------|---------|--------|
+| kind  | 2     | [60:59] | Bulk, Discrete — the `PhysicalItem` variant (room for 2 more) |
 
-**If structure is Bulk-like** (Gas / Liquid / Powder / Bulk / Terrain) — identity
-is the *substance*:
+The encoding nests the same way the types do: `kind` selects Bulk vs Discrete,
+then each kind's own fields follow.
+
+**If kind is Bulk** — identity is the *substance*:
 
 | field           | width | bits    | notes |
 |-----------------|-------|---------|-------|
+| structure       | 3     | [58:56] | Gas, Liquid, Powder, Solid — the `BulkStructure` enum |
 | substance class | 4     | [55:52] | Earthen, Metal, Gem, Organic, Water, Exotic (maskable; derivable from substance — kept for masking) |
 | substance       | 8     | [51:44] | the specific material (Iron, Mud, …) |
 | processing      | 3     | [43:41] | Ore(raw), Refined, Worked, … — refinement state (Bulk only) |
@@ -84,7 +90,7 @@ is the *substance*:
 (An iron *ore* = substance=Iron, processing=Ore, shape=Gravel. A refined iron
 block = substance=Iron, processing=Refined, shape=Block.)
 
-**If structure is Discrete** — identity is the *species*:
+**If kind is Discrete** — identity is the *species*:
 
 | field   | width | bits    | values |
 |---------|-------|---------|--------|
@@ -169,9 +175,9 @@ equality, or how items stack by type:
 Taxonomic predicates are prefix masks over the tag fields (include every gating
 tag, since bit positions are reused across tags):
 
-- `is_alive` = (domain=Physical, structure=Discrete, animacy=Alive)
-- `is_metal` = (domain=Physical, structure∈Bulk-like, substance class=Metal)
-- `is_fruit` = (domain=Physical, structure=Discrete, animacy=Inanimate, class=Fruit)
+- `is_alive` = (domain=Physical, kind=Discrete, animacy=Alive)
+- `is_metal` = (domain=Physical, kind=Bulk, substance class=Metal)
+- `is_fruit` = (domain=Physical, kind=Discrete, class=Fruit)
 - freshness is a *value* field, not a tag — `is_spoiled` = `is_fruit` AND
   freshness==0 (a field comparison, not a pure prefix mask).
 
@@ -197,7 +203,11 @@ nest, so they are **not** in the id. Derive a `Flags(u64)` bitset from the id vi
 - **Substance class and life class are derivable** from substance/species
   (Iron⇒Metal). Kept as prefix fields only so the `is_*` checks are masks; the
   redundancy must stay consistent (never Iron+Gem).
-- **Terrain is a `structure`** (bulk-like) for now.
+- **No `Terrain` structure.** Terrain isn't a state of matter — a terrain tile is
+  just its underlying material (solid mud, liquid water). Removed `Terrain` from
+  the bulk states; the land minigame treats terrain-ness as its own concern (its
+  `terrain` grid holds ordinary material items). The bulk-state enum is named
+  `BulkStructure` (not `Structure`, too generic).
 - **Validity is separate from the taxonomy.** The id space allows nonsensical
   combos (gaseous granite); we just never construct them (or add `is_valid()`).
 - **Domain `111` is an escape hatch** for items that don't follow the taxonomy;

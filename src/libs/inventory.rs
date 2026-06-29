@@ -9,6 +9,11 @@ use crate::entities::item::*;
 use crate::entities::minigame::*;
 use crate::libs::*;
 
+// `crate::entities::item::*` exports an item `Shape` enum; disambiguate the
+// bevy_prototype_lyon `Shape` component (used as a bundle field below) in its
+// favor. The item `Shape` is referenced fully-qualified where needed.
+use bevy_prototype_lyon::prelude::Shape;
+
 #[derive(Debug, Clone, Bundle)]
 pub struct InventoryBundle {
     pub inventory: Inventory,
@@ -568,14 +573,30 @@ mod tests {
         pairs.iter().copied().collect()
     }
 
-    // A distinct physical item type, identified by its form/material.
-    fn ptype(form: PhysicalForm, material: PhysicalMaterial) -> ItemType {
-        Item::new_physical(form, material, 0.0).r#type
+    // Three distinct physical item types for tests that need distinct keys.
+    fn type_a() -> ItemType {
+        Item::fruit(Species::Apple, 0.0).r#type
+    }
+    fn type_b() -> ItemType {
+        Item::solid(
+            Substance::Iron,
+            crate::entities::item::BulkShape::Block,
+            0.0,
+        )
+        .r#type
+    }
+    fn type_c() -> ItemType {
+        Item::solid(
+            Substance::Gold,
+            crate::entities::item::BulkShape::Ball,
+            0.0,
+        )
+        .r#type
     }
 
     #[test]
     fn add_item_accumulates_and_returns_new_total() {
-        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let a = type_a();
         let mut s = store(&[]);
         assert_eq!(add_item(&mut s, a, 3.0), 3.0);
         assert_eq!(add_item(&mut s, a, 2.0), 5.0);
@@ -584,7 +605,7 @@ mod tests {
 
     #[test]
     fn remove_item_partial_then_full_drops_the_key() {
-        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let a = type_a();
         let mut s = store(&[(a, 5.0)]);
         // Partial: removes the requested amount, reports the remainder.
         assert_eq!(remove_item(&mut s, a, 2.0), (2.0, 3.0));
@@ -597,33 +618,33 @@ mod tests {
 
     #[test]
     fn remove_item_absent_removes_nothing() {
-        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
+        let a = type_a();
         let mut s = store(&[]);
         assert_eq!(remove_item(&mut s, a, 1.0), (0.0, 1.0));
     }
 
     #[test]
     fn total_stored_sums_all_amounts() {
-        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
-        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
+        let a = type_a();
+        let b = type_b();
         let s = store(&[(a, 2.0), (b, 3.0)]);
         assert_eq!(total_stored(&s), 5.0);
     }
 
     #[test]
     fn filter_items_empty_filter_returns_all_up_to_per_page() {
-        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
-        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
-        let c = ptype(PhysicalForm::Ball, PhysicalMaterial::Gold);
+        let a = type_a();
+        let b = type_b();
+        let c = type_c();
         let s = store(&[(a, 1.0), (b, 2.0), (c, 3.0)]);
         assert_eq!(filter_items(&s, String::new(), 10, 0).len(), 3);
     }
 
     #[test]
     fn filter_items_paginates_without_dropping_or_duplicating() {
-        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
-        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
-        let c = ptype(PhysicalForm::Ball, PhysicalMaterial::Gold);
+        let a = type_a();
+        let b = type_b();
+        let c = type_c();
         let s = store(&[(a, 1.0), (b, 2.0), (c, 3.0)]);
         // HashMap order is unspecified, so assert on counts and coverage
         // rather than which item lands on which page.
@@ -638,8 +659,8 @@ mod tests {
 
     #[test]
     fn count_filtered_items_counts_all_pages_and_respects_filter() {
-        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
-        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
+        let a = type_a();
+        let b = type_b();
         let s = store(&[(a, 1.0), (b, 2.0)]);
         // Counts every match regardless of page size.
         assert_eq!(count_filtered_items(&s, ""), 2);
@@ -650,8 +671,8 @@ mod tests {
 
     #[test]
     fn filter_items_matches_uid_substring_and_keeps_amount() {
-        let a = ptype(PhysicalForm::Powder, PhysicalMaterial::Fruit);
-        let b = ptype(PhysicalForm::Block, PhysicalMaterial::Iron);
+        let a = type_a();
+        let b = type_b();
         let s = store(&[(a, 7.0), (b, 2.0)]);
         // Filtering by a's full uid matches only a (uids are unique).
         let result = filter_items(&s, a.uid(), 10, 0);

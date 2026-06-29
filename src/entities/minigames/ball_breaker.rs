@@ -26,7 +26,7 @@ pub const BLOCK_SIZE: f32 = 20.0;
 #[derive(Debug, Clone, Default, Component)]
 pub struct BallBreakerMinigame {
     pub level: u8,
-    pub balls: HashMap<PhysicalMaterial, u32>,
+    pub balls: HashMap<Substance, u32>,
 }
 
 impl BallBreakerMinigame {
@@ -89,7 +89,7 @@ impl BallBreakerMinigame {
             for x in 0..blocks_per_row {
                 parent.spawn(BlockBundle::new(
                     asset_server,
-                    BallBreakerMinigame::random_material(level, random),
+                    BallBreakerMinigame::random_substance(level, random),
                     blocks_per_column,
                     blocks_per_row,
                     x,
@@ -119,18 +119,17 @@ impl BallBreakerMinigame {
             return 0.0;
         }
 
-        let Some(item) = Self::item_is_valid(item) else {
+        let Some(substance) = Self::item_is_valid(item) else {
             return 0.0;
         };
 
-        let material = item.material;
-        self.add_ball(material);
+        self.add_ball(substance);
         // TODO verify this works since its parent is minigame instead of aura
         commands.entity(minigame_entity).with_children(|parent| {
             parent.spawn(BallBundle::new(
                 images,
                 generated_image_assets,
-                material,
+                substance,
                 minigame_entity,
                 self.blocks_per_column(),
                 self.blocks_per_row(),
@@ -160,33 +159,33 @@ impl BallBreakerMinigame {
         7 + (level as u32 / 10)
     }
 
-    pub fn item_is_valid(item: &Item) -> Option<PhysicalItem> {
-        let ItemType::Physical(physical) = item.r#type else {
+    pub fn item_is_valid(item: &Item) -> Option<Substance> {
+        let ItemType::Physical(PhysicalItem::Bulk(bulk)) = item.r#type else {
             return None;
         };
 
         let valid = matches!(
-            physical.material,
-            PhysicalMaterial::Mud
-                | PhysicalMaterial::Dirt
-                | PhysicalMaterial::Sandstone
-                | PhysicalMaterial::Granite
-                | PhysicalMaterial::Marble
-                | PhysicalMaterial::Obsidian
-                | PhysicalMaterial::Copper
-                | PhysicalMaterial::Tin
-                | PhysicalMaterial::Iron
-                | PhysicalMaterial::Silver
-                | PhysicalMaterial::Gold
-                | PhysicalMaterial::Diamond
-                | PhysicalMaterial::Amethyst
-                | PhysicalMaterial::FreshWater
-                | PhysicalMaterial::Moss
+            bulk.substance,
+            Substance::Mud
+                | Substance::Dirt
+                | Substance::Sandstone
+                | Substance::Granite
+                | Substance::Marble
+                | Substance::Obsidian
+                | Substance::Copper
+                | Substance::Tin
+                | Substance::Iron
+                | Substance::Silver
+                | Substance::Gold
+                | Substance::Diamond
+                | Substance::Amethyst
+                | Substance::FreshWater
+                | Substance::Moss
         );
-        valid.then_some(physical)
+        valid.then_some(bulk.substance)
     }
 
-    pub fn random_material(level: u8, random: &mut Random) -> PhysicalMaterial {
+    pub fn random_substance(level: u8, random: &mut Random) -> Substance {
         let r: u64 = if level == 0 {
             0
         } else {
@@ -194,76 +193,76 @@ impl BallBreakerMinigame {
         };
 
         match r {
-            0 => PhysicalMaterial::Mud,
-            1 => PhysicalMaterial::Dirt,
-            2 => PhysicalMaterial::Sandstone,
-            3 => PhysicalMaterial::Granite,
-            4 => PhysicalMaterial::Marble,
-            5 => PhysicalMaterial::Obsidian,
-            6 => PhysicalMaterial::Copper,
-            7 => PhysicalMaterial::Tin,
-            8 => PhysicalMaterial::Iron,
-            9 => PhysicalMaterial::Silver,
-            10 => PhysicalMaterial::Gold,
-            11 => PhysicalMaterial::Diamond,
-            12 => PhysicalMaterial::Amethyst,
-            13 => PhysicalMaterial::FreshWater,
-            14 => PhysicalMaterial::Moss,
-            _ => PhysicalMaterial::Unobtainium,
+            0 => Substance::Mud,
+            1 => Substance::Dirt,
+            2 => Substance::Sandstone,
+            3 => Substance::Granite,
+            4 => Substance::Marble,
+            5 => Substance::Obsidian,
+            6 => Substance::Copper,
+            7 => Substance::Tin,
+            8 => Substance::Iron,
+            9 => Substance::Silver,
+            10 => Substance::Gold,
+            11 => Substance::Diamond,
+            12 => Substance::Amethyst,
+            13 => Substance::FreshWater,
+            14 => Substance::Moss,
+            _ => Substance::Unobtainium,
         }
     }
 
-    pub fn material_toughness(resource: PhysicalMaterial) -> u32 {
-        match resource {
-            PhysicalMaterial::Mud => 1,
-            PhysicalMaterial::Dirt => 2,
-            PhysicalMaterial::Sandstone => 3,
-            PhysicalMaterial::Granite => 4,
-            PhysicalMaterial::Marble => 4,
-            PhysicalMaterial::Obsidian => 2,
-            PhysicalMaterial::Copper => 4,
-            PhysicalMaterial::Tin => 4,
-            PhysicalMaterial::Iron => 8,
-            PhysicalMaterial::Silver => 4,
-            PhysicalMaterial::Gold => 3,
-            PhysicalMaterial::Diamond => 6,
-            PhysicalMaterial::Amethyst => 6,
-            PhysicalMaterial::FreshWater => 0,
-            PhysicalMaterial::Moss => 1,
+    pub fn material_toughness(substance: Substance) -> u32 {
+        match substance {
+            Substance::Mud => 1,
+            Substance::Dirt => 2,
+            Substance::Sandstone => 3,
+            Substance::Granite => 4,
+            Substance::Marble => 4,
+            Substance::Obsidian => 2,
+            Substance::Copper => 4,
+            Substance::Tin => 4,
+            Substance::Iron => 8,
+            Substance::Silver => 4,
+            Substance::Gold => 3,
+            Substance::Diamond => 6,
+            Substance::Amethyst => 6,
+            Substance::FreshWater => 0,
+            Substance::Moss => 1,
             _ => 16,
         }
     }
 
-    pub fn material_damage(resource: PhysicalMaterial) -> u32 {
-        match resource {
-            PhysicalMaterial::Mud => 2,
-            PhysicalMaterial::Dirt => 3,
-            PhysicalMaterial::Sandstone => 4,
-            PhysicalMaterial::Granite => 4,
-            PhysicalMaterial::Marble => 4,
-            PhysicalMaterial::Obsidian => 6,
-            PhysicalMaterial::Copper => 7,
-            PhysicalMaterial::Tin => 7,
-            PhysicalMaterial::Bronze => 8, // must be forged from copper and tin
-            PhysicalMaterial::Iron => 10,
-            PhysicalMaterial::Silver => 4,
-            PhysicalMaterial::Gold => 3,
-            PhysicalMaterial::Diamond => 11,
-            PhysicalMaterial::Amethyst => 4,
-            PhysicalMaterial::FreshWater => 1,
-            PhysicalMaterial::Moss => 0,
+    pub fn material_damage(substance: Substance) -> u32 {
+        match substance {
+            Substance::Mud => 2,
+            Substance::Dirt => 3,
+            Substance::Sandstone => 4,
+            Substance::Granite => 4,
+            Substance::Marble => 4,
+            Substance::Obsidian => 6,
+            Substance::Copper => 7,
+            Substance::Tin => 7,
+            Substance::Bronze => 8, // must be forged from copper and tin
+            Substance::Iron => 10,
+            Substance::Silver => 4,
+            Substance::Gold => 3,
+            Substance::Diamond => 11,
+            Substance::Amethyst => 4,
+            Substance::FreshWater => 1,
+            Substance::Moss => 0,
             _ => 16,
         }
     }
 
-    // counts ball material
-    pub fn add_ball(&mut self, material: PhysicalMaterial) {
-        *self.balls.entry(material).or_insert(0) += 1;
+    // counts ball substance
+    pub fn add_ball(&mut self, substance: Substance) {
+        *self.balls.entry(substance).or_insert(0) += 1;
     }
 
-    // decrements ball material
-    pub fn remove_ball(&mut self, material: PhysicalMaterial) {
-        if let Entry::Occupied(mut entry) = self.balls.entry(material) {
+    // decrements ball substance
+    pub fn remove_ball(&mut self, substance: Substance) {
+        if let Entry::Occupied(mut entry) = self.balls.entry(substance) {
             let count = entry.get_mut();
             if *count > 0 {
                 *count -= 1;
@@ -285,7 +284,7 @@ pub struct BlockBundle {
 impl BlockBundle {
     pub fn new(
         asset_server: &AssetServer,
-        material: PhysicalMaterial,
+        substance: Substance,
         blocks_per_column: u32,
         blocks_per_row: u32,
         x: u32,
@@ -300,11 +299,10 @@ impl BlockBundle {
         let y = BLOCK_SIZE
             * ((y as f32) - ((blocks_per_column + 3) as f32 / 2.0) + 1.0 / 2.0);
         Self {
-            block: Block { material },
+            block: Block { substance },
             sprite: Sprite {
                 image: asset_server.load(
-                    Item::new_physical(PhysicalForm::Block, material, 1.0)
-                        .asset(),
+                    Item::solid(substance, BulkShape::Block, 1.0).asset(),
                 ),
                 custom_size: Some(Vec2::new(BLOCK_SIZE, BLOCK_SIZE)),
                 ..default()
@@ -322,7 +320,7 @@ impl BlockBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct Block {
-    pub material: PhysicalMaterial,
+    pub substance: Substance,
 }
 
 #[derive(Debug, Clone, Bundle)]
@@ -347,7 +345,7 @@ impl BallBundle {
     pub fn new(
         images: &mut Assets<Image>,
         generated_image_assets: &mut image_gen::GeneratedImageAssets,
-        material: PhysicalMaterial,
+        substance: Substance,
         minigame: Entity,
         blocks_per_column: u32,
         blocks_per_row: u32,
@@ -357,7 +355,7 @@ impl BallBundle {
         let area = CircularArea {
             radius: BLOCK_SIZE / 2.0,
         };
-        let item = Item::new_physical(PhysicalForm::Ball, material, 1.0);
+        let item = Item::solid(substance, BulkShape::Ball, 1.0);
         let texture: Handle<Image> =
             match generated_image_assets.get(&item.uid()) {
                 Some(image) => image,
@@ -369,7 +367,10 @@ impl BallBundle {
                 }
             };
         Self {
-            ball: Ball { material, minigame },
+            ball: Ball {
+                substance,
+                minigame,
+            },
             sprite: Sprite {
                 image: texture,
                 custom_size: Some(area.into()),
@@ -405,7 +406,7 @@ impl BallBundle {
 
 #[derive(Debug, Clone, Component)]
 pub struct Ball {
-    pub material: PhysicalMaterial,
+    pub substance: Substance,
     pub minigame: Entity,
 }
 
@@ -530,13 +531,13 @@ pub fn hit_block_fixed_update(
             } else {
                 continue;
             };
-        let ball_material = ball.material;
+        let ball_substance = ball.substance;
         let minigame_entity = ball.minigame;
 
         let Ok(block) = block_query.get(block_entity) else {
             continue;
         };
-        let block_material = block.material;
+        let block_substance = block.substance;
 
         if broken.contains(&block_entity) || broken.contains(&ball_entity) {
             continue;
@@ -553,8 +554,8 @@ pub fn hit_block_fixed_update(
         };
 
         // break stuff! and spit out resources!
-        if BallBreakerMinigame::material_damage(ball_material)
-            >= BallBreakerMinigame::material_toughness(block_material)
+        if BallBreakerMinigame::material_damage(ball_substance)
+            >= BallBreakerMinigame::material_toughness(block_substance)
         {
             // despawn_recursive (not despawn) so the block detaches from the
             // minigame's Children list; a plain despawn leaves a stale child
@@ -564,7 +565,7 @@ pub fn hit_block_fixed_update(
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
-                Item::new_physical(PhysicalForm::Powder, block_material, 1.0),
+                Item::powder(block_substance, 1.0),
                 minigame_global_transform,
                 minigame_area,
             ));
@@ -574,19 +575,19 @@ pub fn hit_block_fixed_update(
                 commands.entity(minigame_entity).insert(LevelingUp);
             }
         }
-        if BallBreakerMinigame::material_damage(block_material)
-            >= BallBreakerMinigame::material_toughness(ball_material)
+        if BallBreakerMinigame::material_damage(block_substance)
+            >= BallBreakerMinigame::material_toughness(ball_substance)
         {
             // despawn_recursive so the ball detaches from the minigame's
             // Children (see the block despawn above) — avoids a stale child
             // reference on levelup (B0003).
             commands.entity(ball_entity).despawn();
             broken.insert(ball_entity);
-            minigame.remove_ball(ball_material);
+            minigame.remove_ball(ball_substance);
             commands.spawn(ItemBundle::new_from_minigame(
                 &mut images,
                 &mut generated_image_assets,
-                Item::new_physical(PhysicalForm::Powder, ball_material, 1.0),
+                Item::powder(ball_substance, 1.0),
                 minigame_global_transform,
                 minigame_area,
             ));

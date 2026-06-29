@@ -34,10 +34,8 @@ impl Default for LandMinigame {
 impl LandMinigame {
     pub fn new(max_achieved_complexity: u8, energy: f32) -> Self {
         let level = max_achieved_complexity;
-        let default_terrain = ItemType::Physical(PhysicalItem {
-            form: PhysicalForm::Land,
-            material: PhysicalMaterial::Mud,
-        });
+        let default_terrain =
+            Item::solid(Substance::Mud, BulkShape::Lump, 1.0).r#type;
         let terrain =
             vec![
                 vec![default_terrain; Self::width_in_cells(level) as usize];
@@ -132,8 +130,9 @@ impl LandMinigame {
                 self.energy += item.amount;
                 item.amount
             }
-            ItemType::Physical(physical) => match physical.form {
-                PhysicalForm::Liquid | PhysicalForm::Lump => {
+            ItemType::Physical(PhysicalItem::Bulk(bulk)) => match bulk.structure
+            {
+                BulkStructure::Liquid | BulkStructure::Solid => {
                     if item.amount > 1.0 {
                         let (x, y) = self.random_coordinate(rand);
                         let old = self.set_terrain_cell(x, y, item.r#type);
@@ -185,6 +184,16 @@ impl LandMinigame {
         self.terrain[y][x]
     }
 
+    // A terrain cell counts as water if it is a bulk substance in the Water
+    // class (salt/fresh water). Mana terrain is inhospitable.
+    fn terrain_is_water(terrain: ItemType) -> bool {
+        matches!(
+            terrain,
+            ItemType::Physical(PhysicalItem::Bulk(bulk))
+                if bulk.substance.is_water()
+        )
+    }
+
     // returns the item that was replaced
     pub fn set_life_cell(
         &mut self,
@@ -219,61 +228,40 @@ impl LandMinigame {
                 };
                 life_exists = true;
                 match cell {
-                    ItemType::Physical(cell) => {
-                        match cell.form {
-                            PhysicalForm::Archaea => {
-                                // TODO
-                                // 1. if current cell is not water, die
-                                // 2. get random direction
-                                // 3. if cell is empty of life but has water, make a copy there
-                                match self.get_terrain_cell(x as u32, y as u32)
-                                {
-                                    ItemType::Physical(terrain) => {
-                                        if !terrain.material.is_water() {
-                                            self.set_life_cell(
-                                                x as u32, y as u32, None,
-                                            );
-                                        }
-                                    }
-                                    _ => {
-                                        // mana is inhospitable
+                    ItemType::Physical(PhysicalItem::Discrete(discrete)) => {
+                        if discrete.species == Species::Archaea {
+                            // TODO
+                            // 1. if current cell is not water, die
+                            // 2. get random direction
+                            // 3. if cell is empty of life but has water, make a copy there
+                            if !Self::terrain_is_water(
+                                self.get_terrain_cell(x as u32, y as u32),
+                            ) {
+                                self.set_life_cell(x as u32, y as u32, None);
+                            }
+                            let (nx, ny) =
+                                self.random_neighbor(rand, (x as u32, y as u32));
+                            if Self::terrain_is_water(
+                                self.get_terrain_cell(nx as u32, ny as u32),
+                            ) {
+                                match self.get_life_cell(nx as u32, ny as u32) {
+                                    Some(_) => {}
+                                    None => {
                                         self.set_life_cell(
-                                            x as u32, y as u32, None,
+                                            nx as u32,
+                                            ny as u32,
+                                            Some(
+                                                Item::organism(
+                                                    Species::Archaea,
+                                                    LifeStage::Adult,
+                                                    1.0,
+                                                )
+                                                .r#type,
+                                            ),
                                         );
                                     }
                                 }
-                                let (nx, ny) = self.random_neighbor(
-                                    rand,
-                                    (x as u32, y as u32),
-                                );
-                                match self
-                                    .get_terrain_cell(nx as u32, ny as u32)
-                                {
-                                    ItemType::Physical(terrain) => {
-                                        if terrain.material.is_water() {
-                                            match self.get_life_cell(
-                                                nx as u32, ny as u32,
-                                            ) {
-                                                Some(_) => {}
-                                                None => {
-                                                    self.set_life_cell(
-                                                        nx as u32,
-                                                        ny as u32,
-                                                        Some(ItemType::Physical(
-                                                            PhysicalItem {
-                                                                form: PhysicalForm::Archaea,
-                                                                material: PhysicalMaterial::Adult,
-                                                            },
-                                                        )),
-                                                    );
-                                                }
-                                            }
-                                        }
-                                    }
-                                    _ => {}
-                                }
                             }
-                            _ => {}
                         }
                     }
                     ItemType::Mana(cell) => {

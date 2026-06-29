@@ -5,6 +5,10 @@ use crate::entities::*;
 use crate::item::rune::*;
 use crate::libs::*;
 
+// `crate::entities::*` now exports an item `Shape` enum; disambiguate the
+// bevy_prototype_lyon `Shape` component used throughout this file in its favor.
+use bevy_prototype_lyon::prelude::Shape;
+
 pub const ID: &str = "rune";
 pub const POSITION: Vec2 = Vec2::new(-250.0, -200.0);
 

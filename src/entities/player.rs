@@ -8,6 +8,10 @@ use bevy_rapier2d::prelude::*;
 use crate::entities::*;
 use crate::libs::*;
 
+// `crate::entities::*` now exports an item `Shape` enum; disambiguate the
+// bevy_prototype_lyon `Shape` component used here in its favor.
+use bevy_prototype_lyon::prelude::Shape;
+
 #[derive(Bundle)]
 pub struct PlayerBundle {
     pub player: Player,
