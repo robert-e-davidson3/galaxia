@@ -16,9 +16,8 @@ _(nothing in flight)_
 
 Ready to pick up — no open prerequisite.
 
-- [ ] **Finish the incomplete minigame implementations.**
+- [ ] **Finish the incomplete minigame implementations.** (tree landed 2026-06-26.)
   - `src/entities/minigames/life.rs` — implement the missing item-ingestion TODO (fills a random cell); `evolve_fixed_update` is a `return;` stub; `ingest_fixed_update` is empty.
-  - `src/entities/minigames/tree.rs:7` — fix `POSITION` (currently `Vec2::ZERO`).
   - `src/entities/minigames/land.rs` — complete the terrain placement logic (stick archaea on a random water-terrain cell); `evolve` runs the sim but has no rendering step.
   - **Wiring gap:** `life`/`land` `cell_update` + `evolve_fixed_update` are NOT registered in `main.rs`, and `life` is not in the `unlocks` table (minigame.rs) so it never spawns. These minigames are dormant until wired up. Their cells render via `Sprite` (the old `Shape` query was corrected 2026-06-24); repaint after evolve via `CellBundle::turn_on/turn_off` + `Query<&mut Sprite, With<Cell>>`.
   - Both files start with `#![allow(warnings)]` — remove and clean the cascade as part of finishing them.
