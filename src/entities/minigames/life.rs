@@ -23,6 +23,10 @@ const CELL_AREA: RectangularArea = RectangularArea {
 // (not an elapsed-time check) so it survives respawn on level-up.
 const EVOLVE_TICKS: u32 = 20;
 
+// Empty cells are drawn faintly so the grid is always visible (rather than
+// invisible until life appears). Live cells override this with their texture.
+const EMPTY_CELL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.35);
+
 #[derive(Debug, Clone, Component)]
 pub struct LifeMinigame {
     pub level: u8,
@@ -210,12 +214,11 @@ impl LifeMinigame {
         }
     }
 
-    // One step of Conway's Game of Life: a live cell survives with 2-3 live
-    // neighbors; a dead cell with exactly 3 is born, inheriting a neighbor's
-    // species. No wraparound at the edges.
-    // Advance one Conway step; returns the XP earned: |births - deaths|.
-    // Balanced patterns (oscillators, still lifes, gliders) net zero and so
-    // score nothing — only genuine population change counts.
+    // Advance one Conway step; returns the XP earned: |births - deaths|. A live
+    // cell survives with 2-3 live neighbors; a dead cell with exactly 3 is born,
+    // inheriting a neighbor's species; no edge wraparound. Balanced patterns
+    // (oscillators, still lifes, gliders) net zero, so only real population
+    // change scores.
     pub fn step(&mut self) -> u32 {
         let height = self.cells.len();
         if height == 0 {
@@ -319,7 +322,10 @@ impl CellBundle {
             cell: Cell { x, y },
             toggleable: Toggleable::new(),
             sprite: Sprite {
-                custom_size: Some(CELL_AREA.into()),
+                // Slightly smaller than the cell pitch so the grid reads as
+                // distinct squares; faint so empty cells are always visible.
+                custom_size: Some(CELL_AREA.dimensions() * 0.9),
+                color: EMPTY_CELL_COLOR,
                 ..default()
             },
             transform: Transform::from_xyz(
@@ -337,8 +343,7 @@ impl CellBundle {
     ) {
         if let Ok(mut sprite) = query.get_mut(entity) {
             sprite.image = new_handle;
-            // TODO verify this means "no tint"
-            sprite.color = Color::default();
+            sprite.color = Color::WHITE; // no tint — show the texture as-is
         }
     }
 
@@ -347,7 +352,9 @@ impl CellBundle {
         query: &mut Query<&mut Sprite, With<Cell>>,
     ) {
         if let Ok(mut sprite) = query.get_mut(entity) {
-            sprite.color = Color::srgba(0.0, 0.0, 0.0, 0.0);
+            // Back to a faint empty square: drop the texture and the tint.
+            sprite.image = Handle::default();
+            sprite.color = EMPTY_CELL_COLOR;
         }
     }
 }

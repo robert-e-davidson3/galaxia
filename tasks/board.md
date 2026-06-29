@@ -36,7 +36,7 @@ Known work, not yet ready or not yet sequenced.
 - [ ] **Foundry UI** (`src/entities/minigames/foundry.rs:81-83`) — background graphics, heat-meter visualization, transmutation-timer display.
 - [ ] **Missing background visuals** — battery (`battery.rs:70`) and chest (`chest.rs:70`): draw background chest, barrels, etc.
 - [ ] **Rune feedback** (`rune.rs:350`) — visual change when the drawing is a valid rune.
-- [ ] **Verify "no tint" color handling** — the same TODO sits at `life.rs:220` and `land.rs:366`.
+- [ ] **Verify "no tint" color handling** — resolved in `life.rs` (cells use `Color::WHITE`, 2026-06-28); the same TODO still sits at `land.rs:366`.
 - [ ] **Chest goo check** (`chest.rs:131`) — re-add the commented-out goo material check.
 
 ### Systems & performance
